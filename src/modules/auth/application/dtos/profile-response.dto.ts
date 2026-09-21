@@ -1,0 +1,44 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+export class ProfileResponseDto {
+  @ApiProperty({ example: 1, description: 'User account ID' })
+  userId: number;
+
+  @ApiProperty({ example: 'John', description: 'User first name' })
+  firstName: string;
+
+  @ApiProperty({ example: 'john_doe', description: 'User unique handle' })
+  username: string;
+
+  @ApiProperty({
+    example: '+1234567890',
+    description: 'User phone number',
+    nullable: true,
+  })
+  phoneNumber?: string | null;
+
+  @ApiProperty({
+    example: '/uploads/avatars/avatar_1_1726912345.webp',
+    description: 'Processed WebP avatar URL (EXIF stripped)',
+  })
+  avatarUrl: string;
+
+  @ApiProperty({
+    example: 26,
+    description:
+      'Dynamically calculated age in years (exact DOB is kept private)',
+  })
+  age: number;
+
+  @ApiProperty({ example: 'MALE', description: 'Gender' })
+  gender: string;
+
+  @ApiProperty({ example: 12, description: 'Selected City ID', nullable: true })
+  cityId?: number | null;
+
+  @ApiProperty({
+    example: true,
+    description: 'Indicates profile completion status',
+  })
+  profileCompleted: boolean;
+}

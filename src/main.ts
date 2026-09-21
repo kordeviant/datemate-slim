@@ -5,9 +5,21 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import * as path from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve static uploads (avatars, images)
+  app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+  });
+
+  // Serve static downloads (countries, states, cities datasets)
+  app.useStaticAssets(path.join(process.cwd(), '..', 'downloads'), {
+    prefix: '/downloads/',
+  });
 
   // Global validation pipe
   app.useGlobalPipes(

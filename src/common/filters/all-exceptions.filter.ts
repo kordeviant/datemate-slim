@@ -4,6 +4,7 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
 import {
@@ -39,6 +40,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
+    }
+
+    const logger = new Logger('AllExceptionsFilter');
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      logger.error(
+        `[${status}] ${ctx.getRequest()?.method} ${ctx.getRequest()?.url}: ${message}`,
+        exception instanceof Error ? exception.stack : JSON.stringify(exception),
+      );
+    } else {
+      logger.warn(
+        `[${status}] ${ctx.getRequest()?.method} ${ctx.getRequest()?.url}: ${message}`,
+      );
     }
 
     const payload: ResponseResult<null> = {

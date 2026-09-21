@@ -10,9 +10,11 @@ import { ForgotPasswordUseCase } from './application/use-cases/forgot-password.u
 import { ResetPasswordUseCase } from './application/use-cases/reset-password.use-case';
 import { GoogleAuthUseCase } from './application/use-cases/google-auth.use-case';
 import { AppleAuthUseCase } from './application/use-cases/apple-auth.use-case';
+import { CreateProfileUseCase } from './application/use-cases/create-profile.use-case';
 import { PasswordHasherService } from './application/services/password-hasher.service';
 import { TokenService } from './application/services/token.service';
 import { AppleAuthService } from './application/services/apple-auth.service';
+import { AvatarProcessorService } from './application/services/avatar-processor.service';
 import { USER_REPOSITORY } from './domain/repositories/user.repository.interface';
 import { USER_SESSION_REPOSITORY } from './domain/repositories/user-session.repository.interface';
 import { PrismaUserRepository } from './infrastructure/repositories/prisma-user.repository';
@@ -37,6 +39,7 @@ import { PrismaUserSessionRepository } from './infrastructure/repositories/prism
     PasswordHasherService,
     TokenService,
     AppleAuthService,
+    AvatarProcessorService,
     // Use Cases
     SignUpUseCase,
     VerifyCodeUseCase,
@@ -46,6 +49,7 @@ import { PrismaUserSessionRepository } from './infrastructure/repositories/prism
     ResetPasswordUseCase,
     GoogleAuthUseCase,
     AppleAuthUseCase,
+    CreateProfileUseCase,
   ],
   exports: [USER_REPOSITORY, USER_SESSION_REPOSITORY, TokenService],
 })

@@ -170,6 +170,69 @@ erDiagram
 
 ## 3. Data Dictionary & Enums
 
+### 3.0 Profile Onboarding Rules & Constraints
+
+#### 1. Username Rules
+- **Length & Format**:
+  - Min length: 3 characters; Max length: 30 characters.
+  - Cannot contain only numbers (e.g. `123456` ❌; must include at least one letter).
+  - Cannot contain spaces.
+  - Cannot start or end with special characters (first and last characters must be alphanumeric).
+  - Cannot contain consecutive special characters (e.g., `john__`, `anna..`, `a--b`, `a._b`).
+  - Cannot contain only special characters (e.g., `!!!`).
+- **Character Restrictions**:
+  - Supported: English letters (`a-z`, `A-Z`), digits (`0-9`), single dot (`.`), underscore (`_`), hyphen (`-`).
+  - Prohibited: Emojis, zero-width/invisible characters (`\u200B-\u200D`, `\uFEFF`).
+  - Prohibited: HTML, SQL, and script characters: `<`, `>`, `'`, `"`, `;`, `{`, `}`, `--`.
+- **Identity & Impersonation Protection**:
+  - Prohibited reserved names: `admin`, `administrator`, `root`, `system`, `support`, `help`, `moderator`, `staff`, `official`, `verified`, `security`, `api`, `null`, `undefined`, `official_team`, `datemate`, `date_mate`.
+  - Prohibited status prefixes/suffixes: `_verified`, `_official`, `_admin`, `_support`, `_staff`, `verified_`, `official_`, `admin_`, `support_`.
+  - Blocked impersonation targets: `taylor_swift`, `elon_musk`, `mark_zuckerberg`, `cristiano_ronaldo`.
+- **Uniqueness**:
+  - Must be unique across all profiles (case-insensitive search).
+
+#### 2. Name Rules
+- **Length & Format**:
+  - Cannot be empty.
+  - Min length: 2 characters; Max length: 50 characters.
+  - Cannot contain only numbers.
+
+#### 3. Date of Birth (DOB) & Age Restrictions
+- **Format**: `YYYY-MM-DD` (e.g. `1998-11-25`).
+- **Validation**: Strict calendar validity (rejects impossible dates like `2026-02-30`, `2026-13-01`).
+- **Age Bounds**:
+  - Minimum age: **18 years old** (users under 18 strictly prohibited).
+  - Maximum age: **80 years old**.
+  - Future dates strictly prohibited.
+- **Privacy & Storage Policy**:
+  - Exact DOB is stored privately in `demographics.birth_date`.
+  - Public profile APIs only display dynamically computed `age` (`today - dob`).
+  - Anti-fraud rule: Once set, DOB cannot be altered without administrative support verification.
+
+#### 4. Gender Selection Rules
+- Must be strictly binary: `Male` or `Female` (mapped to `Gender.MALE`, `Gender.FEMALE`).
+- Explicitly rejected: `null`, `""`, `"Other"`, `"Unknown"`, numbers.
+
+#### 5. Profile Picture (Avatar) Pipeline
+- **File Size**:
+  - Minimum: 50 KB (prevents low-quality artifacts).
+  - Maximum: 5 MB.
+- **Image Dimensions**:
+  - Minimum: 300 x 300 pixels.
+  - Maximum: 4096 x 4096 pixels.
+- **Security & File Signature (Magic Bytes)**:
+  - Validates actual file content:
+    - JPEG: `FF D8 FF`
+    - PNG: `89 50 4E 47 0D 0A 1A 0A`
+    - WebP: `RIFF` ... `WEBP`
+  - Strict rejection of SVG, GIF, EXE, ZIP, etc.
+- **EXIF Metadata Stripping**:
+  - Automatic removal of GPS location, device model, camera info, timestamps, and comments.
+- **Optimization**:
+  - Auto-oriented, cropped/resized to 1080x1080 square, converted to WebP (`~150–300 KB`), and stored in `/uploads/avatars/`.
+
+---
+
 ### 3.1 Demographic & Lifestyle Enums (Matching Client & Figma)
 - **`Gender`**: `MALE`, `FEMALE`
 - **`RelationType`**: `FUN`, `OPEN`, `LONG`

@@ -292,6 +292,50 @@ interface ResponseResult<T> {
 
 ---
 
+### 3.2 Make / Create Profile
+- **Method**: `POST`
+- **Path**: `/users/profile`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+  - `Content-Type: multipart/form-data`
+- **Form-Data Fields**:
+  - `avatar` (File, required): Profile picture (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096).
+  - `firstName` (Text, required): User first name (2–50 characters, cannot be only numbers).
+  - `username` (Text, required): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
+  - `birthDate` (Text, required): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old).
+  - `gender` (Text, required): Must be strictly `Male` or `Female`.
+  - `phoneNumber` (Text, optional): Contact phone number.
+  - `cityId` (Number, optional): Selected city ID from region selection.
+  - `latitude` (Number, optional): Latitude coordinate (defaults to `0.0`).
+  - `longitude` (Number, optional): Longitude coordinate (defaults to `0.0`).
+
+- **Success Response (201 Created)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Operation successful",
+    "data": {
+      "userId": 1,
+      "firstName": "John",
+      "username": "john_doe",
+      "phoneNumber": "+1234567890",
+      "avatarUrl": "/uploads/avatars/avatar_1_1726912345.webp",
+      "age": 27,
+      "gender": "MALE",
+      "cityId": 12,
+      "profileCompleted": true
+    },
+    "error": null
+  }
+  ```
+
+- **Error Responses**:
+  - `400 Bad Request`: Validation failure on username format, age limits (<18 or >80), missing avatar, image dimensions, or corrupted file.
+  - `401 Unauthorized`: Missing or invalid JWT access token.
+  - `409 Conflict`: Username already in use by another user.
+
+---
+
 ## 4. System Endpoints
 
 ### 4.1 Health Check
@@ -317,3 +361,13 @@ interface ResponseResult<T> {
     "error": null
   }
   ```
+
+---
+
+### 4.3 Static Client Downloads
+Static public endpoints for client caching:
+- **`GET /downloads/countries.json`**: 250 countries formatted for the client `Country` data model (`id`, `name`, `native`, `emoji: null`).
+- **`GET /downloads/states.json`**: 5,308 states/provinces with `countryId`.
+- **`GET /downloads/cities.json`**: 152,970 cities with `stateId` and `countryId`.
+- **`GET /downloads/countries_states_cities.json`**: Full nested hierarchical tree.
+

@@ -1,20 +1,35 @@
 # DateMate Backend
 
-This is the backend service powering both:
-1. **DateMate Android User App** (`com.dmate.datemate`)
-2. **DateMate Android Admin & Support Panel** (`com.rzcode.datematepanel`)
+Scalable real-time backend service for the DateMate platform. Built with Node.js, NestJS, TypeScript, Socket.IO, PostgreSQL, Redis, and Elasticsearch following Clean Architecture, Domain-Driven Design (DDD), and Modular Monolith principles.
 
-## Documentation & Architecture
+---
 
-A complete system design and technical specification is documented in [ARCHITECTURE.md](./ARCHITECTURE.md), including:
-- High-level system architecture and network topologies.
-- Complete Entity-Relationship Model (ERD) with tables, relationships, and constraints.
-- HTTP REST API specification (endpoints, request/response models, auth).
-- Socket.IO Real-Time event protocols for both `/` (client) and `/admin` (panel) namespaces.
-- WebRTC audio/video signaling sequences.
-- Firebase Cloud Messaging (FCM) push notification architecture.
-- Zarinpal payment gateway integration workflow.
-- Security, Play Integrity, and business restrictions rules.
-- Modular NestJS / TypeScript project folder layout.
+## Documentation
 
-Refer to [ARCHITECTURE.md](./ARCHITECTURE.md) before starting implementation.
+- **[REST API Specification & Swagger](file:///home/parsa/Documents/projects/datemate/backend/docs/api/README.md)**: Endpoints, request/response examples, Swagger UI.
+- **[MVP Data Model Specification](file:///home/parsa/Documents/projects/datemate/backend/docs/data-model/README.md)**: Clean Architecture & DDD data model, ERD, and Prisma schema.
+- **[Deployment & Getting Started](file:///home/parsa/Documents/projects/datemate/backend/docs/deployment/README.md)**: Setup, running locally, and deployment instructions.
+- **[Project Resources](file:///home/parsa/Documents/projects/datemate/backend/docs/resources/README.md)**: Git repository, Figma design links, and resources.
+- **[System Design (Tinder Model)](file:///home/parsa/Documents/projects/datemate/backend/docs/system-design/FUNDUMENTAL_SYSTEM_DESIGN.md)**: High-scale feed generation, atomic swipe matching, Bloom filter deduplication.
+- **[Engineering Rules & Guidelines](file:///home/parsa/Documents/projects/datemate/backend/AGENTS.md)**: SOLID principles, Clean Architecture, and development standards.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Configure environment
+cp .env.example .env
+
+# 3. Start infrastructure services (PostgreSQL, Redis)
+docker compose up -d
+
+# 4. Run database migrations
+npx prisma migrate dev
+
+# 5. Start development server
+npm run start:dev
+```

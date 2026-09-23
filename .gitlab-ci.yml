@@ -6,6 +6,6 @@ stages:
 test:
   stage: test
   script:
-    - echo "Running tests..."
+    - echo "Running tests.."
     - npm install
     - npm test

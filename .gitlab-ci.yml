@@ -29,8 +29,6 @@ docker-build:
   image: 
     name: docker:27-cli
     entrypoint: [""]
-  services:
-    - docker:dind
   before_script:
   - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
   script:

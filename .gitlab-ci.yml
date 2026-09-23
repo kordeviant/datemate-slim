@@ -22,7 +22,7 @@ deploy:
     - |
       if [ -f "$SSH_PRIVATE_KEY" ]; then
         if grep -q "BEGIN" "$SSH_PRIVATE_KEY"; then
-          tr -d '\r' < "$SSH_PRIVATE_KEY" > /tmp/deploy_key
+          (cat "$SSH_PRIVATE_KEY"; echo "") | tr -d '\r' > /tmp/deploy_key
         else
           tr -d '\r\n ' < "$SSH_PRIVATE_KEY" | base64 -d > /tmp/deploy_key
         fi
@@ -40,7 +40,7 @@ deploy:
     - |
       ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
-        cd $DEPLOY_DIR
+        eval cd \"\$DEPLOY_DIR\"
         git fetch origin main
         git reset --hard origin/main
         npm ci

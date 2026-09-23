@@ -1,11 +1,36 @@
 image: node:latest
 
 stages:
+  - build
   - test
+  - docker-build
+
+cache:
+  paths:
+    - node_modules/
+
+build:
+  stage: build
+  script:
+    - echo "Building the project.."
+    - npm install
+    - npm run build
+    - echo "Build successfully!"
 
 test:
   stage: test
   script:
     - echo "Running tests.."
-    - npm install
     - npm test
+    - echo "Tests completed!"
+
+docker-build:
+  stage: docker-build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  - docker build --pull -t "$CI_REGISTRY_IMAGE" .
+  - docker push "$CI_REGISTRY_IMAGE"
+  - echo "Built Docker Image Successfully!"

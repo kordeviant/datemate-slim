@@ -64,6 +64,7 @@ describe('UsersController', () => {
         username: 'john_doe',
         birthDate: '1998-11-25',
         gender: 'Male',
+        language: 'EN',
       };
       const mockFile: any = { buffer: Buffer.from('img') };
       const expectedResponse: any = {
@@ -72,6 +73,7 @@ describe('UsersController', () => {
         username: 'john_doe',
         age: 27,
         gender: 'MALE',
+        language: 'en',
         profileCompleted: true,
       };
 

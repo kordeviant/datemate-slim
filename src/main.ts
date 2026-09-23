@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -14,6 +14,12 @@ async function bootstrap() {
   // Serve static uploads (avatars, images)
   app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
+  });
+
+  // Enable URI Versioning (e.g. /v1/auth/..., /v1/users/...)
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
   });
 
   // Global validation pipe

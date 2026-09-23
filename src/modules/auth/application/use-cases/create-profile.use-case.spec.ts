@@ -19,6 +19,9 @@ describe('CreateProfileUseCase', () => {
         findUnique: jest.fn(),
         upsert: jest.fn(),
       },
+      user: {
+        update: jest.fn(),
+      },
       city: {
         findUnique: jest.fn(),
       },
@@ -47,6 +50,7 @@ describe('CreateProfileUseCase', () => {
     username: 'john_doe',
     birthDate: '1998-11-25',
     gender: 'Male',
+    language: 'EN',
     phoneNumber: '+1234567890',
     cityId: 10,
     latitude: 35.6892,
@@ -132,9 +136,104 @@ describe('CreateProfileUseCase', () => {
       username: 'john_doe',
       avatarUrl: '/uploads/avatars/avatar_1_12345.webp',
       gender: 'MALE',
+      language: 'en',
       profileCompleted: true,
     });
     expect(result.age).toBeGreaterThanOrEqual(18);
     expect((result as any).birthDate).toBeUndefined(); // Exact DOB is kept private!
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { language: 'EN' },
+    });
+  });
+
+  it('should throw BadRequestException if language is missing or empty', async () => {
+    await expect(
+      useCase.execute(1, { ...validDto, language: '' }, mockAvatarFile),
+    ).rejects.toThrow('Language cannot be empty');
+  });
+
+  it('should throw BadRequestException if language is neither EN nor FA', async () => {
+    await expect(
+      useCase.execute(1, { ...validDto, language: 'FR' }, mockAvatarFile),
+    ).rejects.toThrow('Language must be either EN (English) or FA (Farsi)');
+
+    await expect(
+      useCase.execute(1, { ...validDto, language: 'de' }, mockAvatarFile),
+    ).rejects.toThrow('Language must be either EN (English) or FA (Farsi)');
+  });
+
+  it('should normalize uppercase EN to lowercase en for profile and EN for user', async () => {
+    mockPrisma.profile.findFirst.mockResolvedValue(null);
+    mockPrisma.demographic.findUnique.mockResolvedValue(null);
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: '/uploads/avatars/avatar_1.webp',
+    });
+
+    const result = await useCase.execute(
+      1,
+      { ...validDto, language: 'EN' },
+      mockAvatarFile,
+    );
+
+    expect(result.language).toBe('en');
+    expect(mockPrisma.profile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ languages: ['en'] }),
+        update: expect.objectContaining({ languages: ['en'] }),
+      }),
+    );
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { language: 'EN' },
+    });
+  });
+
+  it('should normalize lowercase fa to lowercase fa for profile and FA for user', async () => {
+    mockPrisma.profile.findFirst.mockResolvedValue(null);
+    mockPrisma.demographic.findUnique.mockResolvedValue(null);
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: '/uploads/avatars/avatar_1.webp',
+    });
+
+    const result = await useCase.execute(
+      1,
+      { ...validDto, language: 'fa' },
+      mockAvatarFile,
+    );
+
+    expect(result.language).toBe('fa');
+    expect(mockPrisma.profile.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ languages: ['fa'] }),
+        update: expect.objectContaining({ languages: ['fa'] }),
+      }),
+    );
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { language: 'FA' },
+    });
+  });
+
+  it('should accept mixed case "Fa" and "En"', async () => {
+    mockPrisma.profile.findFirst.mockResolvedValue(null);
+    mockPrisma.demographic.findUnique.mockResolvedValue(null);
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: '/uploads/avatars/avatar_1.webp',
+    });
+
+    const resultFa = await useCase.execute(
+      1,
+      { ...validDto, language: 'Fa' },
+      mockAvatarFile,
+    );
+    expect(resultFa.language).toBe('fa');
+
+    const resultEn = await useCase.execute(
+      1,
+      { ...validDto, language: 'En' },
+      mockAvatarFile,
+    );
+    expect(resultEn.language).toBe('en');
   });
 });

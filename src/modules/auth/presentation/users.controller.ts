@@ -30,7 +30,7 @@ import { CreateProfileDto } from '../application/dtos/create-profile.dto';
 import { ProfileResponseDto } from '../application/dtos/profile-response.dto';
 
 @ApiTags('Users')
-@Controller('users')
+@Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(
     @Inject(USER_REPOSITORY)

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsNotEmpty,
@@ -73,6 +73,22 @@ export class CreateProfileDto {
     message: 'Gender must be either Male or Female (Other/Unknown not permitted)',
   })
   gender: string;
+
+  @ApiProperty({
+    example: 'EN',
+    description:
+      'User language: EN (English) or FA (Farsi), case-insensitive (normalized to lowercase)',
+    enum: ['EN', 'FA', 'en', 'fa'],
+  })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toLowerCase().trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty({ message: 'Language cannot be empty' })
+  @IsIn(['en', 'fa'], {
+    message: 'Language must be either EN (English) or FA (Farsi)',
+  })
+  language: string;
 
   @ApiPropertyOptional({
     example: 12,

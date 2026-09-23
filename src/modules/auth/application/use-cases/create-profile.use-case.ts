@@ -10,7 +10,7 @@ import { ProfileResponseDto } from '../dtos/profile-response.dto';
 import { AvatarProcessorService } from '../services/avatar-processor.service';
 import { calculateAge, validateDateOfBirth } from '../validators/dob.validator';
 import { validateUsername } from '../validators/username.validator';
-import { Gender } from '@prisma/client';
+import { Gender, Language } from '@prisma/client';
 
 @Injectable()
 export class CreateProfileUseCase {
@@ -121,13 +121,25 @@ export class CreateProfileUseCase {
     const normalizedGender =
       dto.gender.toUpperCase() === 'FEMALE' ? Gender.FEMALE : Gender.MALE;
 
-    // 6. Process avatar image: magic bytes, dimensions, EXIF removal, WebP compression
+    // 6. Validate and normalize language (accept EN or FA case-insensitively, normalize to lowercase)
+    if (!dto.language || typeof dto.language !== 'string') {
+      throw new BadRequestException('Language cannot be empty');
+    }
+    const cleanLanguage = dto.language.toLowerCase().trim();
+    if (cleanLanguage !== 'en' && cleanLanguage !== 'fa') {
+      throw new BadRequestException(
+        'Language must be either EN (English) or FA (Farsi)',
+      );
+    }
+    const dbUserLanguage = cleanLanguage.toUpperCase() as Language;
+
+    // 7. Process avatar image: magic bytes, dimensions, EXIF removal, WebP compression
     const processedAvatar = await this.avatarProcessor.processAndSaveAvatar(
       avatarFile.buffer,
       userId,
     );
 
-    // 7. Persist Profile and Demographic atomically in database transaction
+    // 8. Persist Profile, Demographic, and User atomically in database transaction
     await this.prisma.$transaction(async (tx) => {
       await tx.profile.upsert({
         where: { userId },
@@ -136,6 +148,7 @@ export class CreateProfileUseCase {
           firstName: dto.firstName.trim(),
           username: cleanUsername,
           phoneNumber: dto.phoneNumber?.trim() || null,
+          languages: [cleanLanguage],
           avatarUrl: processedAvatar.relativeUrl,
           latitude: dto.latitude ?? 0.0,
           longitude: dto.longitude ?? 0.0,
@@ -144,6 +157,7 @@ export class CreateProfileUseCase {
           firstName: dto.firstName.trim(),
           username: cleanUsername,
           phoneNumber: dto.phoneNumber?.trim() || null,
+          languages: [cleanLanguage],
           avatarUrl: processedAvatar.relativeUrl,
           latitude: dto.latitude ?? 0.0,
           longitude: dto.longitude ?? 0.0,
@@ -163,12 +177,19 @@ export class CreateProfileUseCase {
           cityId: validCityId,
         },
       });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          language: dbUserLanguage,
+        },
+      });
     });
 
     const age = calculatedUserAge;
 
     this.logger.log(
-      `[Profile Created] User ${userId} successfully created profile with username "${cleanUsername}" and calculated age ${age}.`,
+      `[Profile Created] User ${userId} successfully created profile with username "${cleanUsername}", language "${cleanLanguage}", and calculated age ${age}.`,
     );
 
     return {
@@ -180,6 +201,7 @@ export class CreateProfileUseCase {
       age,
       gender: normalizedGender,
       cityId: dto.cityId || null,
+      language: cleanLanguage,
       profileCompleted: true,
     };
   }

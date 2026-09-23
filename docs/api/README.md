@@ -25,11 +25,11 @@ interface ResponseResult<T> {
 
 ---
 
-## 2. Authentication Endpoints (`/auth`)
+## 2. Authentication Endpoints (`/v1/auth`)
 
 ### 2.1 Sign Up (Initiate Registration)
 - **Method**: `POST`
-- **Path**: `/auth/signup`
+- **Path**: `/v1/auth/signup`
 - **Description**: Validates email and password, generates a 6-digit OTP code, saves pending signup in Redis (10m TTL), and sends a verification email via Nodemailer.
 - **Request Body**:
   ```json
@@ -66,7 +66,7 @@ interface ResponseResult<T> {
 
 ### 2.2 Verify Code (Complete Registration)
 - **Method**: `POST`
-- **Path**: `/auth/verify`
+- **Path**: `/v1/auth/verify`
 - **Description**: Verifies the 6-digit email OTP, creates the user record in PostgreSQL, initiates a device session with refresh token, and returns JWT access & refresh tokens.
 - **Request Body**:
   ```json
@@ -95,7 +95,7 @@ interface ResponseResult<T> {
 
 ### 2.3 Sign In (Login)
 - **Method**: `POST`
-- **Path**: `/auth/signin`
+- **Path**: `/v1/auth/signin`
 - **Description**: Authenticates email and password, checks ban status, creates a new session, and returns new tokens.
 - **Request Body**:
   ```json
@@ -127,7 +127,7 @@ interface ResponseResult<T> {
 
 ### 2.4 Refresh Token (Token Rotation)
 - **Method**: `POST`
-- **Path**: `/auth/refresh`
+- **Path**: `/v1/auth/refresh`
 - **Description**: Validates the refresh token, invalidates it immediately (single-use rotation), and issues a fresh access/refresh pair.
 - **Request Body**:
   ```json
@@ -153,7 +153,7 @@ interface ResponseResult<T> {
 
 ### 2.5 Forgot Password
 - **Method**: `POST`
-- **Path**: `/auth/forgot-password`
+- **Path**: `/v1/auth/forgot-password`
 - **Description**: Generates a 6-digit reset code in Redis (10m TTL) and sends a reset email to the user.
 - **Request Body**:
   ```json
@@ -175,7 +175,7 @@ interface ResponseResult<T> {
 
 ### 2.6 Reset Password
 - **Method**: `POST`
-- **Path**: `/auth/reset-password`
+- **Path**: `/v1/auth/reset-password`
 - **Description**: Verifies code, updates user password hash, and revokes all existing refresh sessions.
 - **Request Body**:
   ```json
@@ -199,7 +199,7 @@ interface ResponseResult<T> {
 
 ### 2.7 Google Play Integrity Nonce
 - **Method**: `POST`
-- **Path**: `/auth/nonce`
+- **Path**: `/v1/auth/nonce`
 - **Description**: Generates a cryptographically secure random nonce string for Google Play Integrity requests.
 - **Success Response (200 OK)**:
   ```json
@@ -215,7 +215,7 @@ interface ResponseResult<T> {
 
 ### 2.8 Google Sign-In
 - **Method**: `POST`
-- **Path**: `/auth/google`
+- **Path**: `/v1/auth/google`
 - **Headers**: `Authorization: Bearer <Google_Id_Token>`
 - **Request Body**:
   ```json
@@ -244,7 +244,7 @@ interface ResponseResult<T> {
 
 ### 2.9 Apple Sign-In
 - **Method**: `POST`
-- **Path**: `/auth/apple`
+- **Path**: `/v1/auth/apple`
 - **Headers**: `Authorization: Bearer <Apple_Identity_Token>` *(Optional if provided in body)*
 - **Request Body**:
   ```json
@@ -273,11 +273,11 @@ interface ResponseResult<T> {
 
 ---
 
-## 3. Users Endpoints (`/users`)
+## 3. Users Endpoints (`/v1/users`)
 
 ### 3.1 Check Profile Completion
 - **Method**: `GET`
-- **Path**: `/users/profile`
+- **Path**: `/v1/users/profile`
 - **Headers**: `Authorization: Bearer <JWT_ACCESS_TOKEN>`
 - **Description**: Checks whether the authenticated user has created a profile and uploaded an avatar.
 - **Success Response (200 OK)**:
@@ -294,7 +294,7 @@ interface ResponseResult<T> {
 
 ### 3.2 Make / Create Profile
 - **Method**: `POST`
-- **Path**: `/users/profile`
+- **Path**: `/v1/users/profile`
 - **Headers**:
   - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
   - `Content-Type: multipart/form-data`
@@ -304,6 +304,7 @@ interface ResponseResult<T> {
   - `username` (Text, required): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
   - `birthDate` (Text, required): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old).
   - `gender` (Text, required): Must be strictly `Male` or `Female`.
+  - `language` (Text, required): User language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
   - `phoneNumber` (Text, optional): Contact phone number.
   - `cityId` (Number, optional): Selected city ID from region selection.
   - `latitude` (Number, optional): Latitude coordinate (defaults to `0.0`).
@@ -323,6 +324,7 @@ interface ResponseResult<T> {
       "age": 27,
       "gender": "MALE",
       "cityId": 12,
+      "language": "en",
       "profileCompleted": true
     },
     "error": null
@@ -330,7 +332,7 @@ interface ResponseResult<T> {
   ```
 
 - **Error Responses**:
-  - `400 Bad Request`: Validation failure on username format, age limits (<18 or >80), missing avatar, image dimensions, or corrupted file.
+  - `400 Bad Request`: Validation failure on username format, invalid language (not `EN`/`FA`), age limits (<18 or >80), missing avatar, image dimensions, or corrupted file.
   - `401 Unauthorized`: Missing or invalid JWT access token.
   - `409 Conflict`: Username already in use by another user.
 
@@ -340,7 +342,8 @@ interface ResponseResult<T> {
 
 ### 4.1 Health Check
 - **Method**: `GET`
-- **Path**: `/`
+- **Path**: `/health`, `/v1/health`, or `/`
+- **Description**: Basic healthcheck endpoint for client and infrastructure connectivity testing.
 - **Success Response (200 OK)**:
   ```json
   {
@@ -350,7 +353,7 @@ interface ResponseResult<T> {
 
 ### 4.2 Authoritative Server Time
 - **Method**: `GET`
-- **Path**: `/time`
+- **Path**: `/v1/time` or `/time`
 - **Description**: Returns server epoch time in milliseconds for mobile clock synchronization.
 - **Success Response (200 OK)**:
   ```json

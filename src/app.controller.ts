@@ -1,9 +1,17 @@
-import { Controller, Get, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Version,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @ApiTags('System')
 @Controller()
 export class AppController {
+  @Version([VERSION_NEUTRAL, '1'])
   @Get(['', 'health'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -23,6 +31,7 @@ export class AppController {
     return { status: 'ok' };
   }
 
+  @Version([VERSION_NEUTRAL, '1'])
   @Get('time')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

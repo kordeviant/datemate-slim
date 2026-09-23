@@ -35,7 +35,7 @@ import { AuthValidateResultModel } from '../application/dtos/auth-response.dto';
 import * as crypto from 'crypto';
 
 @ApiTags('Authentication')
-@Controller('auth')
+@Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(
     private readonly signUpUseCase: SignUpUseCase,

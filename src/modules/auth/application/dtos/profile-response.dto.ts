@@ -37,6 +37,12 @@ export class ProfileResponseDto {
   cityId?: number | null;
 
   @ApiProperty({
+    example: 'en',
+    description: 'Normalized user language (en or fa)',
+  })
+  language: string;
+
+  @ApiProperty({
     example: true,
     description: 'Indicates profile completion status',
   })

@@ -13,17 +13,16 @@ test:
 
 deploy:
   stage: deploy
-  image: debian:bookworm-slim
+  image: alpine:latest
   only:
     - main
   before_script:
-    - apt-get update && apt-get install -y openssh-client
+    - apk add --no-cache openssh-client bash
     - eval $(ssh-agent -s)
+    - chmod 600 "$SSH_PRIVATE_KEY"
+    - ssh-add "$SSH_PRIVATE_KEY"
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
-    - chmod 600 ~/.ssh/id_deploy
-    - ssh-add ~/.ssh/id_deploy
     - ssh-keyscan -p ${SSH_PORT:-22} -H "$SERVER_IP" >> ~/.ssh/known_hosts
   script:
     - |

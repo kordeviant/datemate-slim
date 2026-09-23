@@ -362,12 +362,4 @@ interface ResponseResult<T> {
   }
   ```
 
----
-
-### 4.3 Static Client Downloads
-Static public endpoints for client caching:
-- **`GET /downloads/countries.json`**: 250 countries formatted for the client `Country` data model (`id`, `name`, `native`, `emoji: null`).
-- **`GET /downloads/states.json`**: 5,308 states/provinces with `countryId`.
-- **`GET /downloads/cities.json`**: 152,970 cities with `stateId` and `countryId`.
-- **`GET /downloads/countries_states_cities.json`**: Full nested hierarchical tree.
 

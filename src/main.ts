@@ -16,11 +16,6 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
-  // Serve static downloads (countries, states, cities datasets)
-  app.useStaticAssets(path.join(process.cwd(), '..', 'downloads'), {
-    prefix: '/downloads/',
-  });
-
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({

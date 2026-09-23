@@ -1,36 +1,45 @@
-image: node:latest
+image: node:20-alpine
 
 stages:
-  - build
   - test
-  - docker-build
-
-cache:
-  paths:
-    - node_modules/
-
-build:
-  stage: build
-  script:
-    - echo "Building the project.."
-    - npm install
-    - npm run build
-    - echo "Build successfully!"
+  - deploy
 
 test:
   stage: test
   script:
-    - echo "Running tests.."
+    - npm ci
+    - npx prisma generate
     - npm test
-    - echo "Tests completed!"
 
-docker-build:
-  stage: docker-build
-  image: 
-    name: docker:27-cli
-    entrypoint: [""]
+deploy:
+  stage: deploy
+  image: alpine:latest
+  only:
+    - main
   before_script:
-  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - apk add --no-cache openssh-client bash
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
   script:
-  - docker compose up -d
-  - echo "Built Docker Image Successfully!"
+    - |
+      ssh $SERVER_USER@$SERVER_IP "
+        set -e
+        cd $DEPLOY_DIR
+        echo 'Pulling latest code...'
+        git fetch origin main
+        git reset --hard origin/main
+        echo 'Installing dependencies...'
+        npm ci
+        echo 'Running database migrations...'
+        npx prisma migrate deploy
+        npx prisma generate
+        echo 'Building application...'
+        npm run build
+        echo 'Reloading application with zero downtime...'
+        pm2 reload datemate-backend || pm2 start dist/main.js --name 'datemate-backend'
+        pm2 save
+        echo 'Deployment complete!'
+      "

@@ -38,9 +38,10 @@ deploy:
     - ssh-keygen -y -f /tmp/deploy_key >/dev/null
   script:
     - |
+      TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
       ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
-        eval cd \"\$DEPLOY_DIR\"
+        cd $TARGET_DIR
         git fetch origin main
         git reset --hard origin/main
         npm ci

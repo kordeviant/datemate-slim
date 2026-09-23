@@ -19,27 +19,24 @@ deploy:
   before_script:
     - apk add --no-cache openssh-client bash
     - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
+    # Write private key with a guaranteed trailing newline
+    - printf "%s\n" "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+    - chmod 600 ~/.ssh/id_deploy
+    - ssh-add ~/.ssh/id_deploy
+    - ssh-keyscan -p ${SSH_PORT:-22} -H "$SERVER_IP" >> ~/.ssh/known_hosts
   script:
     - |
-      ssh $SERVER_USER@$SERVER_IP "
+      ssh -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
         cd $DEPLOY_DIR
-        echo 'Pulling latest code...'
         git fetch origin main
         git reset --hard origin/main
-        echo 'Installing dependencies...'
         npm ci
-        echo 'Running database migrations...'
         npx prisma migrate deploy
         npx prisma generate
-        echo 'Building application...'
         npm run build
-        echo 'Reloading application with zero downtime...'
         pm2 reload datemate-backend || pm2 start dist/main.js --name 'datemate-backend'
         pm2 save
-        echo 'Deployment complete!'
       "

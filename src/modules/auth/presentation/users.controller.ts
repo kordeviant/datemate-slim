@@ -8,6 +8,7 @@ import {
   Inject,
   Put,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -19,7 +20,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from "@nestjs/swagger";
-import { FileInterceptor } from "@nestjs/platform-express";
+import { FileFieldsInterceptor, FileInterceptor } from "@nestjs/platform-express";
 import {
   IUserRepository,
   USER_REPOSITORY,
@@ -77,16 +78,21 @@ export class UsersController {
   @Put("profile")
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth("JWT-auth")
-  @UseInterceptors(FileInterceptor("avatar"))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: "avatar", maxCount: 1 },
+      { name: "selfie", maxCount: 1 },
+    ]),
+  )
   @ApiConsumes("multipart/form-data")
   @ApiOperation({
     summary: "Update user profile (step-by-step onboarding & edit profile)",
     description:
-      "Updates profile step-by-step during onboarding or edit profile. Supports partial updates for username, name, date of birth, gender, language, avatar, bio, city, coordinates, etc. profileCompleted remains false until all questions and onboarding steps are completed.",
+      "Updates profile step-by-step during onboarding or edit profile. Supports partial updates for username, name, date of birth, gender, language, avatar, selfie, height, languages, educations, job, relation status, kind of relationship, bio, city, coordinates, etc. profileCompleted remains false until all questions and onboarding steps are completed.",
   })
   @ApiBody({
     description:
-      "User profile update information and optional avatar image file",
+      "User profile update information and optional avatar or selfie verification image files",
     type: UpdateProfileDto,
   })
   @ApiResponse({
@@ -110,7 +116,13 @@ export class UsersController {
   async updateProfile(
     @Headers("authorization") authHeader: string,
     @Body() dto: UpdateProfileDto,
-    @UploadedFile() avatar?: Express.Multer.File,
+    @UploadedFiles()
+    files?:
+      | {
+          avatar?: Express.Multer.File[];
+          selfie?: Express.Multer.File[];
+        }
+      | Express.Multer.File,
   ): Promise<ProfileResponseDto> {
     if (!authHeader) {
       throw new UnauthorizedException("Missing Authorization header");
@@ -118,7 +130,28 @@ export class UsersController {
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const decoded = this.tokenService.verifyAccessToken(token);
 
-    return this.updateProfileUseCase.execute(decoded.sub, dto, avatar);
+    let avatarFile: Express.Multer.File | undefined;
+    let selfieFile: Express.Multer.File | undefined;
+
+    if (files) {
+      if ((files as any).buffer) {
+        avatarFile = files as Express.Multer.File;
+      } else {
+        const fileMap = files as {
+          avatar?: Express.Multer.File[];
+          selfie?: Express.Multer.File[];
+        };
+        avatarFile = fileMap.avatar?.[0];
+        selfieFile = fileMap.selfie?.[0];
+      }
+    }
+
+    return this.updateProfileUseCase.execute(
+      decoded.sub,
+      dto,
+      avatarFile,
+      selfieFile,
+    );
   }
 
   /**
@@ -128,7 +161,12 @@ export class UsersController {
     authHeader: string,
     dto: UpdateProfileDto,
     avatar?: Express.Multer.File,
+    selfie?: Express.Multer.File,
   ): Promise<ProfileResponseDto> {
-    return this.updateProfile(authHeader, dto, avatar);
+    return this.updateProfile(
+      authHeader,
+      dto,
+      avatar && selfie ? { avatar: [avatar], selfie: [selfie] } : avatar,
+    );
   }
 }

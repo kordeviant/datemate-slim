@@ -75,11 +75,13 @@ export class AvatarProcessorService {
   }
 
   /**
-   * Validates size, magic bytes, dimensions, strips EXIF metadata, resizes, and converts to WebP.
+   * General image processor: validates size, magic bytes, dimensions, strips EXIF metadata, resizes, and converts to WebP.
    */
-  async processAndSaveAvatar(
+  async processAndSaveImage(
     fileBuffer: Buffer,
     userId: number,
+    prefix: string = 'avatar',
+    folder: string = 'avatars',
   ): Promise<ProcessedAvatarResult> {
     // 1. File size check
     if (fileBuffer.length < this.minSizeBytes) {
@@ -143,19 +145,19 @@ export class AvatarProcessorService {
       .toBuffer();
 
     // 5. Ensure upload directory exists
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'avatars');
+    const uploadsDir = path.join(process.cwd(), 'uploads', folder);
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    const filename = `avatar_${userId}_${Date.now()}.webp`;
+    const filename = `${prefix}_${userId}_${Date.now()}.webp`;
     const fullPath = path.join(uploadsDir, filename);
     await fs.promises.writeFile(fullPath, processedBuffer);
 
-    const relativeUrl = `/uploads/avatars/${filename}`;
+    const relativeUrl = `/uploads/${folder}/${filename}`;
 
     this.logger.log(
-      `[Avatar Upload] User ${userId}: Processed from ${fileBuffer.length} bytes -> ${processedBuffer.length} bytes WebP at ${relativeUrl}`,
+      `[${prefix.toUpperCase()} Upload] User ${userId}: Processed from ${fileBuffer.length} bytes -> ${processedBuffer.length} bytes WebP at ${relativeUrl}`,
     );
 
     return {
@@ -166,5 +168,19 @@ export class AvatarProcessorService {
       format: 'webp',
       sizeBytes: processedBuffer.length,
     };
+  }
+
+  async processAndSaveAvatar(
+    fileBuffer: Buffer,
+    userId: number,
+  ): Promise<ProcessedAvatarResult> {
+    return this.processAndSaveImage(fileBuffer, userId, 'avatar', 'avatars');
+  }
+
+  async processAndSaveSelfie(
+    fileBuffer: Buffer,
+    userId: number,
+  ): Promise<ProcessedAvatarResult> {
+    return this.processAndSaveImage(fileBuffer, userId, 'selfie', 'selfies');
   }
 }

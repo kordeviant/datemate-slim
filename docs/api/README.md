@@ -298,19 +298,35 @@ interface ResponseResult<T> {
 - **Headers**:
   - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
   - `Content-Type: multipart/form-data`
-- **Form-Data Fields (all fields optional to support incremental step-by-step onboarding and profile editing)**:
+- **Form-Data Fields (all fields optional to support incremental step-by-step onboarding and profile editing; unprovided existing fields remain intact)**:
   - `avatar` (File, optional): Profile picture (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096).
+  - `selfie` (File, optional): Selfie photo for identity verification (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300).
   - `firstName` (Text, optional): User first name (2–50 characters, cannot be only numbers).
   - `username` (Text, optional): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
   - `birthDate` (Text, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old; locked against modification after initial setup without support verification).
   - `age` (Number, optional): User age in years (alternative fallback if client sends age directly).
   - `gender` (Text, optional): Must be strictly `Male` or `Female`.
-  - `language` (Text, optional): User language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
+  - `height` (Number, optional): User height in cm (e.g. `175`).
+  - `languages` (Array or Comma-separated Text or JSON string, optional): Spoken languages (e.g. `["فارسی", "English"]` or `"فارسی, English"`).
+  - `educations` / `education` / `degree` (Text, optional): Education status (`HIGH_SCHOOL_DIPLOMA`, `SOME_COLLEGE`, `ASSOCIATE_DEGREE`, `BACHELOR_DEGREE`, `MASTER_DEGREE`, `DOCTORATE`, `RATHER_NOT_SAY` or natural labels like `"PhD"`, `"Masters"`).
+  - `job` / `profession` (Text, optional): User job / profession (e.g. `"Software Engineer"`).
+  - `relationStatus` / `relation_status` (Text, optional): Current relationship status (`SINGLE`, `IN_A_RELATIONSHIP`, `MARRIED`, `DIVORCED`, `WIDOWED`, `OPEN_RELATIONSHIP`, `COMPLICATED`, `RATHER_NOT_SAY` or labels like `"Single"`, `"Hooking up with someone"`).
+  - `kindOfRelationship` / `relation` (Text, optional): Kind of relationship looking for (`FUN`, `OPEN`, `LONG` or labels like `"Fun and Dating"`, `"Open"`, `"Long term"`).
+  - `language` (Text, optional): App interface language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
   - `phoneNumber` (Text, optional): Contact phone number.
   - `bio` (Text, optional): User biography / description.
   - `cityId` (Number, optional): Selected city ID from region selection.
   - `latitude` (Number, optional): Latitude coordinate (defaults to `0.0`).
   - `longitude` (Number, optional): Longitude coordinate (defaults to `0.0`).
+
+- **Incremental Update Invariant ("Don't touch what already exists")**:
+  - When updating step-by-step, any attribute not included in the request retains its existing value in the database.
+  - `profileCompleted` remains `false` until **all** onboarding requirements are met:
+    1. Basic profile & avatar: `firstName`, `username`, `avatarUrl`
+    2. Selfie verification: `selfieUrl`
+    3. User attributes: `birthDate`, `gender`, `height`, `languages` (non-empty list), `degree`, `profession`, `relationStatus`
+    4. Relationship preference: `relation` (kind of relationship)
+    5. Questions: All questions answered (if questions are configured in the system).
 
 - **Success Response (200 OK)**:
   ```json
@@ -324,8 +340,15 @@ interface ResponseResult<T> {
       "phoneNumber": "+1234567890",
       "bio": "Software engineer living in Tehran.",
       "avatarUrl": "/uploads/avatars/avatar_1_1726912345.webp",
+      "selfieUrl": "/uploads/selfies/selfie_1_1726912345.webp",
       "age": 27,
       "gender": "MALE",
+      "height": 178,
+      "languages": ["فارسی", "English"],
+      "degree": "DOCTORATE",
+      "profession": "Software Engineer",
+      "relationStatus": "SINGLE",
+      "relation": "FUN",
       "cityId": 12,
       "language": "en",
       "profileCompleted": false

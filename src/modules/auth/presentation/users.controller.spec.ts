@@ -95,9 +95,42 @@ describe("UsersController", () => {
         1,
         dto,
         mockFile,
+        undefined,
       );
       expect(res).toEqual(expectedResponse);
       expect(res.profileCompleted).toBe(false);
+    });
+
+    it("should accept both avatar and selfie files and pass to use case", async () => {
+      const dto = {
+        firstName: "John",
+        height: 180,
+      };
+      const avatarFile: any = { buffer: Buffer.from("avatar_buf") };
+      const selfieFile: any = { buffer: Buffer.from("selfie_buf") };
+      const expectedResponse: any = {
+        userId: 1,
+        firstName: "John",
+        avatarUrl: "/uploads/avatars/avatar_1.webp",
+        selfieUrl: "/uploads/selfies/selfie_1.webp",
+        profileCompleted: false,
+      };
+
+      mockUpdateProfileUseCase.execute.mockResolvedValue(expectedResponse);
+
+      const res = await controller.updateProfile(
+        "Bearer token123",
+        dto as any,
+        { avatar: [avatarFile], selfie: [selfieFile] } as any,
+      );
+
+      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
+        1,
+        dto,
+        avatarFile,
+        selfieFile,
+      );
+      expect(res).toEqual(expectedResponse);
     });
 
     it("should support backwards-compatible createProfile alias method", async () => {

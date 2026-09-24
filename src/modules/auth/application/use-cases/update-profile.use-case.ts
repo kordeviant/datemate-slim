@@ -4,14 +4,20 @@ import {
   Injectable,
   Logger,
   UnauthorizedException,
-} from "@nestjs/common";
-import { PrismaService } from "../../../../infrastructure/database/prisma.service";
-import { UpdateProfileDto } from "../dtos/update-profile.dto";
-import { ProfileResponseDto } from "../dtos/profile-response.dto";
-import { AvatarProcessorService } from "../services/avatar-processor.service";
-import { calculateAge, validateDateOfBirth } from "../validators/dob.validator";
-import { validateUsername } from "../validators/username.validator";
-import { Gender, Language } from "@prisma/client";
+} from '@nestjs/common';
+import { PrismaService } from '../../../../infrastructure/database/prisma.service';
+import { UpdateProfileDto } from '../dtos/update-profile.dto';
+import { ProfileResponseDto } from '../dtos/profile-response.dto';
+import { AvatarProcessorService } from '../services/avatar-processor.service';
+import { calculateAge, validateDateOfBirth } from '../validators/dob.validator';
+import { validateUsername } from '../validators/username.validator';
+import {
+  normalizeEducation,
+  normalizeLanguages,
+  normalizeRelationshipStatus,
+  normalizeRelationType,
+} from '../validators/profile-attributes.validator';
+import { EducationStatus, Gender, Language, RelationshipStatus, RelationType } from '@prisma/client';
 
 @Injectable()
 export class UpdateProfileUseCase {
@@ -26,13 +32,14 @@ export class UpdateProfileUseCase {
     userId: number,
     dto: UpdateProfileDto,
     avatarFile?: Express.Multer.File,
+    selfieFile?: Express.Multer.File,
   ): Promise<ProfileResponseDto> {
     // 1. Verify user exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
     if (!user) {
-      throw new UnauthorizedException("User account not found");
+      throw new UnauthorizedException('User account not found');
     }
 
     // 2. Fetch existing records for incremental / step-by-step update
@@ -42,9 +49,12 @@ export class UpdateProfileUseCase {
     const existingDemographic = await this.prisma.demographic.findUnique({
       where: { userId },
     });
+    const existingPreferences = await this.prisma.preferences.findUnique({
+      where: { userId },
+    });
 
     // 3. Process avatar if uploaded
-    let avatarUrl = existingProfile?.avatarUrl || "";
+    let avatarUrl = existingProfile?.avatarUrl || '';
     if (avatarFile && avatarFile.buffer) {
       const processedAvatar = await this.avatarProcessor.processAndSaveAvatar(
         avatarFile.buffer,
@@ -53,7 +63,23 @@ export class UpdateProfileUseCase {
       avatarUrl = processedAvatar.relativeUrl;
     }
 
-    // 4. Validate and update username if provided
+    // 4. Process selfie if uploaded
+    let selfieUrl: string | null = existingProfile?.selfieUrl || null;
+    if (selfieFile && selfieFile.buffer) {
+      const processedSelfie = await this.avatarProcessor.processAndSaveSelfie(
+        selfieFile.buffer,
+        userId,
+      );
+      selfieUrl = processedSelfie.relativeUrl;
+    }
+
+    // 5. First name
+    let cleanFirstName: string = existingProfile?.firstName || '';
+    if (dto.firstName !== undefined && dto.firstName !== null) {
+      cleanFirstName = dto.firstName.trim();
+    }
+
+    // 6. Validate and update username if provided
     let cleanUsername: string | null = existingProfile?.username || null;
     if (dto.username !== undefined && dto.username !== null) {
       const usernameValidation = validateUsername(dto.username);
@@ -65,7 +91,7 @@ export class UpdateProfileUseCase {
         where: {
           username: {
             equals: candidateUsername,
-            mode: "insensitive",
+            mode: 'insensitive',
           },
         },
       });
@@ -78,13 +104,7 @@ export class UpdateProfileUseCase {
       cleanUsername = candidateUsername;
     }
 
-    // 5. First name
-    let cleanFirstName: string = existingProfile?.firstName || "";
-    if (dto.firstName !== undefined && dto.firstName !== null) {
-      cleanFirstName = dto.firstName.trim();
-    }
-
-    // 6. Validate Date of Birth / Age
+    // 7. Validate Date of Birth / Age
     let parsedBirthDate: Date | null = existingDemographic?.birthDate || null;
     let calculatedUserAge: number | null = parsedBirthDate
       ? calculateAge(parsedBirthDate)
@@ -105,7 +125,7 @@ export class UpdateProfileUseCase {
         const newDobString = newBirthDate.toISOString().slice(0, 10);
         if (existingDobString !== newDobString) {
           throw new BadRequestException(
-            "Date of birth cannot be changed after initial setup without support verification.",
+            'Date of birth cannot be changed after initial setup without support verification.',
           );
         }
       }
@@ -128,7 +148,7 @@ export class UpdateProfileUseCase {
         const newDobString = newBirthDate.toISOString().slice(0, 10);
         if (existingDobString !== newDobString) {
           throw new BadRequestException(
-            "Date of birth cannot be changed after initial setup without support verification.",
+            'Date of birth cannot be changed after initial setup without support verification.',
           );
         }
       }
@@ -136,7 +156,7 @@ export class UpdateProfileUseCase {
       calculatedUserAge = ageNum;
     }
 
-    // 7. City ID
+    // 8. City ID
     let validCityId: number | null = existingDemographic?.cityId ?? null;
     if (dto.cityId !== undefined && dto.cityId !== null) {
       const cityNum = Number(dto.cityId);
@@ -158,43 +178,100 @@ export class UpdateProfileUseCase {
       }
     }
 
-    // 8. Gender
+    // 9. Gender
     let normalizedGender: Gender | null = existingDemographic?.gender ?? null;
     if (dto.gender) {
       normalizedGender =
-        dto.gender.toUpperCase() === "FEMALE" ? Gender.FEMALE : Gender.MALE;
+        dto.gender.toUpperCase() === 'FEMALE' ? Gender.FEMALE : Gender.MALE;
     }
 
-    // 9. Language
+    // 10. Language (app language)
     let cleanLanguage: string =
-      (existingProfile?.languages as string[])?.[0] ||
-      (user.language ? user.language.toLowerCase() : "en");
+      (user.language ? user.language.toLowerCase() : 'en');
     let dbUserLanguage: Language | null = null;
 
     if (dto.language !== undefined && dto.language !== null) {
-      if (typeof dto.language !== "string" || !dto.language.trim()) {
-        throw new BadRequestException("Language cannot be empty");
+      if (typeof dto.language !== 'string' || !dto.language.trim()) {
+        throw new BadRequestException('Language cannot be empty');
       }
       const candidateLang = dto.language.toLowerCase().trim();
-      if (candidateLang !== "en" && candidateLang !== "fa") {
+      if (candidateLang !== 'en' && candidateLang !== 'fa') {
         throw new BadRequestException(
-          "Language must be either EN (English) or FA (Farsi)",
+          'Language must be either EN (English) or FA (Farsi)',
         );
       }
       cleanLanguage = candidateLang;
       dbUserLanguage = candidateLang.toUpperCase() as Language;
     }
 
-    // 10. Phone number, bio, coordinates
+    // 11. Spoken Languages list
+    let cleanLanguages: string[] | null =
+      (existingProfile?.languages as string[]) || null;
+    const passedLanguages = normalizeLanguages(dto.languages);
+    if (passedLanguages !== undefined) {
+      cleanLanguages = passedLanguages;
+    }
+
+    // 12. Height
+    let cleanHeight: number | null = existingDemographic?.height ?? null;
+    if (dto.height !== undefined && dto.height !== null) {
+      const h = Number(dto.height);
+      if (!isNaN(h) && h > 0) {
+        cleanHeight = h;
+      }
+    }
+
+    // 13. Education / Degree
+    let cleanDegree: EducationStatus | null =
+      existingDemographic?.degree ?? null;
+    const rawEducation = dto.education ?? dto.educations ?? dto.degree;
+    if (rawEducation !== undefined && rawEducation !== null) {
+      const normalized = normalizeEducation(rawEducation);
+      if (normalized) {
+        cleanDegree = normalized;
+      }
+    }
+
+    // 14. Job / Profession
+    let cleanProfession: string | null =
+      existingDemographic?.profession ?? null;
+    const rawJob = dto.job ?? dto.profession;
+    if (rawJob !== undefined && rawJob !== null) {
+      cleanProfession = rawJob.trim() ? rawJob.trim() : null;
+    }
+
+    // 15. Relation Status
+    let cleanRelationStatus: RelationshipStatus | null =
+      existingDemographic?.relationStatus ?? null;
+    const rawRelStatus = dto.relationStatus ?? dto.relation_status;
+    if (rawRelStatus !== undefined && rawRelStatus !== null) {
+      const normalized = normalizeRelationshipStatus(rawRelStatus);
+      if (normalized) {
+        cleanRelationStatus = normalized;
+      }
+    }
+
+    // 16. Kind of Relationship (Preferences)
+    let cleanRelationType: RelationType | null =
+      existingPreferences?.relation ?? null;
+    const rawRelType = dto.kindOfRelationship ?? dto.relation;
+    if (rawRelType !== undefined && rawRelType !== null) {
+      const normalized = normalizeRelationType(rawRelType);
+      if (normalized) {
+        cleanRelationType = normalized;
+      }
+    }
+
+    // 17. Phone number, bio, coordinates
     const cleanPhoneNumber =
       dto.phoneNumber !== undefined
         ? dto.phoneNumber?.trim() || null
-        : (existingProfile?.phoneNumber ?? null);
+        : existingProfile?.phoneNumber ?? null;
 
     const cleanBio =
       dto.bio !== undefined
         ? dto.bio?.trim() || null
-        : (existingProfile?.bio ?? null);
+        : existingProfile?.bio ?? null;
 
     const cleanLatitude =
       dto.latitude !== undefined
@@ -210,8 +287,9 @@ export class UpdateProfileUseCase {
           ? Number(existingProfile.longitude)
           : 0.0;
 
-    // 11. Transaction: atomic update of profile, demographic, user
+    // 18. Database Transaction: atomic updates to Profile, Demographic, Preferences, User
     await this.prisma.$transaction(async (tx) => {
+      // 1. Profile upsert
       await tx.profile.upsert({
         where: { userId },
         create: {
@@ -220,8 +298,9 @@ export class UpdateProfileUseCase {
           username: cleanUsername,
           phoneNumber: cleanPhoneNumber,
           bio: cleanBio,
-          languages: [cleanLanguage],
+          languages: cleanLanguages ? cleanLanguages : [cleanLanguage],
           avatarUrl,
+          selfieUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
         },
@@ -230,13 +309,15 @@ export class UpdateProfileUseCase {
           username: cleanUsername,
           phoneNumber: cleanPhoneNumber,
           bio: cleanBio,
-          languages: [cleanLanguage],
+          languages: cleanLanguages ? cleanLanguages : [cleanLanguage],
           avatarUrl,
+          selfieUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
         },
       });
 
+      // 2. Demographic handling
       if (existingDemographic) {
         await tx.demographic.update({
           where: { userId },
@@ -244,6 +325,10 @@ export class UpdateProfileUseCase {
             ...(normalizedGender ? { gender: normalizedGender } : {}),
             ...(parsedBirthDate ? { birthDate: parsedBirthDate } : {}),
             ...(dto.cityId !== undefined ? { cityId: validCityId } : {}),
+            ...(cleanHeight !== null ? { height: cleanHeight } : {}),
+            ...(cleanDegree ? { degree: cleanDegree } : {}),
+            ...(cleanProfession !== null ? { profession: cleanProfession } : {}),
+            ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
           },
         });
       } else if (parsedBirthDate && normalizedGender) {
@@ -254,15 +339,38 @@ export class UpdateProfileUseCase {
             birthDate: parsedBirthDate,
             gender: normalizedGender,
             cityId: validCityId,
+            height: cleanHeight,
+            degree: cleanDegree,
+            profession: cleanProfession,
+            relationStatus: cleanRelationStatus,
           },
           update: {
             gender: normalizedGender,
             birthDate: parsedBirthDate,
             cityId: validCityId,
+            ...(cleanHeight !== null ? { height: cleanHeight } : {}),
+            ...(cleanDegree ? { degree: cleanDegree } : {}),
+            ...(cleanProfession !== null ? { profession: cleanProfession } : {}),
+            ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
           },
         });
       }
 
+      // 3. Preferences handling (kind of relationship)
+      if (cleanRelationType) {
+        await tx.preferences.upsert({
+          where: { userId },
+          create: {
+            userId,
+            relation: cleanRelationType,
+          },
+          update: {
+            relation: cleanRelationType,
+          },
+        });
+      }
+
+      // 4. User app language update if specified
       if (dbUserLanguage) {
         await tx.user.update({
           where: { id: userId },
@@ -273,26 +381,48 @@ export class UpdateProfileUseCase {
       }
     });
 
-    // 12. Check profile completion status:
-    // Profile is only complete when all basic onboarding profile fields AND all questions are completed.
-    // If questions or steps are not yet completed, return false.
-    let profileCompleted = false;
+    // 19. Check profile completion status:
+    // Profile is only complete when all required onboarding steps are completed:
+    // - Basic profile: firstName, username, avatarUrl, selfieUrl, languages (non-empty)
+    // - Demographics: birthDate, gender, height, degree, profession, relationStatus
+    // - Preferences: relation (kind of relationship)
+    // - Questions: answered all questions if questions exist in DB
+    const hasBasicProfile = !!(
+      cleanFirstName &&
+      cleanUsername &&
+      avatarUrl &&
+      selfieUrl &&
+      cleanLanguages &&
+      Array.isArray(cleanLanguages) &&
+      cleanLanguages.length > 0
+    );
+
+    const hasDemographics = !!(
+      parsedBirthDate &&
+      normalizedGender &&
+      cleanHeight !== null &&
+      cleanHeight !== undefined &&
+      cleanDegree &&
+      cleanProfession &&
+      cleanRelationStatus
+    );
+
+    const hasPreferences = !!cleanRelationType;
+
+    let hasAnsweredAllQuestions = true;
     const questionsCount = await this.prisma.question.count();
     if (questionsCount > 0) {
       const answeredCount = await this.prisma.userQuestionAnswer.count({
         where: { userId },
       });
-      const hasBasicProfile = !!(
-        cleanFirstName &&
-        cleanUsername &&
-        avatarUrl &&
-        parsedBirthDate &&
-        normalizedGender
-      );
-      if (hasBasicProfile && answeredCount >= questionsCount) {
-        profileCompleted = true;
-      }
+      hasAnsweredAllQuestions = answeredCount >= questionsCount;
     }
+
+    const profileCompleted =
+      hasBasicProfile &&
+      hasDemographics &&
+      hasPreferences &&
+      hasAnsweredAllQuestions;
 
     this.logger.log(
       `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
@@ -301,12 +431,19 @@ export class UpdateProfileUseCase {
     return {
       userId,
       firstName: cleanFirstName,
-      username: cleanUsername ?? "",
+      username: cleanUsername ?? '',
       phoneNumber: cleanPhoneNumber,
       bio: cleanBio,
       avatarUrl,
+      selfieUrl,
       age: calculatedUserAge,
       gender: normalizedGender,
+      height: cleanHeight,
+      languages: cleanLanguages,
+      degree: cleanDegree,
+      profession: cleanProfession,
+      relationStatus: cleanRelationStatus,
+      relation: cleanRelationType,
       cityId: validCityId,
       language: cleanLanguage,
       profileCompleted,

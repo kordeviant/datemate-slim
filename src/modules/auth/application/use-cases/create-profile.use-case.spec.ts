@@ -30,6 +30,10 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         update: jest.fn().mockResolvedValue({}),
         create: jest.fn().mockResolvedValue({}),
       },
+      preferences: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
       city: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
@@ -48,6 +52,14 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       processAndSaveAvatar: jest.fn().mockResolvedValue({
         relativeUrl: "/uploads/avatars/avatar_1.webp",
         filePath: "/path/to/avatar.webp",
+        width: 1080,
+        height: 1080,
+        format: "webp",
+        sizeBytes: 100000,
+      }),
+      processAndSaveSelfie: jest.fn().mockResolvedValue({
+        relativeUrl: "/uploads/selfies/selfie_1.webp",
+        filePath: "/path/to/selfie.webp",
         width: 1080,
         height: 1080,
         format: "webp",
@@ -214,26 +226,172 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect((result as any).birthDate).toBeUndefined(); // Exact DOB remains private
   });
 
+  const completeDto = {
+    ...validDto,
+    height: 178,
+    languages: ["en", "fa"],
+    education: "PhD",
+    job: "Software Engineer",
+    relationStatus: "Single",
+    kindOfRelationship: "Fun and Dating",
+  };
+
+  const mockSelfieFile: any = {
+    buffer: Buffer.from("fake_selfie_buffer"),
+  };
+
   it("should return profileCompleted as true only when all questions and steps are answered", async () => {
     mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
       relativeUrl: "/uploads/avatars/avatar_1.webp",
     });
+    mockAvatarProcessor.processAndSaveSelfie.mockResolvedValue({
+      relativeUrl: "/uploads/selfies/selfie_1.webp",
+    });
     mockPrisma.question.count.mockResolvedValue(5);
     mockPrisma.userQuestionAnswer.count.mockResolvedValue(5);
 
-    const result = await useCase.execute(1, validDto, mockAvatarFile);
+    const result = await useCase.execute(
+      1,
+      completeDto,
+      mockAvatarFile,
+      mockSelfieFile,
+    );
     expect(result.profileCompleted).toBe(true);
+    expect(result.selfieUrl).toBe("/uploads/selfies/selfie_1.webp");
+    expect(result.height).toBe(178);
+    expect(result.degree).toBe("DOCTORATE");
+    expect(result.profession).toBe("Software Engineer");
+    expect(result.relationStatus).toBe("SINGLE");
+    expect(result.relation).toBe("FUN");
+    expect(result.languages).toEqual(["en", "fa"]);
   });
 
   it("should return profileCompleted as false if questions exist but not all answered", async () => {
     mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
       relativeUrl: "/uploads/avatars/avatar_1.webp",
     });
+    mockAvatarProcessor.processAndSaveSelfie.mockResolvedValue({
+      relativeUrl: "/uploads/selfies/selfie_1.webp",
+    });
     mockPrisma.question.count.mockResolvedValue(5);
     mockPrisma.userQuestionAnswer.count.mockResolvedValue(3); // only 3 answered
 
-    const result = await useCase.execute(1, validDto, mockAvatarFile);
+    const result = await useCase.execute(
+      1,
+      completeDto,
+      mockAvatarFile,
+      mockSelfieFile,
+    );
     expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should return profileCompleted as false if selfie is missing", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+
+    const result = await useCase.execute(
+      1,
+      completeDto,
+      mockAvatarFile,
+      undefined,
+    );
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should return profileCompleted as false if height is missing", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+    mockAvatarProcessor.processAndSaveSelfie.mockResolvedValue({
+      relativeUrl: "/uploads/selfies/selfie_1.webp",
+    });
+
+    const { height, ...dtoWithoutHeight } = completeDto;
+    const result = await useCase.execute(
+      1,
+      dtoWithoutHeight,
+      mockAvatarFile,
+      mockSelfieFile,
+    );
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should return profileCompleted as false if job is missing", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+    mockAvatarProcessor.processAndSaveSelfie.mockResolvedValue({
+      relativeUrl: "/uploads/selfies/selfie_1.webp",
+    });
+
+    const { job, ...dtoWithoutJob } = completeDto;
+    const result = await useCase.execute(
+      1,
+      dtoWithoutJob,
+      mockAvatarFile,
+      mockSelfieFile,
+    );
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should return profileCompleted as false if kind of relationship is missing", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+    mockAvatarProcessor.processAndSaveSelfie.mockResolvedValue({
+      relativeUrl: "/uploads/selfies/selfie_1.webp",
+    });
+
+    const { kindOfRelationship, ...dtoWithoutRelation } = completeDto;
+    const result = await useCase.execute(
+      1,
+      dtoWithoutRelation,
+      mockAvatarFile,
+      mockSelfieFile,
+    );
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should not touch existing fields when performing incremental update", async () => {
+    mockPrisma.profile.findUnique.mockResolvedValue({
+      userId: 1,
+      firstName: "John",
+      username: "john_doe",
+      avatarUrl: "/uploads/avatars/avatar_existing.webp",
+      selfieUrl: "/uploads/selfies/selfie_existing.webp",
+      languages: ["en"],
+    });
+    mockPrisma.demographic.findUnique.mockResolvedValue({
+      userId: 1,
+      birthDate: new Date("1998-11-25"),
+      gender: "MALE",
+      height: 180,
+      degree: "DOCTORATE",
+      profession: "Engineer",
+      relationStatus: "SINGLE",
+    });
+    mockPrisma.preferences.findUnique.mockResolvedValue({
+      userId: 1,
+      relation: "FUN",
+    });
+
+    // Only update height and job
+    const result = await useCase.execute(1, {
+      height: 182,
+      job: "Senior Architect",
+    });
+
+    expect(result.firstName).toBe("John");
+    expect(result.username).toBe("john_doe");
+    expect(result.avatarUrl).toBe("/uploads/avatars/avatar_existing.webp");
+    expect(result.selfieUrl).toBe("/uploads/selfies/selfie_existing.webp");
+    expect(result.height).toBe(182);
+    expect(result.profession).toBe("Senior Architect");
+    expect(result.degree).toBe("DOCTORATE");
+    expect(result.relationStatus).toBe("SINGLE");
+    expect(result.relation).toBe("FUN");
+    expect(result.profileCompleted).toBe(true);
   });
 
   it("should throw BadRequestException if language is empty string", async () => {

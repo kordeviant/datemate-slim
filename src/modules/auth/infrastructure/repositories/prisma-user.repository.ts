@@ -48,35 +48,70 @@ export class PrismaUserRepository implements IUserRepository {
   async hasCompletedProfile(userId: number): Promise<boolean> {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
-      select: { id: true, firstName: true, avatarUrl: true, username: true },
+      select: {
+        id: true,
+        firstName: true,
+        avatarUrl: true,
+        username: true,
+        selfieUrl: true,
+        languages: true,
+      },
     });
     if (
       !profile ||
       !profile.firstName ||
       !profile.avatarUrl ||
-      !profile.username
+      !profile.username ||
+      !profile.selfieUrl ||
+      !profile.languages ||
+      !Array.isArray(profile.languages) ||
+      profile.languages.length === 0
     ) {
       return false;
     }
 
     const demographic = await this.prisma.demographic.findUnique({
       where: { userId },
-      select: { id: true, birthDate: true, gender: true },
+      select: {
+        id: true,
+        birthDate: true,
+        gender: true,
+        height: true,
+        degree: true,
+        profession: true,
+        relationStatus: true,
+      },
     });
-    if (!demographic || !demographic.birthDate || !demographic.gender) {
+    if (
+      !demographic ||
+      !demographic.birthDate ||
+      !demographic.gender ||
+      demographic.height == null ||
+      !demographic.degree ||
+      !demographic.profession ||
+      !demographic.relationStatus
+    ) {
+      return false;
+    }
+
+    const preferences = await this.prisma.preferences.findUnique({
+      where: { userId },
+      select: { id: true, relation: true },
+    });
+    if (!preferences || !preferences.relation) {
       return false;
     }
 
     const questionsCount = await this.prisma.question.count();
-    if (questionsCount === 0) {
-      // Questions and onboarding steps are not completed yet
-      return false;
+    if (questionsCount > 0) {
+      const answeredCount = await this.prisma.userQuestionAnswer.count({
+        where: { userId },
+      });
+      if (answeredCount < questionsCount) {
+        return false;
+      }
     }
 
-    const answeredCount = await this.prisma.userQuestionAnswer.count({
-      where: { userId },
-    });
-
-    return answeredCount >= questionsCount;
+    return true;
   }
 }

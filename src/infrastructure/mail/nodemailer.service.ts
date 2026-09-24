@@ -11,10 +11,15 @@ export class NodemailerService implements IMailService {
   constructor(private readonly configService: ConfigService) {
     const service = this.configService.get<string>('SMTP_SERVICE', undefined);
     const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
-    const port = this.configService.get<number>('SMTP_PORT', 587);
+    const portRaw = this.configService.get<string | number>('SMTP_PORT', 587);
+    const port = Number(portRaw) || 587;
     const user = this.configService.get<string>('SMTP_USER', '');
     const pass = this.configService.get<string>('SMTP_PASS', '');
-    const secure = this.configService.get<boolean>('SMTP_SECURE', false);
+    const secureRaw = this.configService.get<string | boolean>(
+      'SMTP_SECURE',
+      false,
+    );
+    const secure = String(secureRaw) === 'true';
 
     const transportOptions = {
       family: 4, // Force IPv4 to prevent ENETUNREACH
@@ -24,10 +29,10 @@ export class NodemailerService implements IMailService {
       auth: user && pass ? { user, pass } : undefined,
     };
 
-    if (service || host.includes('gmail.com')) {
+    if (service) {
       this.transporter = nodemailer.createTransport({
         ...transportOptions,
-        service: 'gmail',
+        service,
       } as any);
     } else {
       this.transporter = nodemailer.createTransport({

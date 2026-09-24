@@ -28,6 +28,7 @@ import {
 import { TokenService } from "../application/services/token.service";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
 import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
+import { normalizeDobString } from "../application/validators/dob.validator";
 import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
 
 @ApiTags("Users")
@@ -184,11 +185,9 @@ export class UsersController {
       ) {
         effectiveDto.cityId = demoCityId;
       }
-      if (demo.birthDate && !effectiveDto.birthDate) {
-        effectiveDto.birthDate =
-          typeof demo.birthDate === "string"
-            ? demo.birthDate
-            : new Date(demo.birthDate).toISOString().slice(0, 10);
+      const rawDemoDob = demo.birthDate ?? demo.birth_date ?? demo.dob;
+      if (rawDemoDob && !effectiveDto.birthDate && !(effectiveDto as any).birth_date) {
+        effectiveDto.birthDate = normalizeDobString(rawDemoDob) || rawDemoDob;
       }
       if (demo.gender && !effectiveDto.gender) {
         effectiveDto.gender = demo.gender;
@@ -218,6 +217,15 @@ export class UsersController {
       } else if (effectiveDto.City?.id !== undefined) {
         effectiveDto.cityId = effectiveDto.City.id;
       }
+    }
+
+    // Birth date aliases fallback
+    if (!effectiveDto.birthDate && (effectiveDto.birth_date || (effectiveDto as any).dob)) {
+      effectiveDto.birthDate = effectiveDto.birth_date || (effectiveDto as any).dob;
+    }
+    if (effectiveDto.birthDate) {
+      effectiveDto.birthDate =
+        normalizeDobString(effectiveDto.birthDate) || effectiveDto.birthDate;
     }
 
     // Name and username/lastName aliases fallback

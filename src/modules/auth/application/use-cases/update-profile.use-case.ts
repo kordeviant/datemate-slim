@@ -126,33 +126,32 @@ export class UpdateProfileUseCase {
     }
 
     // 7. Validate Date of Birth / Age
+    const rawBirthDate =
+      dto.birthDate ??
+      (dto as any).birth_date ??
+      (dto as any).dob ??
+      (dto as any).Demographic?.birthDate ??
+      (dto as any).Demographic?.birth_date ??
+      (dto as any).demographic?.birthDate ??
+      (dto as any).demographic?.birth_date;
+
     let parsedBirthDate: Date | null = existingDemographic?.birthDate || null;
     let calculatedUserAge: number | null = parsedBirthDate
       ? calculateAge(parsedBirthDate)
       : null;
 
-    if (dto.birthDate) {
-      const dobValidation = validateDateOfBirth(dto.birthDate);
+    if (
+      rawBirthDate !== undefined &&
+      rawBirthDate !== null &&
+      rawBirthDate !== ''
+    ) {
+      const dobValidation = validateDateOfBirth(rawBirthDate);
       if (!dobValidation.isValid || !dobValidation.parsedDate) {
         throw new BadRequestException(dobValidation.error);
       }
-      const newBirthDate = dobValidation.parsedDate;
-
-      // Anti-fraud check: DOB cannot be changed after initial setup without support verification
-      if (existingDemographic && existingDemographic.birthDate) {
-        const existingDobString = existingDemographic.birthDate
-          .toISOString()
-          .slice(0, 10);
-        const newDobString = newBirthDate.toISOString().slice(0, 10);
-        if (existingDobString !== newDobString) {
-          throw new BadRequestException(
-            'Date of birth cannot be changed after initial setup without support verification.',
-          );
-        }
-      }
-      parsedBirthDate = newBirthDate;
-      calculatedUserAge = calculateAge(parsedBirthDate);
-    } else if (dto.age !== undefined && dto.age !== null) {
+      parsedBirthDate = dobValidation.parsedDate;
+      calculatedUserAge = dobValidation.age ?? calculateAge(parsedBirthDate);
+    } else if (dto.age !== undefined && dto.age !== null && (dto.age as any) !== '') {
       const ageNum = Number(dto.age);
       if (isNaN(ageNum) || ageNum < 18 || ageNum > 80) {
         throw new BadRequestException(
@@ -160,20 +159,7 @@ export class UpdateProfileUseCase {
         );
       }
       const approxYear = new Date().getFullYear() - ageNum;
-      const newBirthDate = new Date(Date.UTC(approxYear, 0, 1));
-
-      if (existingDemographic && existingDemographic.birthDate) {
-        const existingDobString = existingDemographic.birthDate
-          .toISOString()
-          .slice(0, 10);
-        const newDobString = newBirthDate.toISOString().slice(0, 10);
-        if (existingDobString !== newDobString) {
-          throw new BadRequestException(
-            'Date of birth cannot be changed after initial setup without support verification.',
-          );
-        }
-      }
-      parsedBirthDate = newBirthDate;
+      parsedBirthDate = new Date(Date.UTC(approxYear, 0, 1));
       calculatedUserAge = ageNum;
     }
 

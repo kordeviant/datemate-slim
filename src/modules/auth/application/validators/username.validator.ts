@@ -32,8 +32,46 @@ export const RESERVED_USERNAMES = new Set([
   'cristiano_ronaldo',
 ]);
 
-const STATUS_SUFFIXES = ['_verified', '_official', '_admin', '_support', '_staff'];
-const STATUS_PREFIXES = ['verified_', 'official_', 'admin_', 'support_'];
+const STATUS_SUFFIXES = [
+  '_verified',
+  '_official',
+  '_admin',
+  '_support',
+  '_staff',
+  '_moderator',
+  '.verified',
+  '.official',
+  '.admin',
+  '.support',
+  '.staff',
+  '.moderator',
+  '-verified',
+  '-official',
+  '-admin',
+  '-support',
+  '-staff',
+  '-moderator',
+];
+const STATUS_PREFIXES = [
+  'verified_',
+  'official_',
+  'admin_',
+  'support_',
+  'staff_',
+  'moderator_',
+  'verified.',
+  'official.',
+  'admin.',
+  'support.',
+  'staff.',
+  'moderator.',
+  'verified-',
+  'official-',
+  'admin-',
+  'support-',
+  'staff-',
+  'moderator-',
+];
 
 // Characters prohibited explicitly: < > ' " ; { } --
 const FORBIDDEN_CHAR_REGEX = /[<>'";{}]|--/;
@@ -151,6 +189,19 @@ export function validateUsername(username: string): {
         error: `Username cannot start with status prefix "${prefix}"`,
       };
     }
+  }
+
+  // Administrative, official, or verified status keyword segment check
+  if (
+    /(?:^|[._-])(verified|official|admin|administrator|support|staff|moderator|official_team)(?:[._-]|$)/i.test(
+      trimmed,
+    )
+  ) {
+    return {
+      isValid: false,
+      error:
+        'Username cannot contain administrative, official, or verified status badges/keywords',
+    };
   }
 
   return { isValid: true };

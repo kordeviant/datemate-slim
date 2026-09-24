@@ -103,9 +103,42 @@ export class UpdateProfileDto {
       'Date of birth in YYYY-MM-DD format (must be between 18 and 80 years old)',
   })
   @IsOptional()
-  @IsString()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return typeof value === 'string' || value instanceof Date
+      ? value
+      : undefined;
+  })
   @IsValidDateOfBirth()
   birthDate?: string;
+
+  @ApiPropertyOptional({
+    example: '1998-11-25',
+    description: 'Alias for birthDate (snake_case)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return typeof value === 'string' || value instanceof Date
+      ? value
+      : undefined;
+  })
+  @IsValidDateOfBirth()
+  birth_date?: string;
+
+  @ApiPropertyOptional({
+    example: '1998-11-25',
+    description: 'Alias for birthDate (dob)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return typeof value === 'string' || value instanceof Date
+      ? value
+      : undefined;
+  })
+  @IsValidDateOfBirth()
+  dob?: string;
 
   @ApiPropertyOptional({
     example: 23,

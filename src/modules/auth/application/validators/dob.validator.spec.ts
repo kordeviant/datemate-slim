@@ -41,6 +41,23 @@ describe('DateOfBirthValidator', () => {
       expect(res.error).toContain('maximum limit of 80 years');
     });
 
+    it('should reject today as date of birth', () => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const res = validateDateOfBirth(todayStr);
+      expect(res.isValid).toBe(false);
+      expect(res.error).toContain('at least 18 years old');
+    });
+
+    it('should accept ISO timestamp string and Date object for valid ages', () => {
+      const isoRes = validateDateOfBirth('1998-11-25T12:00:00.000Z');
+      expect(isoRes.isValid).toBe(true);
+      expect(isoRes.age).toBeGreaterThanOrEqual(18);
+
+      const dateObjRes = validateDateOfBirth(new Date('1995-05-20'));
+      expect(dateObjRes.isValid).toBe(true);
+      expect(dateObjRes.age).toBeGreaterThanOrEqual(18);
+    });
+
     it('should accept valid date of birth between 18 and 80', () => {
       const res = validateDateOfBirth('2000-06-15');
       expect(res.isValid).toBe(true);

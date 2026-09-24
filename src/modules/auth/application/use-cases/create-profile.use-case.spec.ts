@@ -177,16 +177,60 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     ).rejects.toThrow("at least 18 years old");
   });
 
-  it("should reject modification of birthDate if user already set it previously", async () => {
+  it("should permit updating birthDate if user provides a valid new date of birth between 18 and 80", async () => {
     mockPrisma.demographic.findUnique.mockResolvedValue({
       userId: 1,
       birthDate: new Date("1990-01-01"),
       gender: "MALE",
     });
 
-    await expect(useCase.execute(1, validDto, mockAvatarFile)).rejects.toThrow(
-      "Date of birth cannot be changed after initial setup",
-    );
+    const result = await useCase.execute(1, {
+      ...validDto,
+      birthDate: "1995-06-15",
+    });
+    expect(result.age).toBeDefined();
+    expect(result.age).toBeGreaterThanOrEqual(18);
+  });
+
+  it("should reject date of birth set to today or future date", async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    await expect(
+      useCase.execute(1, { ...validDto, birthDate: todayStr }),
+    ).rejects.toThrow("at least 18 years old");
+  });
+
+  it("should reject impersonation usernames such as taylor_swift or elon_musk", async () => {
+    await expect(
+      useCase.execute(1, { username: "taylor_swift" }),
+    ).rejects.toThrow(/reserved or prohibited/);
+
+    await expect(
+      useCase.execute(1, { username: "elon_musk" }),
+    ).rejects.toThrow(/reserved or prohibited/);
+  });
+
+  it("should reject staff/admin usernames such as admin, support, moderator, official_team", async () => {
+    await expect(
+      useCase.execute(1, { username: "admin" }),
+    ).rejects.toThrow(/administrative|reserved/);
+
+    await expect(
+      useCase.execute(1, { username: "moderator" }),
+    ).rejects.toThrow(/administrative|reserved/);
+
+    await expect(
+      useCase.execute(1, { username: "official_team" }),
+    ).rejects.toThrow(/administrative|reserved/);
+  });
+
+  it("should reject status badges/words such as john_verified and anna_official", async () => {
+    await expect(
+      useCase.execute(1, { username: "john_verified" }),
+    ).rejects.toThrow(/status badge|suffix|keywords/);
+
+    await expect(
+      useCase.execute(1, { username: "anna_official" }),
+    ).rejects.toThrow(/status badge|suffix|keywords/);
   });
 
   it("should permit update without birthDate if demographic already exists", async () => {

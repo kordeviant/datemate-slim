@@ -302,8 +302,13 @@ interface ResponseResult<T> {
   - `avatar` (File, optional): Public profile picture avatar (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096). This is the visible profile picture seen by other users.
   - `selfie` (File, optional): Private selfie photo for identity verification (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300). **Note**: The selfie is NOT the avatar; it is stored privately in `selfieUrl` specifically for administrators to verify that the public profile picture (`avatar`) genuinely belongs to this user.
   - `firstName` / `first_name` / `name` (Text, optional): User first name (2–50 characters, cannot be numbers only).
-  - `lastName` / `last_name` / `username` (Text, optional): User last name or unique handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
-  - `birthDate` (Text, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old; locked against modification after initial setup without support verification).
+  - `lastName` / `last_name` / `username` (Text, optional): User last name or unique handle (3–30 characters, alphanumeric, single dots/underscores/hyphens, no spaces/emojis/HTML, cannot start/end with special characters or have consecutive ones).
+    - **Identity & Impersonation Prohibitions**: Cannot impersonate celebrities (e.g. `taylor_swift`, `elon_musk`, `mark_zuckerberg`, `cristiano_ronaldo`). Cannot pretend to be staff/admin (e.g. `admin`, `support`, `moderator`, `official_team`, `staff`, `root`). Cannot use status badges/words (e.g. `john_verified`, `anna_official`, `_verified`, `_official`, `_admin`, `_support`, `_staff`).
+  - `birthDate` / `birth_date` / `dob` (Text or Date, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old). Also accepts ISO timestamp strings or Date instances.
+    - **Strict Validation**: Rejects impossible calendar dates (e.g. `2026-02-30`, `2026-13-01`).
+    - **Age Bounds**: Minimum age 18 years old (under 18 strictly prohibited; setting today's date is rejected with 400 Bad Request). Maximum age 80 years old. Future dates strictly prohibited.
+    - **Updateability**: Users can update their DOB at any time as long as it adheres to the validation and age bounds.
+    - **Privacy**: Stored privately in `demographics.birth_date`; public responses dynamically compute age (`today - dob`) and never expose the raw date of birth.
   - `age` (Number, optional): User age in years (alternative fallback if client sends age directly).
   - `gender` (Text, optional): Must be strictly `Male` or `Female`.
   - `height` (Number, optional): User height in cm (e.g. `175`).

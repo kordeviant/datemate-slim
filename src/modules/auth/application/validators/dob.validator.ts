@@ -6,6 +6,30 @@ import {
 } from 'class-validator';
 
 /**
+ * Normalizes input DOB into YYYY-MM-DD string if provided as ISO string or Date.
+ */
+export function normalizeDobString(input: any): string | null {
+  if (!input) return null;
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    // Standard YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    // ISO string with T separator: e.g. 1998-11-25T...
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      return trimmed.slice(0, 10);
+    }
+    return null;
+  }
+  if (input instanceof Date && !isNaN(input.getTime())) {
+    return input.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+/**
  * Calculates exact age in full years from a date of birth.
  */
 export function calculateAge(dob: Date | string): number {
@@ -17,34 +41,33 @@ export function calculateAge(dob: Date | string): number {
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
     age--;
   }
-  return age;
+  return Math.max(0, age);
 }
 
 /**
  * Validates date of birth format, validity, and age restrictions (18 <= age <= 80).
  */
-export function validateDateOfBirth(dobString: string): {
+export function validateDateOfBirth(dobInput: any): {
   isValid: boolean;
   error?: string;
   parsedDate?: Date;
   age?: number;
 } {
-  if (!dobString || typeof dobString !== 'string') {
+  const normalized = normalizeDobString(dobInput);
+  if (!normalized) {
     return { isValid: false, error: 'Date of birth cannot be empty' };
   }
 
-  const trimmed = dobString.trim();
-
   // Strict format check: YYYY-MM-DD
   const formatRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-  if (!formatRegex.test(trimmed)) {
+  if (!formatRegex.test(normalized)) {
     return {
       isValid: false,
       error: 'Invalid date format. Expected YYYY-MM-DD (e.g., 1998-11-25)',
     };
   }
 
-  const [yearStr, monthStr, dayStr] = trimmed.split('-');
+  const [yearStr, monthStr, dayStr] = normalized.split('-');
   const year = parseInt(yearStr, 10);
   const month = parseInt(monthStr, 10);
   const day = parseInt(dayStr, 10);
@@ -62,17 +85,28 @@ export function validateDateOfBirth(dobString: string): {
     };
   }
 
-  const today = new Date();
+  const now = new Date();
+  const todayUtc = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+
   // Ensure date is not in the future
-  if (parsed.getTime() > today.getTime()) {
+  if (parsed.getTime() > todayUtc.getTime()) {
     return {
       isValid: false,
       error: 'Date of birth cannot be a future date',
     };
   }
 
-  // Calculate age
-  const age = calculateAge(parsed);
+  // Calculate age accurately
+  let age = todayUtc.getUTCFullYear() - parsed.getUTCFullYear();
+  const monthDiff = todayUtc.getUTCMonth() - parsed.getUTCMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && todayUtc.getUTCDate() < parsed.getUTCDate())
+  ) {
+    age--;
+  }
 
   if (age < 18) {
     return {

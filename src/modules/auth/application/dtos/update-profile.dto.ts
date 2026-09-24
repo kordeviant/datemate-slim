@@ -100,9 +100,40 @@ export class UpdateProfileDto {
     description: 'Selected city ID for region location',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  cityId?: number;
+  cityId?: any;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Alias for cityId (snake_case)',
+  })
+  @IsOptional()
+  city_id?: any;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Alias for cityId or city object { id: 12 }',
+  })
+  @IsOptional()
+  city?: any;
+
+  @ApiPropertyOptional({
+    example: { id: 12 },
+    description: 'Alias for City object { id: 12 }',
+  })
+  @IsOptional()
+  City?: any;
+
+  @ApiPropertyOptional({
+    description: 'Nested Demographic object (e.g. from Android UpdateUserHttp)',
+  })
+  @IsOptional()
+  Demographic?: any;
+
+  @ApiPropertyOptional({
+    description: 'Raw JSON payload string if sent via multipart part named data',
+  })
+  @IsOptional()
+  data?: any;
 
   @ApiPropertyOptional({
     example: 35.6892,

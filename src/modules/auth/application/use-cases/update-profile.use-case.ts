@@ -157,10 +157,23 @@ export class UpdateProfileUseCase {
     }
 
     // 8. City ID
+    const rawCity =
+      dto.cityId ??
+      (dto as any).city_id ??
+      (dto as any).city?.id ??
+      (dto as any).city ??
+      (dto as any).City?.id ??
+      (dto as any).Demographic?.City?.id ??
+      (dto as any).Demographic?.city?.id ??
+      (dto as any).Demographic?.cityId ??
+      (dto as any).Demographic?.city_id;
+
     let validCityId: number | null = existingDemographic?.cityId ?? null;
-    if (dto.cityId !== undefined && dto.cityId !== null) {
-      const cityNum = Number(dto.cityId);
-      if (cityNum > 0) {
+    if (rawCity !== undefined && rawCity !== null && rawCity !== '') {
+      const cityNum = Number(
+        typeof rawCity === 'object' && rawCity !== null ? rawCity.id : rawCity,
+      );
+      if (!isNaN(cityNum) && cityNum > 0) {
         const cityExists = await this.prisma.city.findUnique({
           where: { id: cityNum },
           select: { id: true },
@@ -169,7 +182,7 @@ export class UpdateProfileUseCase {
           validCityId = cityExists.id;
         } else {
           this.logger.warn(
-            `[Profile Update] City ID ${dto.cityId} does not exist in database. Storing demographic without foreign key link until seeded.`,
+            `[Profile Update] City ID ${cityNum} does not exist in 'cities' table. Storing demographic without foreign key link until seeded.`,
           );
           validCityId = null;
         }
@@ -323,8 +336,9 @@ export class UpdateProfileUseCase {
           where: { userId },
           data: {
             ...(normalizedGender ? { gender: normalizedGender } : {}),
-            ...(parsedBirthDate ? { birthDate: parsedBirthDate } : {}),
-            ...(dto.cityId !== undefined ? { cityId: validCityId } : {}),
+            ...(rawCity !== undefined && rawCity !== null && rawCity !== ''
+              ? { cityId: validCityId }
+              : {}),
             ...(cleanHeight !== null ? { height: cleanHeight } : {}),
             ...(cleanDegree ? { degree: cleanDegree } : {}),
             ...(cleanProfession !== null ? { profession: cleanProfession } : {}),

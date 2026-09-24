@@ -146,9 +146,91 @@ export class UsersController {
       }
     }
 
+    let effectiveDto: any = { ...dto };
+    if ((dto as any)?.data) {
+      try {
+        const parsed =
+          typeof (dto as any).data === "string"
+            ? JSON.parse((dto as any).data)
+            : (dto as any).data;
+        if (parsed && typeof parsed === "object") {
+          effectiveDto = { ...parsed };
+          for (const [k, v] of Object.entries(dto)) {
+            if (k !== "data" && v !== undefined && v !== null && v !== "") {
+              effectiveDto[k] = v;
+            }
+          }
+        }
+      } catch (err) {
+        // ignore JSON parse error and proceed with original dto
+      }
+    }
+
+    // Unpack nested Demographic if sent by client (e.g. Android UpdateUserHttp)
+    const demo = effectiveDto.Demographic || effectiveDto.demographic;
+    if (demo && typeof demo === "object") {
+      const demoCityId =
+        demo.City?.id ??
+        demo.city?.id ??
+        demo.cityId ??
+        demo.city_id ??
+        (typeof demo.City === "number" ? demo.City : undefined) ??
+        (typeof demo.city === "number" ? demo.city : undefined);
+
+      if (
+        demoCityId !== undefined &&
+        effectiveDto.cityId === undefined &&
+        effectiveDto.city_id === undefined
+      ) {
+        effectiveDto.cityId = demoCityId;
+      }
+      if (demo.birthDate && !effectiveDto.birthDate) {
+        effectiveDto.birthDate =
+          typeof demo.birthDate === "string"
+            ? demo.birthDate
+            : new Date(demo.birthDate).toISOString().slice(0, 10);
+      }
+      if (demo.gender && !effectiveDto.gender) {
+        effectiveDto.gender = demo.gender;
+      }
+      if (demo.height !== undefined && effectiveDto.height === undefined) {
+        effectiveDto.height = demo.height;
+      }
+      if (demo.degree && !effectiveDto.degree && !effectiveDto.education) {
+        effectiveDto.degree = demo.degree;
+      }
+      if (demo.profession && !effectiveDto.profession && !effectiveDto.job) {
+        effectiveDto.profession = demo.profession;
+      }
+      if (demo.relationStatus && !effectiveDto.relationStatus) {
+        effectiveDto.relationStatus = demo.relationStatus;
+      }
+    }
+
+    // Top-level city aliases fallback
+    if (effectiveDto.cityId === undefined) {
+      if (effectiveDto.city_id !== undefined) {
+        effectiveDto.cityId = effectiveDto.city_id;
+      } else if (effectiveDto.city?.id !== undefined) {
+        effectiveDto.cityId = effectiveDto.city.id;
+      } else if (typeof effectiveDto.city === "number") {
+        effectiveDto.cityId = effectiveDto.city;
+      } else if (effectiveDto.City?.id !== undefined) {
+        effectiveDto.cityId = effectiveDto.City.id;
+      }
+    }
+
+    // Unpack nested Preferences if sent by client
+    const pref = effectiveDto.Preferences || effectiveDto.preferences;
+    if (pref && typeof pref === "object") {
+      if (pref.relation && !effectiveDto.kindOfRelationship && !effectiveDto.relation) {
+        effectiveDto.relation = pref.relation;
+      }
+    }
+
     return this.updateProfileUseCase.execute(
       decoded.sub,
-      dto,
+      effectiveDto,
       avatarFile,
       selfieFile,
     );

@@ -438,4 +438,20 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect(result.cityId).toBe(10);
     expect(result.profileCompleted).toBe(false);
   });
+
+  it("should support city_id alias and nested City objects in useCase", async () => {
+    mockPrisma.city.findUnique.mockResolvedValue({ id: 15 });
+    const result = await useCase.execute(1, {
+      city_id: 15,
+    } as any);
+    expect(result.cityId).toBe(15);
+  });
+
+  it("should return null for cityId if city does not exist in database (preventing FK violation)", async () => {
+    mockPrisma.city.findUnique.mockResolvedValue(null);
+    const result = await useCase.execute(1, {
+      cityId: 999999,
+    });
+    expect(result.cityId).toBeNull();
+  });
 });

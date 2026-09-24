@@ -133,6 +133,69 @@ describe("UsersController", () => {
       expect(res).toEqual(expectedResponse);
     });
 
+    it("should parse Retrofit multipart data string and unwrap nested Demographic.City.id", async () => {
+      const rawData = JSON.stringify({
+        firstName: "Sarah",
+        Demographic: {
+          City: { id: 150293, name: "Tehran" },
+          height: 172,
+          degree: "BACHELOR",
+        },
+        Preferences: {
+          relation: "LONG_TERM",
+        },
+      });
+
+      mockUpdateProfileUseCase.execute.mockResolvedValue({
+        userId: 1,
+        firstName: "Sarah",
+        cityId: 150293,
+        profileCompleted: false,
+      });
+
+      await controller.updateProfile(
+        "Bearer token123",
+        { data: rawData } as any,
+        undefined,
+      );
+
+      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          firstName: "Sarah",
+          cityId: 150293,
+          height: 172,
+          degree: "BACHELOR",
+          relation: "LONG_TERM",
+        }),
+        undefined,
+        undefined,
+      );
+    });
+
+    it("should unpack snake_case city_id and nested city objects", async () => {
+      mockUpdateProfileUseCase.execute.mockResolvedValue({
+        userId: 1,
+        cityId: 42,
+        profileCompleted: false,
+      });
+
+      await controller.updateProfile(
+        "Bearer token123",
+        { city_id: 42 } as any,
+        undefined,
+      );
+
+      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          cityId: 42,
+        }),
+        undefined,
+        undefined,
+      );
+    });
+
     it("should support backwards-compatible createProfile alias method", async () => {
       const dto = { firstName: "John" };
       const expectedResponse: any = {

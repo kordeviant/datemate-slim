@@ -315,7 +315,8 @@ interface ResponseResult<T> {
   - `language` (Text, optional): App interface language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
   - `phoneNumber` (Text, optional): Contact phone number.
   - `bio` (Text, optional): User biography / description.
-  - `cityId` (Number, optional): Selected city ID from region selection.
+  - `cityId` / `city_id` / `city` (Number or Object `{ id: 12 }`, optional): Selected city ID from region selection. Also accepts nested `Demographic.City.id` and Retrofit `@Part("data")` JSON strings. If the selected city ID is not yet in the `cities` table (unseeded database), `cityId` remains `null` in `demographics` until the city dataset is seeded, avoiding foreign key constraint crashes.
+  - `data` (String, optional): JSON string containing all profile fields (standard Retrofit multipart `@Part("data") updateUser: RequestBody` pattern). Automatically parsed and merged with top-level fields.
   - `latitude` (Number, optional): Latitude coordinate (defaults to `0.0`).
   - `longitude` (Number, optional): Longitude coordinate (defaults to `0.0`).
 

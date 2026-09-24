@@ -39,8 +39,15 @@ export class ForgotPasswordUseCase {
 
     this.logger.log(`[PASSWORD RESET] Reset code for ${dto.email} is: ${resetCode}`);
 
-    // Send email via Nodemailer
-    await this.mailService.sendPasswordResetOtp(user.email, resetCode);
+    // Send email asynchronously in background so SMTP delays never cause Cloudflare 524 timeouts
+    Promise.resolve(
+      this.mailService.sendPasswordResetOtp(user.email, resetCode),
+    ).catch((err) => {
+      this.logger.error(
+        `Failed to send password reset email to ${user.email}`,
+        err,
+      );
+    });
 
     return { message: 'If the email exists, a reset code was sent' };
   }

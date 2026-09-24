@@ -52,8 +52,15 @@ export class SignUpUseCase {
 
     this.logger.log(`[OTP DISPATCH] Verification code for ${dto.email} is: ${otpCode}`);
 
-    // Send email via Nodemailer
-    await this.mailService.sendVerificationOtp(dto.email, otpCode);
+    // Send email asynchronously in background so SMTP delays never cause Cloudflare 524 timeouts
+    Promise.resolve(this.mailService.sendVerificationOtp(dto.email, otpCode)).catch(
+      (err) => {
+        this.logger.error(
+          `Failed to send verification email to ${dto.email}`,
+          err,
+        );
+      },
+    );
 
     return { message: 'Verification code sent to email' };
   }

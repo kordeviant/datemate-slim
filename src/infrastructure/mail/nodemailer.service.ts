@@ -16,19 +16,25 @@ export class NodemailerService implements IMailService {
     const pass = this.configService.get<string>('SMTP_PASS', '');
     const secure = this.configService.get<boolean>('SMTP_SECURE', false);
 
+    const transportOptions = {
+      family: 4, // Force IPv4 to prevent ENETUNREACH
+      connectionTimeout: 5000, // 5s timeout to prevent Cloudflare 524
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
+      auth: user && pass ? { user, pass } : undefined,
+    };
+
     if (service || host.includes('gmail.com')) {
       this.transporter = nodemailer.createTransport({
+        ...transportOptions,
         service: 'gmail',
-        family: 4,
-        auth: user && pass ? { user, pass } : undefined,
       } as any);
     } else {
       this.transporter = nodemailer.createTransport({
+        ...transportOptions,
         host,
         port,
         secure,
-        family: 4, // Force IPv4 to prevent ENETUNREACH
-        auth: user && pass ? { user, pass } : undefined,
       } as any);
     }
   }

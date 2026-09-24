@@ -454,4 +454,44 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     });
     expect(result.cityId).toBeNull();
   });
+
+  it("should return null for unfilled firstName, username, and lastName instead of empty string", async () => {
+    mockPrisma.profile.findUnique.mockResolvedValue(null);
+    const result = await useCase.execute(1, {});
+    expect(result.firstName).toBeNull();
+    expect(result.username).toBeNull();
+    expect(result.lastName).toBeNull();
+  });
+
+  it("should preserve existing firstName when subsequent step sends empty string or omitted", async () => {
+    mockPrisma.profile.findUnique.mockResolvedValue({
+      userId: 1,
+      firstName: "Ali",
+      username: "ali_dev",
+      avatarUrl: "/uploads/avatars/avatar_1.webp",
+    });
+
+    const result = await useCase.execute(1, {
+      firstName: "",
+      username: "",
+      bio: "New bio",
+    });
+
+    expect(result.firstName).toBe("Ali");
+    expect(result.username).toBe("ali_dev");
+    expect(result.lastName).toBe("ali_dev");
+    expect(result.bio).toBe("New bio");
+  });
+
+  it("should return filled values when user provides firstName and lastName", async () => {
+    mockPrisma.profile.findUnique.mockResolvedValue(null);
+    const result = await useCase.execute(1, {
+      firstName: "Sarah",
+      lastName: "sarah_connor",
+    });
+
+    expect(result.firstName).toBe("Sarah");
+    expect(result.username).toBe("sarah_connor");
+    expect(result.lastName).toBe("sarah_connor");
+  });
 });

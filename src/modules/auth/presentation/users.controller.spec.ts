@@ -196,6 +196,32 @@ describe("UsersController", () => {
       );
     });
 
+    it("should map lastName to username if username is not provided", async () => {
+      mockUpdateProfileUseCase.execute.mockResolvedValue({
+        userId: 1,
+        firstName: "Bruce",
+        lastName: "wayne",
+        username: "wayne",
+        profileCompleted: false,
+      });
+
+      await controller.updateProfile(
+        "Bearer token123",
+        { firstName: "Bruce", lastName: "wayne" } as any,
+        undefined,
+      );
+
+      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          firstName: "Bruce",
+          username: "wayne",
+        }),
+        undefined,
+        undefined,
+      );
+    });
+
     it("should support backwards-compatible createProfile alias method", async () => {
       const dto = { firstName: "John" };
       const expectedResponse: any = {

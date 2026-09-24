@@ -220,6 +220,14 @@ export class UsersController {
       }
     }
 
+    // Name and username/lastName aliases fallback
+    if (!effectiveDto.firstName && (effectiveDto.first_name || effectiveDto.name)) {
+      effectiveDto.firstName = effectiveDto.first_name || effectiveDto.name;
+    }
+    if (!effectiveDto.username && (effectiveDto.lastName || effectiveDto.last_name)) {
+      effectiveDto.username = effectiveDto.lastName || effectiveDto.last_name;
+    }
+
     // Unpack nested Preferences if sent by client
     const pref = effectiveDto.Preferences || effectiveDto.preferences;
     if (pref && typeof pref === "object") {

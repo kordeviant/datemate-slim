@@ -301,8 +301,8 @@ interface ResponseResult<T> {
 - **Form-Data Fields (all fields optional to support incremental step-by-step onboarding and profile editing; unprovided existing fields remain intact)**:
   - `avatar` (File, optional): Public profile picture avatar (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096). This is the visible profile picture seen by other users.
   - `selfie` (File, optional): Private selfie photo for identity verification (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300). **Note**: The selfie is NOT the avatar; it is stored privately in `selfieUrl` specifically for administrators to verify that the public profile picture (`avatar`) genuinely belongs to this user.
-  - `firstName` (Text, optional): User first name (2–50 characters, cannot be only numbers).
-  - `username` (Text, optional): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
+  - `firstName` / `first_name` / `name` (Text, optional): User first name (2–50 characters, cannot be numbers only).
+  - `lastName` / `last_name` / `username` (Text, optional): User last name or unique handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
   - `birthDate` (Text, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old; locked against modification after initial setup without support verification).
   - `age` (Number, optional): User age in years (alternative fallback if client sends age directly).
   - `gender` (Text, optional): Must be strictly `Male` or `Female`.
@@ -321,7 +321,8 @@ interface ResponseResult<T> {
   - `longitude` (Number, optional): Longitude coordinate (defaults to `0.0`).
 
 - **Incremental Update Invariant ("Don't touch what already exists")**:
-  - When updating step-by-step, any attribute not included in the request retains its existing value in the database.
+  - When updating step-by-step, any attribute not included in the request (or sent as empty string `""` from default client models) retains its existing value in the database. A previously filled name or attribute will **never** be wiped out by an empty string or omitted field in subsequent onboarding steps.
+  - If a user filled a field, the response returns the filled value. If an attribute has not been filled yet, it returns `null` (not empty string `""`).
   - `avatar` and `selfie` are strictly independent: uploading a selfie never changes or overwrites the avatar, and updating an avatar never changes or overwrites the selfie.
   - `profileCompleted` remains `false` until **all** onboarding requirements are met:
     1. Public profile picture & info: `firstName`, `username`, `avatarUrl`
@@ -339,6 +340,7 @@ interface ResponseResult<T> {
     "data": {
       "userId": 1,
       "firstName": "John",
+      "lastName": "Doe",
       "username": "john_doe",
       "phoneNumber": "+1234567890",
       "bio": "Software engineer living in Tehran.",

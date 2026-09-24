@@ -17,6 +17,9 @@ export class UpdateProfileDto {
     description: 'First name of the user (2–50 characters, cannot be numbers only)',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsString()
   @Length(2, 50, {
     message: 'Name must be between 2 and 50 characters in length',
@@ -27,11 +30,58 @@ export class UpdateProfileDto {
   firstName?: string;
 
   @ApiPropertyOptional({
+    example: 'John',
+    description: 'Alias for firstName (snake_case)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  first_name?: string;
+
+  @ApiPropertyOptional({
+    example: 'John',
+    description: 'Alias for firstName or fullName',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({
+    example: 'Doe',
+    description: 'Last name / username handle alias',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  lastName?: string;
+
+  @ApiPropertyOptional({
+    example: 'Doe',
+    description: 'Alias for lastName (snake_case)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  last_name?: string;
+
+  @ApiPropertyOptional({
     example: 'john_doe',
     description:
       'Unique username (3–30 characters, alphanumeric, single dots/hyphens/underscores, no emojis, no spaces, no reserved names)',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsString()
   @IsValidUsername()
   username?: string;
@@ -41,6 +91,9 @@ export class UpdateProfileDto {
     description: 'Optional phone number',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsString()
   phoneNumber?: string;
 

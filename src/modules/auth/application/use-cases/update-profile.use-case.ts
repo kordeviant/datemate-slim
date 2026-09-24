@@ -73,20 +73,41 @@ export class UpdateProfileUseCase {
       selfieUrl = processedSelfie.relativeUrl;
     }
 
-    // 5. First name
+    // 5. First name (preserves existing if omitted or sent as empty string)
     let cleanFirstName: string = existingProfile?.firstName || '';
-    if (dto.firstName !== undefined && dto.firstName !== null) {
-      cleanFirstName = dto.firstName.trim();
+    const rawFirstName =
+      dto.firstName ??
+      (dto as any).first_name ??
+      (dto as any).name;
+
+    if (
+      rawFirstName !== undefined &&
+      rawFirstName !== null &&
+      typeof rawFirstName === 'string' &&
+      rawFirstName.trim().length > 0
+    ) {
+      cleanFirstName = rawFirstName.trim();
     }
 
-    // 6. Validate and update username if provided
+    // 6. Validate and update username / last name if provided (preserves existing if omitted or sent as empty string)
     let cleanUsername: string | null = existingProfile?.username || null;
-    if (dto.username !== undefined && dto.username !== null) {
-      const usernameValidation = validateUsername(dto.username);
+    const rawUsername =
+      dto.username ??
+      (dto as any).userName ??
+      dto.lastName ??
+      (dto as any).last_name;
+
+    if (
+      rawUsername !== undefined &&
+      rawUsername !== null &&
+      typeof rawUsername === 'string' &&
+      rawUsername.trim().length > 0
+    ) {
+      const candidateUsername = rawUsername.toLowerCase().trim();
+      const usernameValidation = validateUsername(candidateUsername);
       if (!usernameValidation.isValid) {
         throw new BadRequestException(usernameValidation.error);
       }
-      const candidateUsername = dto.username.toLowerCase().trim();
       const existingWithUsername = await this.prisma.profile.findFirst({
         where: {
           username: {
@@ -98,7 +119,7 @@ export class UpdateProfileUseCase {
 
       if (existingWithUsername && existingWithUsername.userId !== userId) {
         throw new ConflictException(
-          `Username "${dto.username}" is already taken. Please choose another one.`,
+          `Username "${rawUsername}" is already taken. Please choose another one.`,
         );
       }
       cleanUsername = candidateUsername;
@@ -276,15 +297,29 @@ export class UpdateProfileUseCase {
     }
 
     // 17. Phone number, bio, coordinates
-    const cleanPhoneNumber =
-      dto.phoneNumber !== undefined
-        ? dto.phoneNumber?.trim() || null
-        : existingProfile?.phoneNumber ?? null;
+    const rawPhoneNumber =
+      dto.phoneNumber ??
+      (dto as any).phone_number ??
+      (dto as any).phone;
+    let cleanPhoneNumber: string | null = existingProfile?.phoneNumber ?? null;
+    if (
+      rawPhoneNumber !== undefined &&
+      rawPhoneNumber !== null &&
+      typeof rawPhoneNumber === 'string' &&
+      rawPhoneNumber.trim().length > 0
+    ) {
+      cleanPhoneNumber = rawPhoneNumber.trim();
+    }
 
-    const cleanBio =
-      dto.bio !== undefined
-        ? dto.bio?.trim() || null
-        : existingProfile?.bio ?? null;
+    let cleanBio: string | null = existingProfile?.bio ?? null;
+    if (
+      dto.bio !== undefined &&
+      dto.bio !== null &&
+      typeof dto.bio === 'string' &&
+      dto.bio.trim().length > 0
+    ) {
+      cleanBio = dto.bio.trim();
+    }
 
     const cleanLatitude =
       dto.latitude !== undefined
@@ -444,8 +479,9 @@ export class UpdateProfileUseCase {
 
     return {
       userId,
-      firstName: cleanFirstName,
-      username: cleanUsername ?? '',
+      firstName: cleanFirstName ? cleanFirstName : null,
+      lastName: cleanUsername ? cleanUsername : null,
+      username: cleanUsername ? cleanUsername : null,
       phoneNumber: cleanPhoneNumber,
       bio: cleanBio,
       avatarUrl,

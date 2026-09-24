@@ -4,11 +4,26 @@ export class ProfileResponseDto {
   @ApiProperty({ example: 1, description: 'User account ID' })
   userId: number;
 
-  @ApiProperty({ example: 'John', description: 'User first name' })
-  firstName: string;
+  @ApiPropertyOptional({
+    example: 'John',
+    description: 'User first name',
+    nullable: true,
+  })
+  firstName?: string | null;
 
-  @ApiProperty({ example: 'john_doe', description: 'User unique handle' })
-  username: string;
+  @ApiPropertyOptional({
+    example: 'Doe',
+    description: 'User last name / username handle alias',
+    nullable: true,
+  })
+  lastName?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'john_doe',
+    description: 'User unique handle',
+    nullable: true,
+  })
+  username?: string | null;
 
   @ApiPropertyOptional({
     example: '+1234567890',

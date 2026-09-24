@@ -26,13 +26,14 @@ export class ProfileResponseDto {
 
   @ApiProperty({
     example: '/uploads/avatars/avatar_1_1726912345.webp',
-    description: 'Processed WebP avatar URL (EXIF stripped)',
+    description: 'Public profile picture avatar URL (WebP, EXIF stripped)',
   })
   avatarUrl: string;
 
   @ApiPropertyOptional({
     example: '/uploads/selfies/selfie_1_1726912345.webp',
-    description: 'Processed WebP selfie verification URL',
+    description:
+      'Private verification selfie photo URL used strictly by admin to verify user identity against the profile picture',
     nullable: true,
   })
   selfieUrl?: string | null;
@@ -113,4 +114,11 @@ export class ProfileResponseDto {
       'Indicates profile completion status (returns true only when selfie, height, languages, educations, job, relation status, kind of relationship, and questions are all completed)',
   })
   profileCompleted: boolean;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'Indicates whether an administrator has verified the user identity (verified that the selfie photo matches the profile picture)',
+  })
+  profileValidated: boolean;
 }

@@ -447,6 +447,7 @@ export class UpdateProfileUseCase {
       cityId: validCityId,
       language: cleanLanguage,
       profileCompleted,
+      profileValidated: user.profileValidated ?? false,
     };
   }
 }

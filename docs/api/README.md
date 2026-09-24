@@ -299,8 +299,8 @@ interface ResponseResult<T> {
   - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
   - `Content-Type: multipart/form-data`
 - **Form-Data Fields (all fields optional to support incremental step-by-step onboarding and profile editing; unprovided existing fields remain intact)**:
-  - `avatar` (File, optional): Profile picture (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096).
-  - `selfie` (File, optional): Selfie photo for identity verification (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300).
+  - `avatar` (File, optional): Public profile picture avatar (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096). This is the visible profile picture seen by other users.
+  - `selfie` (File, optional): Private selfie photo for identity verification (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300). **Note**: The selfie is NOT the avatar; it is stored privately in `selfieUrl` specifically for administrators to verify that the public profile picture (`avatar`) genuinely belongs to this user.
   - `firstName` (Text, optional): User first name (2–50 characters, cannot be only numbers).
   - `username` (Text, optional): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
   - `birthDate` (Text, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old; locked against modification after initial setup without support verification).
@@ -321,12 +321,14 @@ interface ResponseResult<T> {
 
 - **Incremental Update Invariant ("Don't touch what already exists")**:
   - When updating step-by-step, any attribute not included in the request retains its existing value in the database.
+  - `avatar` and `selfie` are strictly independent: uploading a selfie never changes or overwrites the avatar, and updating an avatar never changes or overwrites the selfie.
   - `profileCompleted` remains `false` until **all** onboarding requirements are met:
-    1. Basic profile & avatar: `firstName`, `username`, `avatarUrl`
-    2. Selfie verification: `selfieUrl`
+    1. Public profile picture & info: `firstName`, `username`, `avatarUrl`
+    2. Admin verification photo: `selfieUrl`
     3. User attributes: `birthDate`, `gender`, `height`, `languages` (non-empty list), `degree`, `profession`, `relationStatus`
     4. Relationship preference: `relation` (kind of relationship)
     5. Questions: All questions answered (if questions are configured in the system).
+  - `profileValidated` indicates whether an administrator has reviewed the verification selfie against the profile picture and verified the user identity.
 
 - **Success Response (200 OK)**:
   ```json
@@ -351,7 +353,8 @@ interface ResponseResult<T> {
       "relation": "FUN",
       "cityId": 12,
       "language": "en",
-      "profileCompleted": false
+      "profileCompleted": false,
+      "profileValidated": false
     },
     "error": null
   }

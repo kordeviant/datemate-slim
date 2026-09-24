@@ -222,14 +222,16 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
-    description: 'Profile avatar image file (50KB–5MB, JPEG/PNG/WebP, min 300x300)',
+    description:
+      'Public profile picture avatar image file (50KB–5MB, JPEG/PNG/WebP, min 300x300)',
   })
   avatar?: any;
 
   @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
-    description: 'Selfie verification photo file (50KB–5MB, JPEG/PNG/WebP, min 300x300)',
+    description:
+      'Private selfie photo for admin verification to verify the profile picture belongs to this user (50KB–5MB, JPEG/PNG/WebP, min 300x300)',
   })
   selfie?: any;
 }

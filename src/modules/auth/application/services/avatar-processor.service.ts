@@ -83,16 +83,17 @@ export class AvatarProcessorService {
     prefix: string = 'avatar',
     folder: string = 'avatars',
   ): Promise<ProcessedAvatarResult> {
+    const label = prefix === 'selfie' ? 'Selfie' : 'Profile picture';
     // 1. File size check
     if (fileBuffer.length < this.minSizeBytes) {
       throw new BadRequestException(
-        `Profile picture size is too small (${Math.round(fileBuffer.length / 1024)} KB). Minimum allowed size is 50 KB to ensure quality.`,
+        `${label} size is too small (${Math.round(fileBuffer.length / 1024)} KB). Minimum allowed size is 50 KB to ensure quality.`,
       );
     }
 
     if (fileBuffer.length > this.maxSizeBytes) {
       throw new BadRequestException(
-        `Profile picture size is too large (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB). Maximum allowed size is 5 MB.`,
+        `${label} size is too large (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB). Maximum allowed size is 5 MB.`,
       );
     }
 

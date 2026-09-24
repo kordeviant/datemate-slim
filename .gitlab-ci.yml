@@ -44,7 +44,7 @@ deploy:
         set -e
         cd $TARGET_DIR
         echo '===> Pulling latest code...'
-        export GIT_SSH_COMMAND="ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes"
+        export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes'
         git fetch origin main
         git reset --hard origin/main
 

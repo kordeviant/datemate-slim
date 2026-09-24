@@ -10,6 +10,7 @@ test:
     - npm ci
     - npx prisma generate
     - npm test
+    - npm run build
 
 deploy:
   stage: deploy
@@ -42,12 +43,49 @@ deploy:
       ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
         cd $TARGET_DIR
+        echo '===> Pulling latest code...'
         git fetch origin main
         git reset --hard origin/main
+
+        echo '===> Starting / updating Docker containers (postgres, redis, nginx)...'
+        if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+          docker compose up -d --remove-orphans
+        elif command -v docker-compose >/dev/null 2>&1; then
+          docker-compose up -d --remove-orphans
+        else
+          echo 'Warning: Neither docker compose nor docker-compose found on server'
+        fi
+
+        echo '===> Waiting for database readiness...'
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          if docker exec datemate_postgres pg_isready -U postgres >/dev/null 2>&1; then
+            echo 'Database is ready!'
+            break
+          fi
+          echo 'Waiting for database...'
+          sleep 1
+        done
+
+        echo '===> Installing dependencies...'
         npm ci
-        npx prisma migrate deploy
+
+        echo '===> Generating Prisma client...'
         npx prisma generate
+
+        echo '===> Running database migrations...'
+        npx prisma migrate deploy
+
+        echo '===> Building project...'
         npm run build
-        pm2 reload datemate-backend || pm2 start dist/main.js --name 'datemate-backend'
+
+        echo '===> Starting / reloading backend with PM2...'
+        pm2 reload datemate-backend || pm2 restart datemate-backend || pm2 start dist/main.js --name 'datemate-backend'
         pm2 save
+
+        echo '===> Reloading Nginx proxy...'
+        if command -v docker >/dev/null 2>&1; then
+          docker exec datemate_nginx nginx -s reload || true
+        fi
+
+        echo '===> Deployment completed successfully!'
       "

@@ -122,3 +122,32 @@ npm run start:prod
 pm2 start dist/main.js --name "datemate-backend" -i max
 pm2 save
 ```
+
+---
+
+## 6. CI/CD Automated Deployment (`.gitlab-ci.yml`)
+
+The repository includes a GitLab CI/CD pipeline that automates testing, Docker container management, and zero-downtime server deployments:
+
+### 6.1 Pipeline Stages
+1. **`test` Stage**:
+   - Runs `npm ci`, `npx prisma generate`, `npm test`, and `npm run build`.
+   - Ensures all unit/integration tests pass and the TypeScript build succeeds before any deployment is triggered.
+
+2. **`deploy` Stage (on `main` branch)**:
+   - Connects to the production server via SSH using `$SSH_PRIVATE_KEY`.
+   - Fetches and resets to the latest `origin/main`.
+   - **Starts or updates Docker backing services**: Runs `docker compose up -d --remove-orphans` to ensure PostgreSQL, Redis, and Nginx containers are running and recreated if configurations changed.
+   - **Waits for database readiness**: Checks PostgreSQL connectivity before running migrations.
+   - **Runs database migrations**: Executes `npx prisma migrate deploy` safely.
+   - **Generates Prisma client & builds project**: Executes `npx prisma generate && npm run build`.
+   - **Zero-downtime reload**: Executes `pm2 reload datemate-backend` (or falls back to `restart`/`start`) and saves PM2 state.
+   - **Nginx configuration reload**: Safely reloads the Nginx container (`docker exec datemate_nginx nginx -s reload`).
+
+### 6.2 Required CI/CD Variables
+In GitLab (Settings > CI/CD > Variables):
+- `SERVER_IP`: Target production host IP address.
+- `SERVER_USER`: SSH username (e.g. `datemate` or `root`).
+- `SSH_PRIVATE_KEY`: Private SSH key for server access.
+- `SSH_PORT`: (Optional, defaults to `22`).
+- `DEPLOY_DIR`: Target deployment directory on the server (e.g. `~/backend`).

@@ -6,11 +6,11 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
-  Post,
+  Put,
   UploadedFile,
   UseInterceptors,
   UnauthorizedException,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
@@ -18,42 +18,42 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
-} from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
+} from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
 import {
   IUserRepository,
   USER_REPOSITORY,
-} from '../domain/repositories/user.repository.interface';
-import { TokenService } from '../application/services/token.service';
-import { CreateProfileUseCase } from '../application/use-cases/create-profile.use-case';
-import { CreateProfileDto } from '../application/dtos/create-profile.dto';
-import { ProfileResponseDto } from '../application/dtos/profile-response.dto';
+} from "../domain/repositories/user.repository.interface";
+import { TokenService } from "../application/services/token.service";
+import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
+import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
+import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
 
-@ApiTags('Users')
-@Controller({ path: 'users', version: '1' })
+@ApiTags("Users")
+@Controller({ path: "users", version: "1" })
 export class UsersController {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
     private readonly tokenService: TokenService,
-    private readonly createProfileUseCase: CreateProfileUseCase,
+    private readonly updateProfileUseCase: UpdateProfileUseCase,
   ) {}
 
-  @Get('profile')
+  @Get("profile")
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
+  @ApiBearerAuth("JWT-auth")
   @ApiOperation({
-    summary: 'Check profile completion status',
+    summary: "Check profile completion status",
     description:
-      'Checks whether the authenticated user has created their basic profile and uploaded an avatar. Returns true or false.',
+      "Checks whether the authenticated user has created their basic profile and uploaded an avatar. Returns true or false.",
   })
   @ApiResponse({
     status: 200,
-    description: 'Profile status retrieved',
+    description: "Profile status retrieved",
     schema: {
       example: {
-        status: 'success',
-        message: 'Operation successful',
+        status: "success",
+        message: "Operation successful",
         data: true,
         error: null,
       },
@@ -61,62 +61,74 @@ export class UsersController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Missing or invalid access token',
+    description: "Missing or invalid access token",
   })
   async checkUserProfile(
-    @Headers('authorization') authHeader: string,
+    @Headers("authorization") authHeader: string,
   ): Promise<boolean> {
     if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
+      throw new UnauthorizedException("Missing Authorization header");
     }
-    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const token = authHeader.replace(/^Bearer\s+/i, "");
     const decoded = this.tokenService.verifyAccessToken(token);
     return this.userRepository.hasCompletedProfile(decoded.sub);
   }
 
-  @Post('profile')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiBearerAuth('JWT-auth')
-  @UseInterceptors(FileInterceptor('avatar'))
-  @ApiConsumes('multipart/form-data')
+  @Put("profile")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @UseInterceptors(FileInterceptor("avatar"))
+  @ApiConsumes("multipart/form-data")
   @ApiOperation({
-    summary: 'Make/Create user onboarding profile',
+    summary: "Update user profile (step-by-step onboarding & edit profile)",
     description:
-      'Uploads profile picture (avatar), validates username, name, date of birth (age 18–80), binary gender (Male/Female), strips EXIF metadata, converts avatar to WebP, and saves profile.',
+      "Updates profile step-by-step during onboarding or edit profile. Supports partial updates for username, name, date of birth, gender, language, avatar, bio, city, coordinates, etc. profileCompleted remains false until all questions and onboarding steps are completed.",
   })
   @ApiBody({
-    description: 'User profile onboarding information and avatar image file',
-    type: CreateProfileDto,
+    description:
+      "User profile update information and optional avatar image file",
+    type: UpdateProfileDto,
   })
   @ApiResponse({
-    status: 201,
-    description: 'Profile successfully created',
+    status: 200,
+    description: "Profile successfully updated",
     type: ProfileResponseDto,
   })
   @ApiResponse({
     status: 400,
     description:
-      'Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image, missing avatar)',
+      "Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image)",
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflict error (username is already taken)',
+    description: "Conflict error (username is already taken)",
   })
   @ApiResponse({
     status: 401,
-    description: 'Missing or invalid authorization token',
+    description: "Missing or invalid authorization token",
   })
-  async createProfile(
-    @Headers('authorization') authHeader: string,
-    @Body() dto: CreateProfileDto,
+  async updateProfile(
+    @Headers("authorization") authHeader: string,
+    @Body() dto: UpdateProfileDto,
     @UploadedFile() avatar?: Express.Multer.File,
   ): Promise<ProfileResponseDto> {
     if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
+      throw new UnauthorizedException("Missing Authorization header");
     }
-    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const token = authHeader.replace(/^Bearer\s+/i, "");
     const decoded = this.tokenService.verifyAccessToken(token);
 
-    return this.createProfileUseCase.execute(decoded.sub, dto, avatar);
+    return this.updateProfileUseCase.execute(decoded.sub, dto, avatar);
+  }
+
+  /**
+   * Backwards-compatible method alias for callers of createProfile
+   */
+  async createProfile(
+    authHeader: string,
+    dto: UpdateProfileDto,
+    avatar?: Express.Multer.File,
+  ): Promise<ProfileResponseDto> {
+    return this.updateProfile(authHeader, dto, avatar);
   }
 }

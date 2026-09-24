@@ -1,29 +1,43 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException } from '@nestjs/common';
-import { CreateProfileUseCase } from './create-profile.use-case';
-import { PrismaService } from '../../../../infrastructure/database/prisma.service';
-import { AvatarProcessorService } from '../services/avatar-processor.service';
+import { Test, TestingModule } from "@nestjs/testing";
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { UpdateProfileUseCase } from "./update-profile.use-case";
+import { PrismaService } from "../../../../infrastructure/database/prisma.service";
+import { AvatarProcessorService } from "../services/avatar-processor.service";
 
-describe('CreateProfileUseCase', () => {
-  let useCase: CreateProfileUseCase;
+describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => {
+  let useCase: UpdateProfileUseCase;
   let mockPrisma: any;
   let mockAvatarProcessor: any;
 
   beforeEach(async () => {
     mockPrisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ id: 1, language: "EN" }),
+        update: jest.fn().mockResolvedValue({ id: 1, language: "EN" }),
+      },
       profile: {
-        findFirst: jest.fn(),
-        upsert: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
       },
       demographic: {
-        findUnique: jest.fn(),
-        upsert: jest.fn(),
-      },
-      user: {
-        update: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
       },
       city: {
-        findUnique: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      question: {
+        count: jest.fn().mockResolvedValue(0),
+      },
+      userQuestionAnswer: {
+        count: jest.fn().mockResolvedValue(0),
       },
       $transaction: jest.fn().mockImplementation(async (callback) => {
         return callback(mockPrisma);
@@ -31,209 +45,239 @@ describe('CreateProfileUseCase', () => {
     };
 
     mockAvatarProcessor = {
-      processAndSaveAvatar: jest.fn(),
+      processAndSaveAvatar: jest.fn().mockResolvedValue({
+        relativeUrl: "/uploads/avatars/avatar_1.webp",
+        filePath: "/path/to/avatar.webp",
+        width: 1080,
+        height: 1080,
+        format: "webp",
+        sizeBytes: 100000,
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        CreateProfileUseCase,
+        UpdateProfileUseCase,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AvatarProcessorService, useValue: mockAvatarProcessor },
       ],
     }).compile();
 
-    useCase = module.get<CreateProfileUseCase>(CreateProfileUseCase);
+    useCase = module.get<UpdateProfileUseCase>(UpdateProfileUseCase);
   });
 
   const validDto = {
-    firstName: 'John',
-    username: 'john_doe',
-    birthDate: '1998-11-25',
-    gender: 'Male',
-    language: 'EN',
-    phoneNumber: '+1234567890',
+    firstName: "John",
+    username: "john_doe",
+    birthDate: "1998-11-25",
+    gender: "Male",
+    language: "EN",
+    phoneNumber: "+1234567890",
     cityId: 10,
     latitude: 35.6892,
     longitude: 51.389,
   };
 
   const mockAvatarFile: any = {
-    buffer: Buffer.from('fake_image_buffer'),
+    buffer: Buffer.from("fake_image_buffer"),
   };
 
-  it('should throw BadRequestException if avatar file is missing', async () => {
-    await expect(useCase.execute(1, validDto, undefined)).rejects.toThrow(
-      'Profile picture is required',
+  it("should throw UnauthorizedException if user account does not exist", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+    await expect(useCase.execute(999, validDto)).rejects.toThrow(
+      UnauthorizedException,
     );
   });
 
-  it('should throw BadRequestException if username is invalid', async () => {
-    await expect(
-      useCase.execute(1, { ...validDto, username: '123456' }, mockAvatarFile),
-    ).rejects.toThrow('cannot contain only numbers');
+  it("should allow step-by-step update without avatar (avatar is optional)", async () => {
+    const result = await useCase.execute(1, validDto, undefined);
+    expect(result.avatarUrl).toBe("");
+    expect(mockAvatarProcessor.processAndSaveAvatar).not.toHaveBeenCalled();
+    expect(mockPrisma.profile.upsert).toHaveBeenCalled();
+    expect(result.profileCompleted).toBe(false);
   });
 
-  it('should throw ConflictException if username is taken by another user', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue({
-      id: 99,
-      userId: 2, // different user
-      username: 'john_doe',
-    });
-
-    await expect(
-      useCase.execute(1, validDto, mockAvatarFile),
-    ).rejects.toThrow(ConflictException);
-  });
-
-  it('should throw BadRequestException if date of birth indicates age < 18', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue(null);
-
-    await expect(
-      useCase.execute(
-        1,
-        { ...validDto, birthDate: '2015-05-10' },
-        mockAvatarFile,
-      ),
-    ).rejects.toThrow('at least 18 years old');
-  });
-
-  it('should reject modification of birthDate if user already set it previously', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue(null);
-    mockPrisma.demographic.findUnique.mockResolvedValue({
+  it("should retain existing avatarUrl when no new avatar is uploaded", async () => {
+    mockPrisma.profile.findUnique.mockResolvedValue({
       userId: 1,
-      birthDate: new Date('1990-01-01'),
+      firstName: "John",
+      username: "john_doe",
+      avatarUrl: "/uploads/avatars/existing.webp",
+      languages: ["en"],
     });
 
-    await expect(
-      useCase.execute(1, validDto, mockAvatarFile),
-    ).rejects.toThrow('Date of birth cannot be changed after initial setup');
+    const result = await useCase.execute(1, { firstName: "Johnny" }, undefined);
+    expect(result.avatarUrl).toBe("/uploads/avatars/existing.webp");
+    expect(result.firstName).toBe("Johnny");
+    expect(result.profileCompleted).toBe(false);
   });
 
-  it('should successfully create profile and return privacy-safe response with calculated age', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue(null);
-    mockPrisma.demographic.findUnique.mockResolvedValue(null);
+  it("should process avatar when provided", async () => {
     mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
-      relativeUrl: '/uploads/avatars/avatar_1_12345.webp',
-      filePath: '/path/to/avatar_1_12345.webp',
-      width: 1080,
-      height: 1080,
-      format: 'webp',
-      sizeBytes: 200000,
+      relativeUrl: "/uploads/avatars/avatar_1_12345.webp",
     });
 
     const result = await useCase.execute(1, validDto, mockAvatarFile);
-
     expect(mockAvatarProcessor.processAndSaveAvatar).toHaveBeenCalledWith(
       mockAvatarFile.buffer,
       1,
     );
-    expect(mockPrisma.profile.upsert).toHaveBeenCalled();
-    expect(mockPrisma.demographic.upsert).toHaveBeenCalled();
+    expect(result.avatarUrl).toBe("/uploads/avatars/avatar_1_12345.webp");
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should throw BadRequestException if username is invalid", async () => {
+    await expect(
+      useCase.execute(1, { ...validDto, username: "123456" }, mockAvatarFile),
+    ).rejects.toThrow("cannot contain only numbers");
+  });
+
+  it("should throw ConflictException if username is taken by another user", async () => {
+    mockPrisma.profile.findFirst.mockResolvedValue({
+      id: 99,
+      userId: 2, // different user
+      username: "john_doe",
+    });
+
+    await expect(useCase.execute(1, validDto, mockAvatarFile)).rejects.toThrow(
+      ConflictException,
+    );
+  });
+
+  it("should allow user to keep their own username", async () => {
+    mockPrisma.profile.findFirst.mockResolvedValue({
+      id: 99,
+      userId: 1, // same user
+      username: "john_doe",
+    });
+
+    const result = await useCase.execute(1, validDto, undefined);
+    expect(result.username).toBe("john_doe");
+  });
+
+  it("should throw BadRequestException if date of birth indicates age < 18", async () => {
+    await expect(
+      useCase.execute(
+        1,
+        { ...validDto, birthDate: "2015-05-10" },
+        mockAvatarFile,
+      ),
+    ).rejects.toThrow("at least 18 years old");
+  });
+
+  it("should reject modification of birthDate if user already set it previously", async () => {
+    mockPrisma.demographic.findUnique.mockResolvedValue({
+      userId: 1,
+      birthDate: new Date("1990-01-01"),
+      gender: "MALE",
+    });
+
+    await expect(useCase.execute(1, validDto, mockAvatarFile)).rejects.toThrow(
+      "Date of birth cannot be changed after initial setup",
+    );
+  });
+
+  it("should permit update without birthDate if demographic already exists", async () => {
+    mockPrisma.demographic.findUnique.mockResolvedValue({
+      userId: 1,
+      birthDate: new Date("1998-11-25"),
+      gender: "MALE",
+    });
+
+    const result = await useCase.execute(
+      1,
+      { firstName: "John Updated" },
+      undefined,
+    );
+    expect(result.firstName).toBe("John Updated");
+    expect(result.age).toBeDefined();
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should return profileCompleted as false during onboarding steps", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+
+    const result = await useCase.execute(1, validDto, mockAvatarFile);
 
     expect(result).toMatchObject({
       userId: 1,
-      firstName: 'John',
-      username: 'john_doe',
-      avatarUrl: '/uploads/avatars/avatar_1_12345.webp',
-      gender: 'MALE',
-      language: 'en',
-      profileCompleted: true,
+      firstName: "John",
+      username: "john_doe",
+      avatarUrl: "/uploads/avatars/avatar_1.webp",
+      gender: "MALE",
+      language: "en",
+      profileCompleted: false, // returns false until all questions and steps are completed
     });
     expect(result.age).toBeGreaterThanOrEqual(18);
-    expect((result as any).birthDate).toBeUndefined(); // Exact DOB is kept private!
+    expect((result as any).birthDate).toBeUndefined(); // Exact DOB remains private
+  });
+
+  it("should return profileCompleted as true only when all questions and steps are answered", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+    mockPrisma.question.count.mockResolvedValue(5);
+    mockPrisma.userQuestionAnswer.count.mockResolvedValue(5);
+
+    const result = await useCase.execute(1, validDto, mockAvatarFile);
+    expect(result.profileCompleted).toBe(true);
+  });
+
+  it("should return profileCompleted as false if questions exist but not all answered", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+    mockPrisma.question.count.mockResolvedValue(5);
+    mockPrisma.userQuestionAnswer.count.mockResolvedValue(3); // only 3 answered
+
+    const result = await useCase.execute(1, validDto, mockAvatarFile);
+    expect(result.profileCompleted).toBe(false);
+  });
+
+  it("should throw BadRequestException if language is empty string", async () => {
+    await expect(useCase.execute(1, { language: "" })).rejects.toThrow(
+      "Language cannot be empty",
+    );
+  });
+
+  it("should throw BadRequestException if language is neither EN nor FA", async () => {
+    await expect(useCase.execute(1, { language: "FR" })).rejects.toThrow(
+      "Language must be either EN (English) or FA (Farsi)",
+    );
+
+    await expect(useCase.execute(1, { language: "de" })).rejects.toThrow(
+      "Language must be either EN (English) or FA (Farsi)",
+    );
+  });
+
+  it("should normalize uppercase EN to lowercase en for profile and EN for user", async () => {
+    const result = await useCase.execute(1, { language: "EN" });
+    expect(result.language).toBe("en");
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { language: 'EN' },
+      data: { language: "EN" },
     });
   });
 
-  it('should throw BadRequestException if language is missing or empty', async () => {
-    await expect(
-      useCase.execute(1, { ...validDto, language: '' }, mockAvatarFile),
-    ).rejects.toThrow('Language cannot be empty');
-  });
-
-  it('should throw BadRequestException if language is neither EN nor FA', async () => {
-    await expect(
-      useCase.execute(1, { ...validDto, language: 'FR' }, mockAvatarFile),
-    ).rejects.toThrow('Language must be either EN (English) or FA (Farsi)');
-
-    await expect(
-      useCase.execute(1, { ...validDto, language: 'de' }, mockAvatarFile),
-    ).rejects.toThrow('Language must be either EN (English) or FA (Farsi)');
-  });
-
-  it('should normalize uppercase EN to lowercase en for profile and EN for user', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue(null);
-    mockPrisma.demographic.findUnique.mockResolvedValue(null);
-    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
-      relativeUrl: '/uploads/avatars/avatar_1.webp',
-    });
-
-    const result = await useCase.execute(
-      1,
-      { ...validDto, language: 'EN' },
-      mockAvatarFile,
-    );
-
-    expect(result.language).toBe('en');
-    expect(mockPrisma.profile.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({ languages: ['en'] }),
-        update: expect.objectContaining({ languages: ['en'] }),
-      }),
-    );
+  it("should normalize lowercase fa to lowercase fa for profile and FA for user", async () => {
+    const result = await useCase.execute(1, { language: "fa" });
+    expect(result.language).toBe("fa");
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 1 },
-      data: { language: 'EN' },
+      data: { language: "FA" },
     });
   });
 
-  it('should normalize lowercase fa to lowercase fa for profile and FA for user', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue(null);
-    mockPrisma.demographic.findUnique.mockResolvedValue(null);
-    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
-      relativeUrl: '/uploads/avatars/avatar_1.webp',
+  it("should support updating bio and cityId for edit profile", async () => {
+    mockPrisma.city.findUnique.mockResolvedValue({ id: 10 });
+    const result = await useCase.execute(1, {
+      bio: "Loves mountain climbing and coffee.",
+      cityId: 10,
     });
-
-    const result = await useCase.execute(
-      1,
-      { ...validDto, language: 'fa' },
-      mockAvatarFile,
-    );
-
-    expect(result.language).toBe('fa');
-    expect(mockPrisma.profile.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        create: expect.objectContaining({ languages: ['fa'] }),
-        update: expect.objectContaining({ languages: ['fa'] }),
-      }),
-    );
-    expect(mockPrisma.user.update).toHaveBeenCalledWith({
-      where: { id: 1 },
-      data: { language: 'FA' },
-    });
-  });
-
-  it('should accept mixed case "Fa" and "En"', async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue(null);
-    mockPrisma.demographic.findUnique.mockResolvedValue(null);
-    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
-      relativeUrl: '/uploads/avatars/avatar_1.webp',
-    });
-
-    const resultFa = await useCase.execute(
-      1,
-      { ...validDto, language: 'Fa' },
-      mockAvatarFile,
-    );
-    expect(resultFa.language).toBe('fa');
-
-    const resultEn = await useCase.execute(
-      1,
-      { ...validDto, language: 'En' },
-      mockAvatarFile,
-    );
-    expect(resultEn.language).toBe('en');
+    expect(result.bio).toBe("Loves mountain climbing and coffee.");
+    expect(result.cityId).toBe(10);
+    expect(result.profileCompleted).toBe(false);
   });
 });

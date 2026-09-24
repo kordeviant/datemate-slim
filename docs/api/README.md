@@ -279,38 +279,40 @@ interface ResponseResult<T> {
 - **Method**: `GET`
 - **Path**: `/v1/users/profile`
 - **Headers**: `Authorization: Bearer <JWT_ACCESS_TOKEN>`
-- **Description**: Checks whether the authenticated user has created a profile and uploaded an avatar.
+- **Description**: Checks whether the authenticated user has completed their profile and answered all onboarding questions. Returns `false` until all onboarding questions and steps are completed.
 - **Success Response (200 OK)**:
   ```json
   {
     "status": "success",
     "message": "Operation successful",
-    "data": true,
+    "data": false,
     "error": null
   }
   ```
 
 ---
 
-### 3.2 Make / Create Profile
-- **Method**: `POST`
+### 3.2 Update Profile (Step-by-Step Onboarding & Profile Editing)
+- **Method**: `PUT`
 - **Path**: `/v1/users/profile`
 - **Headers**:
   - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
   - `Content-Type: multipart/form-data`
-- **Form-Data Fields**:
-  - `avatar` (File, required): Profile picture (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096).
-  - `firstName` (Text, required): User first name (2–50 characters, cannot be only numbers).
-  - `username` (Text, required): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
-  - `birthDate` (Text, required): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old).
-  - `gender` (Text, required): Must be strictly `Male` or `Female`.
-  - `language` (Text, required): User language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
+- **Form-Data Fields (all fields optional to support incremental step-by-step onboarding and profile editing)**:
+  - `avatar` (File, optional): Profile picture (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096).
+  - `firstName` (Text, optional): User first name (2–50 characters, cannot be only numbers).
+  - `username` (Text, optional): Unique username handle (3–30 characters, no spaces/emojis/HTML, cannot start/end with symbols or have consecutive symbols, reserved names prohibited).
+  - `birthDate` (Text, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old; locked against modification after initial setup without support verification).
+  - `age` (Number, optional): User age in years (alternative fallback if client sends age directly).
+  - `gender` (Text, optional): Must be strictly `Male` or `Female`.
+  - `language` (Text, optional): User language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
   - `phoneNumber` (Text, optional): Contact phone number.
+  - `bio` (Text, optional): User biography / description.
   - `cityId` (Number, optional): Selected city ID from region selection.
   - `latitude` (Number, optional): Latitude coordinate (defaults to `0.0`).
   - `longitude` (Number, optional): Longitude coordinate (defaults to `0.0`).
 
-- **Success Response (201 Created)**:
+- **Success Response (200 OK)**:
   ```json
   {
     "status": "success",
@@ -320,19 +322,20 @@ interface ResponseResult<T> {
       "firstName": "John",
       "username": "john_doe",
       "phoneNumber": "+1234567890",
+      "bio": "Software engineer living in Tehran.",
       "avatarUrl": "/uploads/avatars/avatar_1_1726912345.webp",
       "age": 27,
       "gender": "MALE",
       "cityId": 12,
       "language": "en",
-      "profileCompleted": true
+      "profileCompleted": false
     },
     "error": null
   }
   ```
 
 - **Error Responses**:
-  - `400 Bad Request`: Validation failure on username format, invalid language (not `EN`/`FA`), age limits (<18 or >80), missing avatar, image dimensions, or corrupted file.
+  - `400 Bad Request`: Validation failure on username format, invalid language (not `EN`/`FA`), age limits (<18 or >80), or corrupted image.
   - `401 Unauthorized`: Missing or invalid JWT access token.
   - `409 Conflict`: Username already in use by another user.
 

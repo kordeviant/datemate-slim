@@ -1,22 +1,22 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, VersioningType } from '@nestjs/common';
-import request from 'supertest';
-import { AppController } from './app.controller';
-import { AuthController } from './modules/auth/presentation/auth.controller';
-import { UsersController } from './modules/auth/presentation/users.controller';
-import { SignUpUseCase } from './modules/auth/application/use-cases/sign-up.use-case';
-import { VerifyCodeUseCase } from './modules/auth/application/use-cases/verify-code.use-case';
-import { SignInUseCase } from './modules/auth/application/use-cases/sign-in.use-case';
-import { RefreshTokenUseCase } from './modules/auth/application/use-cases/refresh-token.use-case';
-import { ForgotPasswordUseCase } from './modules/auth/application/use-cases/forgot-password.use-case';
-import { ResetPasswordUseCase } from './modules/auth/application/use-cases/reset-password.use-case';
-import { GoogleAuthUseCase } from './modules/auth/application/use-cases/google-auth.use-case';
-import { AppleAuthUseCase } from './modules/auth/application/use-cases/apple-auth.use-case';
-import { TokenService } from './modules/auth/application/services/token.service';
-import { CreateProfileUseCase } from './modules/auth/application/use-cases/create-profile.use-case';
-import { USER_REPOSITORY } from './modules/auth/domain/repositories/user.repository.interface';
+import { Test, TestingModule } from "@nestjs/testing";
+import { INestApplication, VersioningType } from "@nestjs/common";
+import request from "supertest";
+import { AppController } from "./app.controller";
+import { AuthController } from "./modules/auth/presentation/auth.controller";
+import { UsersController } from "./modules/auth/presentation/users.controller";
+import { SignUpUseCase } from "./modules/auth/application/use-cases/sign-up.use-case";
+import { VerifyCodeUseCase } from "./modules/auth/application/use-cases/verify-code.use-case";
+import { SignInUseCase } from "./modules/auth/application/use-cases/sign-in.use-case";
+import { RefreshTokenUseCase } from "./modules/auth/application/use-cases/refresh-token.use-case";
+import { ForgotPasswordUseCase } from "./modules/auth/application/use-cases/forgot-password.use-case";
+import { ResetPasswordUseCase } from "./modules/auth/application/use-cases/reset-password.use-case";
+import { GoogleAuthUseCase } from "./modules/auth/application/use-cases/google-auth.use-case";
+import { AppleAuthUseCase } from "./modules/auth/application/use-cases/apple-auth.use-case";
+import { TokenService } from "./modules/auth/application/services/token.service";
+import { UpdateProfileUseCase } from "./modules/auth/application/use-cases/update-profile.use-case";
+import { USER_REPOSITORY } from "./modules/auth/domain/repositories/user.repository.interface";
 
-describe('API Versioning (v1)', () => {
+describe("API Versioning (v1)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -32,15 +32,18 @@ describe('API Versioning (v1)', () => {
         { provide: GoogleAuthUseCase, useValue: { execute: jest.fn() } },
         { provide: AppleAuthUseCase, useValue: { execute: jest.fn() } },
         { provide: TokenService, useValue: { verifyAccessToken: jest.fn() } },
-        { provide: CreateProfileUseCase, useValue: { execute: jest.fn() } },
-        { provide: USER_REPOSITORY, useValue: { hasCompletedProfile: jest.fn() } },
+        { provide: UpdateProfileUseCase, useValue: { execute: jest.fn() } },
+        {
+          provide: USER_REPOSITORY,
+          useValue: { hasCompletedProfile: jest.fn() },
+        },
       ],
     }).compile();
 
     app = moduleRef.createNestApplication();
     app.enableVersioning({
       type: VersioningType.URI,
-      defaultVersion: '1',
+      defaultVersion: "1",
     });
     await app.init();
   });
@@ -49,44 +52,49 @@ describe('API Versioning (v1)', () => {
     await app.close();
   });
 
-  describe('System Endpoints (Neutral & v1)', () => {
-    it('GET /health returns 200', async () => {
-      const res = await request(app.getHttpServer()).get('/health');
+  describe("System Endpoints (Neutral & v1)", () => {
+    it("GET /health returns 200", async () => {
+      const res = await request(app.getHttpServer()).get("/health");
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ status: 'ok' });
+      expect(res.body).toEqual({ status: "ok" });
     });
 
-    it('GET /v1/health returns 200', async () => {
-      const res = await request(app.getHttpServer()).get('/v1/health');
+    it("GET /v1/health returns 200", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/health");
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ status: 'ok' });
+      expect(res.body).toEqual({ status: "ok" });
     });
 
-    it('GET /time returns 200', async () => {
-      const res = await request(app.getHttpServer()).get('/time');
+    it("GET /time returns 200", async () => {
+      const res = await request(app.getHttpServer()).get("/time");
       expect(res.status).toBe(200);
     });
 
-    it('GET /v1/time returns 200', async () => {
-      const res = await request(app.getHttpServer()).get('/v1/time');
+    it("GET /v1/time returns 200", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/time");
       expect(res.status).toBe(200);
     });
   });
 
-  describe('Versioned v1 API Endpoints', () => {
-    it('GET /v1/users/profile requires auth header (returns 401)', async () => {
-      const res = await request(app.getHttpServer()).get('/v1/users/profile');
+  describe("Versioned v1 API Endpoints", () => {
+    it("GET /v1/users/profile requires auth header (returns 401)", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/users/profile");
       expect(res.status).toBe(401);
     });
 
-    it('POST /v1/auth/nonce succeeds with 200', async () => {
-      const res = await request(app.getHttpServer()).post('/v1/auth/nonce');
+    it("PUT /v1/users/profile requires auth header (returns 401)", async () => {
+      const res = await request(app.getHttpServer()).put("/v1/users/profile");
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /v1/auth/nonce succeeds with 200", async () => {
+      const res = await request(app.getHttpServer()).post("/v1/auth/nonce");
       expect(res.status).toBe(200);
       expect(res.body).toBeDefined();
     });
 
-    it('POST /auth/nonce without /v1 returns 404', async () => {
-      const res = await request(app.getHttpServer()).post('/auth/nonce');
+    it("POST /auth/nonce without /v1 returns 404", async () => {
+      const res = await request(app.getHttpServer()).post("/auth/nonce");
       expect(res.status).toBe(404);
     });
   });

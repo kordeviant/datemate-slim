@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../../infrastructure/database/prisma.service';
-import { IUserRepository } from '../../domain/repositories/user.repository.interface';
-import { UserEntity } from '../../domain/user.entity';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../../../infrastructure/database/prisma.service";
+import { IUserRepository } from "../../domain/repositories/user.repository.interface";
+import { UserEntity } from "../../domain/user.entity";
 
 @Injectable()
 export class PrismaUserRepository implements IUserRepository {
@@ -24,15 +24,15 @@ export class PrismaUserRepository implements IUserRepository {
   async create(data: {
     email: string;
     passwordHash: string;
-    role?: 'USER' | 'ADMIN';
-    language?: 'EN' | 'FA';
+    role?: "USER" | "ADMIN";
+    language?: "EN" | "FA";
   }): Promise<UserEntity> {
     const user = await this.prisma.user.create({
       data: {
         email: data.email.toLowerCase().trim(),
         passwordHash: data.passwordHash,
-        role: data.role || 'USER',
-        language: data.language || 'EN',
+        role: data.role || "USER",
+        language: data.language || "EN",
       },
     });
     return new UserEntity(user);
@@ -48,8 +48,35 @@ export class PrismaUserRepository implements IUserRepository {
   async hasCompletedProfile(userId: number): Promise<boolean> {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
-      select: { id: true, firstName: true, avatarUrl: true },
+      select: { id: true, firstName: true, avatarUrl: true, username: true },
     });
-    return !!(profile && profile.firstName && profile.avatarUrl);
+    if (
+      !profile ||
+      !profile.firstName ||
+      !profile.avatarUrl ||
+      !profile.username
+    ) {
+      return false;
+    }
+
+    const demographic = await this.prisma.demographic.findUnique({
+      where: { userId },
+      select: { id: true, birthDate: true, gender: true },
+    });
+    if (!demographic || !demographic.birthDate || !demographic.gender) {
+      return false;
+    }
+
+    const questionsCount = await this.prisma.question.count();
+    if (questionsCount === 0) {
+      // Questions and onboarding steps are not completed yet
+      return false;
+    }
+
+    const answeredCount = await this.prisma.userQuestionAnswer.count({
+      where: { userId },
+    });
+
+    return answeredCount >= questionsCount;
   }
 }

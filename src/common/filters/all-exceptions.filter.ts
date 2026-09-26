@@ -58,6 +58,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
     ) {
       status = HttpStatus.UNAUTHORIZED;
       message = "Invalid access token";
+    } else if (
+      (exception as any)?.code === "P2002" ||
+      (exception instanceof Error && (exception as any)?.code === "P2002")
+    ) {
+      status = HttpStatus.CONFLICT;
+      const target = (exception as any)?.meta?.target;
+      const field = Array.isArray(target) ? target.join(", ") : target || "field";
+      message = `A record with this ${field} already exists.`;
+      errorType = CallbackErrorTypes.UNKNOWN_ERROR;
     } else if (exception instanceof Error) {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = "Internal server error";

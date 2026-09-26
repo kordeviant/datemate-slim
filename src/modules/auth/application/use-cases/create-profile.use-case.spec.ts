@@ -182,15 +182,24 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     ).rejects.toThrow(BadRequestException);
   });
 
-  it("should throw ConflictException if username is already taken by another user", async () => {
+  it("should throw ConflictException if username is already taken by another user (case-insensitive)", async () => {
     mockPrisma.profile.findFirst.mockResolvedValue({
       userId: 2,
       username: "taken_user",
     });
 
     await expect(
-      useCase.execute(1, { Profile: { username: "taken_user" } }),
+      useCase.execute(1, { Profile: { username: "TAKEN_USER" } }),
     ).rejects.toThrow(ConflictException);
+
+    expect(mockPrisma.profile.findFirst).toHaveBeenCalledWith({
+      where: {
+        username: {
+          equals: "taken_user",
+          mode: "insensitive",
+        },
+      },
+    });
   });
 
   it("should allow user to keep their own username without conflict", async () => {

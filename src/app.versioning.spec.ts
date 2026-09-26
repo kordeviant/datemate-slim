@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication, VersioningType } from "@nestjs/common";
 import request from "supertest";
 import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
 import { AuthController } from "./modules/auth/presentation/auth.controller";
 import { UsersController } from "./modules/auth/presentation/users.controller";
 import { SignUpUseCase } from "./modules/auth/application/use-cases/sign-up.use-case";
@@ -23,6 +24,7 @@ describe("API Versioning (v1)", () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [AppController, AuthController, UsersController],
       providers: [
+        AppService,
         { provide: SignUpUseCase, useValue: { execute: jest.fn() } },
         { provide: VerifyCodeUseCase, useValue: { execute: jest.fn() } },
         { provide: SignInUseCase, useValue: { execute: jest.fn() } },
@@ -70,6 +72,41 @@ describe("API Versioning (v1)", () => {
     it("GET /v1/time returns 200", async () => {
       const res = await request(app.getHttpServer()).get("/v1/time");
       expect(res.status).toBe(200);
+    });
+
+    it("GET /rules returns 200 with HTML documentation view", async () => {
+      const res = await request(app.getHttpServer()).get("/rules");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/html");
+      expect(res.text).toContain("DateMate Platform Rules");
+    });
+
+    it("GET /v1/rules returns 200 with HTML documentation view", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/rules");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/html");
+      expect(res.text).toContain("DateMate Platform Rules");
+    });
+
+    it("GET /rules?format=raw returns 200 with raw Markdown", async () => {
+      const res = await request(app.getHttpServer()).get("/rules?format=raw");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/markdown");
+      expect(res.text).toContain("# DateMate Platform Rules & Client Validation Specification");
+    });
+
+    it("GET /rules?format=json returns 200 with structured JSON", async () => {
+      const res = await request(app.getHttpServer()).get("/rules?format=json");
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("success");
+      expect(res.body.data.title).toContain("DateMate Platform Rules");
+      expect(res.body.data.content).toBeDefined();
+    });
+
+    it("GET /rules?download=1 returns 200 with attachment disposition header", async () => {
+      const res = await request(app.getHttpServer()).get("/rules?download=1");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-disposition"]).toContain('attachment; filename="DateMate-RULES.md"');
     });
   });
 

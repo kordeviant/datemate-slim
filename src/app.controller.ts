@@ -3,14 +3,21 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Query,
+  Req,
+  Res,
   Version,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Request, Response } from 'express';
+import { AppService } from './app.service';
 
 @ApiTags('System')
 @Controller()
 export class AppController {
+  constructor(private readonly appService: AppService) {}
+
   @Version([VERSION_NEUTRAL, '1'])
   @Get(['', 'health'])
   @HttpCode(HttpStatus.OK)
@@ -53,5 +60,76 @@ export class AppController {
   })
   getServerTime(): number {
     return Date.now();
+  }
+
+  @Version([VERSION_NEUTRAL, '1'])
+  @Get('rules')
+  @ApiOperation({
+    summary: 'DateMate Platform Rules & Client Validation Specification',
+    description:
+      'Authoritative online specification of all client validation rules, media formats, languages, demographics, and schemas. Automatically updated on each backend update. Supports HTML view (default), JSON (?format=json), Raw Markdown (?format=raw), or file download (?download=1).',
+  })
+  @ApiQuery({
+    name: 'format',
+    required: false,
+    enum: ['html', 'json', 'raw', 'md'],
+    description: 'Format of the rules document (default: html)',
+  })
+  @ApiQuery({
+    name: 'download',
+    required: false,
+    description: 'Pass 1 to download the RULES.md file directly',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Platform rules document in the requested format',
+  })
+  getRules(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('format') format?: string,
+    @Query('download') download?: string,
+  ) {
+    const isDownload = download === '1' || download === 'true';
+    const isRaw =
+      format === 'raw' ||
+      format === 'md' ||
+      req.headers.accept?.includes('text/markdown');
+    const isJson =
+      format === 'json' ||
+      (req.headers.accept?.includes('application/json') &&
+        !req.headers.accept?.includes('text/html'));
+
+    if (isDownload) {
+      const { content } = this.appService.getRulesMarkdown();
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="DateMate-RULES.md"',
+      );
+      return res.send(content);
+    }
+
+    if (isRaw) {
+      const { content } = this.appService.getRulesMarkdown();
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      return res.send(content);
+    }
+
+    if (isJson) {
+      const data = this.appService.getRulesJson();
+      res.setHeader('Content-Type', 'application/json');
+      return res.json({
+        status: 'success',
+        message: 'Operation successful',
+        data,
+        error: null,
+      });
+    }
+
+    // Default: Responsive, modern HTML documentation view
+    const html = this.appService.getRulesHtml();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
   }
 }

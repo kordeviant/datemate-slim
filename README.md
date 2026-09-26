@@ -6,7 +6,9 @@ Scalable real-time backend service for the DateMate platform. Built with Node.js
 
 ## Documentation
 
-- **[REST API Specification & Swagger](file:///home/parsa/Documents/projects/datemate/backend/docs/api/README.md)**: Endpoints, request/response examples, Swagger UI.
+- **[Client Rules & Validation Specification (RULES.md)](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md)**: **Authoritative rules** for media uploads, username, full name, DOB/age, languages, demographics, and security.
+  - *Live Online Endpoint*: [`http://localhost:3000/rules`](http://localhost:3000/rules) or [`http://localhost:3000/v1/rules`](http://localhost:3000/v1/rules) (HTML, JSON, raw Markdown, or download).
+- **[REST API Specification & Swagger](file:///home/parsa/Documents/projects/datemate/backend/docs/api/README.md)**: Endpoints, request/response examples, Swagger UI (`/docs`).
 - **[MVP Data Model Specification](file:///home/parsa/Documents/projects/datemate/backend/docs/data-model/README.md)**: Clean Architecture & DDD data model, ERD, and Prisma schema.
 - **[Deployment & Getting Started](file:///home/parsa/Documents/projects/datemate/backend/docs/deployment/README.md)**: Setup, running locally, and deployment instructions.
 - **[Project Resources](file:///home/parsa/Documents/projects/datemate/backend/docs/resources/README.md)**: Git repository, Figma design links, and resources.

@@ -172,6 +172,10 @@ erDiagram
 
 ### 3.0 Profile Onboarding Rules & Constraints
 
+> 📘 **Authoritative Client Validation Rules Document**:  
+> For the complete, shareable reference document and live online endpoint, see [**docs/RULES.md**](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md) or visit **[`http://localhost:3000/rules`](http://localhost:3000/rules)**.
+
+
 #### 1. Username Rules
 - **Length & Format**:
   - Min length: 3 characters; Max length: 30 characters.

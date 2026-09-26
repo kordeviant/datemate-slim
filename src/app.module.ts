@@ -5,6 +5,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { MailModule } from './infrastructure/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AppController } from './app.controller';
+import { AppService } from './app.service';
 
 @Module({
   imports: [
@@ -18,5 +19,6 @@ import { AppController } from './app.controller';
     AuthModule,
   ],
   controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

@@ -71,6 +71,23 @@ async function bootstrap() {
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
       res.setHeader('Surrogate-Control', 'no-store');
+
+      // Cache-bust swagger-ui-init.js script tag in HTML response
+      const originalSend = res.send;
+      res.send = function (body: any) {
+        if (typeof body === 'string' && body.includes('swagger-ui-init.js')) {
+          const timestamp = Date.now();
+          const modified = body
+            .replace('swagger-ui-init.js', `swagger-ui-init.js?v=${timestamp}`)
+            .replace(
+              'swagger-ui-bundle.js',
+              `swagger-ui-bundle.js?v=${timestamp}`,
+            );
+          return originalSend.call(this, modified);
+        }
+        return originalSend.call(this, body);
+      };
+
       next();
     },
   );
@@ -81,6 +98,18 @@ async function bootstrap() {
       url: '/docs-json',
       persistAuthorization: true,
     },
+    customJsStr: `
+      window.addEventListener('load', function() {
+        fetch('/docs-json?_cb=' + Date.now())
+          .then(function(r) { return r.json(); })
+          .then(function(spec) {
+            if (window.ui && window.ui.specActions) {
+              window.ui.specActions.updateSpec(JSON.stringify(spec));
+            }
+          })
+          .catch(function(err) { console.error('Failed to sync Swagger spec:', err); });
+      });
+    `,
     customSiteTitle: 'DateMate Backend API Docs',
   });
 

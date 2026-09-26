@@ -43,6 +43,15 @@ describe("UsersController", () => {
       );
     });
 
+    it("should throw UnauthorizedException when token is expired", async () => {
+      mockTokenService.verifyAccessToken.mockImplementationOnce(() => {
+        throw new UnauthorizedException("Access token has expired");
+      });
+      await expect(controller.getMe("Bearer expired_token")).rejects.toThrow(
+        new UnauthorizedException("Access token has expired"),
+      );
+    });
+
     it("should return profile in Android-matching schema with profileCompleted status", async () => {
       const mockProfile: any = {
         id: 1,
@@ -76,6 +85,24 @@ describe("UsersController", () => {
       await expect(
         controller.updateProfile("", {} as any, undefined),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it("should throw UnauthorizedException when token is expired", async () => {
+      mockTokenService.verifyAccessToken.mockImplementationOnce(() => {
+        throw new UnauthorizedException("Access token has expired");
+      });
+      await expect(
+        controller.updateProfile("Bearer expired_token", {} as any, undefined),
+      ).rejects.toThrow(new UnauthorizedException("Access token has expired"));
+    });
+
+    it("should throw UnauthorizedException when token is invalid", async () => {
+      mockTokenService.verifyAccessToken.mockImplementationOnce(() => {
+        throw new UnauthorizedException("Invalid access token");
+      });
+      await expect(
+        controller.updateProfile("Bearer invalid_token", {} as any, undefined),
+      ).rejects.toThrow(new UnauthorizedException("Invalid access token"));
     });
 
     it("should delegate dto to updateProfileUseCase and return Android-matching response", async () => {

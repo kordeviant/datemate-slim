@@ -1,97 +1,47 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class ProfileResponseDto {
-  @ApiProperty({ example: 1, description: 'User account ID' })
-  userId: number;
+export class CityResponseDto {
+  @ApiPropertyOptional({ example: 12, description: 'City ID', nullable: true })
+  id?: number | null;
 
+  @ApiPropertyOptional({ example: 'Tehran', description: 'City name', nullable: true })
+  name?: string | null;
+
+  @ApiPropertyOptional({ example: 'Tehran Province', description: 'State name', nullable: true })
+  state?: string | null;
+
+  @ApiPropertyOptional({ example: 'Iran', description: 'Country name', nullable: true })
+  country?: string | null;
+}
+
+export class DemographicResponseDto {
   @ApiPropertyOptional({
-    example: 'John',
-    description: 'User first name',
+    example: '1998-11-25',
+    description: 'Date of birth in YYYY-MM-DD format',
     nullable: true,
   })
-  firstName?: string | null;
-
-  @ApiPropertyOptional({
-    example: 'Doe',
-    description: 'User last name / username handle alias',
-    nullable: true,
-  })
-  lastName?: string | null;
-
-  @ApiPropertyOptional({
-    example: 'john_doe',
-    description: 'User unique handle',
-    nullable: true,
-  })
-  username?: string | null;
-
-  @ApiPropertyOptional({
-    example: '+1234567890',
-    description: 'User phone number',
-    nullable: true,
-  })
-  phoneNumber?: string | null;
-
-  @ApiPropertyOptional({
-    example: 'Software engineer living in Tehran.',
-    description: 'User biography',
-    nullable: true,
-  })
-  bio?: string | null;
-
-  @ApiProperty({
-    example: '/uploads/avatars/avatar_1_1726912345.webp',
-    description: 'Public profile picture avatar URL (WebP, EXIF stripped)',
-  })
-  avatarUrl: string;
-
-  @ApiPropertyOptional({
-    example: '/uploads/selfies/selfie_1_1726912345.webp',
-    description:
-      'Private verification selfie photo URL used strictly by admin to verify user identity against the profile picture',
-    nullable: true,
-  })
-  selfieUrl?: string | null;
-
-  @ApiPropertyOptional({
-    example: 26,
-    description:
-      'Dynamically calculated age in years (exact DOB is kept private)',
-    nullable: true,
-  })
-  age?: number | null;
+  birthDate?: string | null;
 
   @ApiPropertyOptional({
     example: 'MALE',
-    description: 'Gender',
+    description: 'Gender (uppercase: MALE or FEMALE)',
     nullable: true,
   })
   gender?: string | null;
 
-  @ApiPropertyOptional({
-    example: 167,
-    description: 'Height in cm',
-    nullable: true,
-  })
+  @ApiPropertyOptional({ example: 180, description: 'Height in cm', nullable: true })
   height?: number | null;
 
   @ApiPropertyOptional({
-    example: ['فارسی', 'Chinese'],
-    description: 'User spoken languages list',
-    nullable: true,
-  })
-  languages?: string[] | null;
-
-  @ApiPropertyOptional({
     example: 'DOCTORATE',
-    description: 'Education degree status',
+    description: 'Education degree status enum',
     nullable: true,
   })
   degree?: string | null;
 
   @ApiPropertyOptional({
-    example: 'Student',
-    description: 'User job / profession',
+    example: 'Software Engineer',
+    description: 'Profession / occupation',
     nullable: true,
   })
   profession?: string | null;
@@ -104,36 +54,97 @@ export class ProfileResponseDto {
   relationStatus?: string | null;
 
   @ApiPropertyOptional({
-    example: 'FUN',
-    description: 'Kind of relationship looking for (Preferences)',
+    type: CityResponseDto,
+    description: 'Selected city details',
+    nullable: true,
+  })
+  City?: CityResponseDto | null;
+}
+
+export class PreferencesResponseDto {
+  @ApiPropertyOptional({
+    example: 'LONG',
+    description: 'Kind of relationship looking for',
     nullable: true,
   })
   relation?: string | null;
+}
+
+export class ProfileNestedResponseDto {
+  @ApiPropertyOptional({ example: 'Parsa', description: 'User full name', nullable: true })
+  fullName?: string | null;
+
+  @ApiPropertyOptional({ example: 'parsa', description: 'Username handle', nullable: true })
+  username?: string | null;
+
+  @ApiPropertyOptional({ example: '+1234567890', description: 'Phone number', nullable: true })
+  phoneNumber?: string | null;
 
   @ApiPropertyOptional({
-    example: 12,
-    description: 'Selected City ID',
+    example: 'Software engineer living in Tehran.',
+    description: 'User bio',
     nullable: true,
   })
-  cityId?: number | null;
+  bio?: string | null;
 
-  @ApiProperty({
-    example: 'en',
-    description: 'Normalized user language (en or fa)',
+  @ApiPropertyOptional({
+    example: ['en', 'fa'],
+    description: 'User spoken language 2-letter codes list',
+    nullable: true,
   })
-  language: string;
+  languages?: string[] | null;
 
   @ApiProperty({
-    example: false,
-    description:
-      'Indicates profile completion status (returns true only when selfie, height, languages, educations, job, relation status, kind of relationship, and questions are all completed)',
+    example: '/uploads/avatars/avatar_1.webp',
+    description: 'Public profile picture avatar URL',
+  })
+  avatar: string;
+
+  // selfie url: this will not use still, only cline shoululs send
+
+  @ApiProperty({
+    example: true,
+    description: 'Profile completion status',
   })
   profileCompleted: boolean;
 
-  @ApiProperty({
-    example: false,
-    description:
-      'Indicates whether an administrator has verified the user identity (verified that the selfie photo matches the profile picture)',
+  @ApiPropertyOptional({
+    type: DemographicResponseDto,
+    description: 'Demographic details',
+    nullable: true,
   })
+  Demographic?: DemographicResponseDto | null;
+
+  @ApiPropertyOptional({
+    type: PreferencesResponseDto,
+    description: 'Relationship preferences',
+    nullable: true,
+  })
+  Preferences?: PreferencesResponseDto | null;
+}
+
+export class ProfileResponseDto {
+  @ApiProperty({ example: 1, description: 'User ID' })
+  id: number;
+
+  @ApiPropertyOptional({ example: 'user@example.com', description: 'User email', nullable: true })
+  email?: string | null;
+
+  @ApiProperty({ example: 'EN', description: 'App language (uppercase: EN or FA)' })
+  language: string;
+
+  @ApiPropertyOptional({ example: 35.6892, description: 'Latitude coordinate', nullable: true })
+  lat?: number | null;
+
+  @ApiPropertyOptional({ example: 51.389, description: 'Longitude coordinate', nullable: true })
+  lon?: number | null;
+
+  @ApiProperty({ example: false, description: 'Whether admin has verified user identity' })
   profileValidated: boolean;
+
+  @ApiProperty({
+    type: ProfileNestedResponseDto,
+    description: 'Nested profile details including Demographic and Preferences',
+  })
+  Profile: ProfileNestedResponseDto;
 }

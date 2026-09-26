@@ -13,8 +13,8 @@ import { ResetPasswordUseCase } from "./modules/auth/application/use-cases/reset
 import { GoogleAuthUseCase } from "./modules/auth/application/use-cases/google-auth.use-case";
 import { AppleAuthUseCase } from "./modules/auth/application/use-cases/apple-auth.use-case";
 import { TokenService } from "./modules/auth/application/services/token.service";
+import { GetProfileUseCase } from "./modules/auth/application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "./modules/auth/application/use-cases/update-profile.use-case";
-import { USER_REPOSITORY } from "./modules/auth/domain/repositories/user.repository.interface";
 
 describe("API Versioning (v1)", () => {
   let app: INestApplication;
@@ -32,11 +32,8 @@ describe("API Versioning (v1)", () => {
         { provide: GoogleAuthUseCase, useValue: { execute: jest.fn() } },
         { provide: AppleAuthUseCase, useValue: { execute: jest.fn() } },
         { provide: TokenService, useValue: { verifyAccessToken: jest.fn() } },
+        { provide: GetProfileUseCase, useValue: { execute: jest.fn() } },
         { provide: UpdateProfileUseCase, useValue: { execute: jest.fn() } },
-        {
-          provide: USER_REPOSITORY,
-          useValue: { hasCompletedProfile: jest.fn() },
-        },
       ],
     }).compile();
 
@@ -77,8 +74,18 @@ describe("API Versioning (v1)", () => {
   });
 
   describe("Versioned v1 API Endpoints", () => {
+    it("GET /v1/users/me requires auth header (returns 401)", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/users/me");
+      expect(res.status).toBe(401);
+    });
+
     it("GET /v1/users/profile requires auth header (returns 401)", async () => {
       const res = await request(app.getHttpServer()).get("/v1/users/profile");
+      expect(res.status).toBe(401);
+    });
+
+    it("POST /v1/users/profile requires auth header (returns 401)", async () => {
+      const res = await request(app.getHttpServer()).post("/v1/users/profile");
       expect(res.status).toBe(401);
     });
 

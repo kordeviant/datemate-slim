@@ -5,9 +5,8 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
-  Inject,
+  Post,
   Put,
-  UploadedFile,
   UploadedFiles,
   UseInterceptors,
   UnauthorizedException,
@@ -20,26 +19,49 @@ import {
   ApiConsumes,
   ApiBody,
 } from "@nestjs/swagger";
-import { FileFieldsInterceptor, FileInterceptor } from "@nestjs/platform-express";
-import {
-  IUserRepository,
-  USER_REPOSITORY,
-} from "../domain/repositories/user.repository.interface";
+import { FileFieldsInterceptor } from "@nestjs/platform-express";
 import { TokenService } from "../application/services/token.service";
+import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
 import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
-import { normalizeDobString } from "../application/validators/dob.validator";
 import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
 
 @ApiTags("Users")
 @Controller({ path: "users", version: "1" })
 export class UsersController {
   constructor(
-    @Inject(USER_REPOSITORY)
-    private readonly userRepository: IUserRepository,
     private readonly tokenService: TokenService,
+    private readonly getProfileUseCase: GetProfileUseCase,
     private readonly updateProfileUseCase: UpdateProfileUseCase,
   ) {}
+
+  @Get("me")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Get current authenticated user profile",
+    description:
+      "Retrieves the authenticated user profile details in Android schema: language, lat, lon, profileValidated, and Profile (fullName, username, phoneNumber, bio, languages, avatar, profileCompleted, Demographic, Preferences).",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User profile successfully retrieved",
+    type: ProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  async getMe(
+    @Headers("authorization") authHeader: string,
+  ): Promise<ProfileResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const decoded = this.tokenService.verifyAccessToken(token);
+    return this.getProfileUseCase.execute(decoded.sub);
+  }
 
   @Get("profile")
   @HttpCode(HttpStatus.OK)
@@ -47,25 +69,18 @@ export class UsersController {
   @ApiOperation({
     summary: "Check profile completion status",
     description:
-      "Checks whether the authenticated user has created their basic profile and uploaded an avatar. Returns true or false.",
+      "Checks whether the authenticated user has completed their profile onboarding. Returns boolean status wrapped in ResponseResult envelope for mobile onboarding check.",
   })
   @ApiResponse({
     status: 200,
-    description: "Profile status retrieved",
-    schema: {
-      example: {
-        status: "success",
-        message: "Operation successful",
-        data: true,
-        error: null,
-      },
-    },
+    description: "Profile completion status boolean",
+    type: Boolean,
   })
   @ApiResponse({
     status: 401,
     description: "Missing or invalid access token",
   })
-  async checkUserProfile(
+  async checkProfileStatus(
     @Headers("authorization") authHeader: string,
   ): Promise<boolean> {
     if (!authHeader) {
@@ -73,7 +88,8 @@ export class UsersController {
     }
     const token = authHeader.replace(/^Bearer\s+/i, "");
     const decoded = this.tokenService.verifyAccessToken(token);
-    return this.userRepository.hasCompletedProfile(decoded.sub);
+    const profile = await this.getProfileUseCase.execute(decoded.sub);
+    return profile.Profile.profileCompleted;
   }
 
   @Put("profile")
@@ -85,20 +101,20 @@ export class UsersController {
       { name: "selfie", maxCount: 1 },
     ]),
   )
-  @ApiConsumes("multipart/form-data")
+  @ApiConsumes("multipart/form-data", "application/json")
   @ApiOperation({
     summary: "Update user profile (step-by-step onboarding & edit profile)",
     description:
-      "Updates profile step-by-step during onboarding or edit profile. Supports partial updates for username, name, date of birth, gender, language, avatar, selfie, height, languages, educations, job, relation status, kind of relationship, bio, city, coordinates, etc. profileCompleted remains false until all questions and onboarding steps are completed.",
+      "Updates user profile using Android schema (language, lat, lon, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Also supports optional avatar or selfie verification image files.",
   })
   @ApiBody({
     description:
-      "User profile update information and optional avatar or selfie verification image files",
+      "Android schema profile update payload and optional image files",
     type: UpdateProfileDto,
   })
   @ApiResponse({
     status: 200,
-    description: "Profile successfully updated",
+    description: "Profile successfully updated with categorized response",
     type: ProfileResponseDto,
   })
   @ApiResponse({
@@ -147,109 +163,55 @@ export class UsersController {
       }
     }
 
-    let effectiveDto: any = { ...dto };
-    if ((dto as any)?.data) {
-      try {
-        const parsed =
-          typeof (dto as any).data === "string"
-            ? JSON.parse((dto as any).data)
-            : (dto as any).data;
-        if (parsed && typeof parsed === "object") {
-          effectiveDto = { ...parsed };
-          for (const [k, v] of Object.entries(dto)) {
-            if (k !== "data" && v !== undefined && v !== null && v !== "") {
-              effectiveDto[k] = v;
-            }
-          }
-        }
-      } catch (err) {
-        // ignore JSON parse error and proceed with original dto
-      }
-    }
-
-    // Unpack nested Demographic if sent by client (e.g. Android UpdateUserHttp)
-    const demo = effectiveDto.Demographic || effectiveDto.demographic;
-    if (demo && typeof demo === "object") {
-      const demoCityId =
-        demo.City?.id ??
-        demo.city?.id ??
-        demo.cityId ??
-        demo.city_id ??
-        (typeof demo.City === "number" ? demo.City : undefined) ??
-        (typeof demo.city === "number" ? demo.city : undefined);
-
-      if (
-        demoCityId !== undefined &&
-        effectiveDto.cityId === undefined &&
-        effectiveDto.city_id === undefined
-      ) {
-        effectiveDto.cityId = demoCityId;
-      }
-      const rawDemoDob = demo.birthDate ?? demo.birth_date ?? demo.dob;
-      if (rawDemoDob && !effectiveDto.birthDate && !(effectiveDto as any).birth_date) {
-        effectiveDto.birthDate = normalizeDobString(rawDemoDob) || rawDemoDob;
-      }
-      if (demo.gender && !effectiveDto.gender) {
-        effectiveDto.gender = demo.gender;
-      }
-      if (demo.height !== undefined && effectiveDto.height === undefined) {
-        effectiveDto.height = demo.height;
-      }
-      if (demo.degree && !effectiveDto.degree && !effectiveDto.education) {
-        effectiveDto.degree = demo.degree;
-      }
-      if (demo.profession && !effectiveDto.profession && !effectiveDto.job) {
-        effectiveDto.profession = demo.profession;
-      }
-      if (demo.relationStatus && !effectiveDto.relationStatus) {
-        effectiveDto.relationStatus = demo.relationStatus;
-      }
-    }
-
-    // Top-level city aliases fallback
-    if (effectiveDto.cityId === undefined) {
-      if (effectiveDto.city_id !== undefined) {
-        effectiveDto.cityId = effectiveDto.city_id;
-      } else if (effectiveDto.city?.id !== undefined) {
-        effectiveDto.cityId = effectiveDto.city.id;
-      } else if (typeof effectiveDto.city === "number") {
-        effectiveDto.cityId = effectiveDto.city;
-      } else if (effectiveDto.City?.id !== undefined) {
-        effectiveDto.cityId = effectiveDto.City.id;
-      }
-    }
-
-    // Birth date aliases fallback
-    if (!effectiveDto.birthDate && (effectiveDto.birth_date || (effectiveDto as any).dob)) {
-      effectiveDto.birthDate = effectiveDto.birth_date || (effectiveDto as any).dob;
-    }
-    if (effectiveDto.birthDate) {
-      effectiveDto.birthDate =
-        normalizeDobString(effectiveDto.birthDate) || effectiveDto.birthDate;
-    }
-
-    // Name and username/lastName aliases fallback
-    if (!effectiveDto.firstName && (effectiveDto.first_name || effectiveDto.name)) {
-      effectiveDto.firstName = effectiveDto.first_name || effectiveDto.name;
-    }
-    if (!effectiveDto.username && (effectiveDto.lastName || effectiveDto.last_name)) {
-      effectiveDto.username = effectiveDto.lastName || effectiveDto.last_name;
-    }
-
-    // Unpack nested Preferences if sent by client
-    const pref = effectiveDto.Preferences || effectiveDto.preferences;
-    if (pref && typeof pref === "object") {
-      if (pref.relation && !effectiveDto.kindOfRelationship && !effectiveDto.relation) {
-        effectiveDto.relation = pref.relation;
-      }
-    }
-
     return this.updateProfileUseCase.execute(
       decoded.sub,
-      effectiveDto,
+      dto,
       avatarFile,
       selfieFile,
     );
+  }
+
+  @Post("profile")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: "avatar", maxCount: 1 },
+      { name: "selfie", maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes("multipart/form-data", "application/json")
+  @ApiOperation({
+    summary: "Update user profile via POST (mobile client onboarding & edit profile)",
+    description:
+      "Handles profile updates for mobile clients that submit via HTTP POST to /users/profile.",
+  })
+  @ApiBody({
+    description:
+      "Categorized profile update payload or mobile multipart data and optional image files",
+    type: UpdateProfileDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Profile successfully updated with categorized response",
+    type: ProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid authorization token",
+  })
+  async updateProfilePost(
+    @Headers("authorization") authHeader: string,
+    @Body() dto: UpdateProfileDto,
+    @UploadedFiles()
+    files?:
+      | {
+          avatar?: Express.Multer.File[];
+          selfie?: Express.Multer.File[];
+        }
+      | Express.Multer.File,
+  ): Promise<ProfileResponseDto> {
+    return this.updateProfile(authHeader, dto, files);
   }
 
   /**

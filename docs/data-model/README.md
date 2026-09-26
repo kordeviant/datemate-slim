@@ -9,7 +9,7 @@ This data model is designed following **Clean Architecture**, **Domain-Driven De
 2. **Profile & Onboarding (Figma Flow)**:
    - **Basic Info**: Avatar, first name, username, birth date, gender.
    - **Verification**: Selfie picture & verified badge status.
-   - **Demographics & Lifestyle**: Height, weight, degree, profession, religion, relationship status, city/state/country.
+   - **Demographics & Lifestyle**: Height, weight, degree, job, religion, relationship status, city/state/country.
    - **Preferences**: Relationship type (fun, open, long), drinking, smoking, kids, pets.
    - **Personality**: Mood (introvert/extrovert), star sign.
    - **Interests & Lifestyle Questions**: Liked/disliked interest tags and answered multiple-choice questions.
@@ -100,7 +100,7 @@ erDiagram
         int height
         int weight
         enum degree "HIGH_SCHOOL_DIPLOMA, BACHELOR_DEGREE, etc."
-        string profession
+        string job
         enum religion "CHRISTIANITY, ISLAM, SPIRITUALITY, etc."
         enum relation_status "SINGLE, IN_A_RELATIONSHIP, etc."
         int city_id FK
@@ -449,7 +449,7 @@ model UserSession {
 model Profile {
   id          Int       @id @default(autoincrement())
   userId      Int       @unique @map("user_id")
-  firstName   String    @map("first_name") @db.VarChar(100)
+  fullName    String    @map("first_name") @db.VarChar(100)
   username    String?   @unique @db.VarChar(50)
   phoneNumber String?   @map("phone_number") @db.VarChar(50)
   languages   Json?     @db.JsonB // ["EN", "FA"]
@@ -479,7 +479,7 @@ model Demographic {
   height         Int?                @db.SmallInt
   weight         Int?                @db.SmallInt
   degree         EducationStatus?
-  profession     String?             @db.VarChar(100)
+  job            String?             @map("profession") @db.VarChar(100)
   religion       ReligionStatus?
   relationStatus RelationshipStatus? @map("relation_status")
   cityId         Int?                @map("city_id")

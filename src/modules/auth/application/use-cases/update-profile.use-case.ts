@@ -73,37 +73,154 @@ export class UpdateProfileUseCase {
       selfieUrl = processedSelfie.relativeUrl;
     }
 
-    // 5. First name (preserves existing if omitted or sent as empty string)
-    let cleanFirstName: string = existingProfile?.firstName || '';
-    const rawFirstName =
-      dto.firstName ??
-      (dto as any).first_name ??
-      (dto as any).name;
+    // Extract fields from the new Android-matching DTO schema
+    const profileNested = dto.Profile;
+    const demographic = profileNested?.Demographic;
+    const preferences = profileNested?.Preferences;
+    const dataObj =
+      dto.data && typeof dto.data === 'object'
+        ? dto.data
+        : typeof dto.data === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(dto.data);
+              } catch {
+                return {};
+              }
+            })()
+          : {};
 
+    const candidateFullNameInput =
+      profileNested?.fullName !== undefined
+        ? profileNested.fullName
+        : (profileNested as any)?.firstName !== undefined
+          ? (profileNested as any)?.firstName
+          : dataObj?.fullName !== undefined
+            ? dataObj.fullName
+            : dataObj?.firstName;
+
+    const candidateUsernameInput =
+      profileNested?.username ?? dataObj?.username;
+
+    const candidateBirthDateInput =
+      demographic?.birthDate ??
+      dataObj?.birthDate ??
+      dataObj?.Demographic?.birthDate;
+
+    const candidateGenderInput =
+      demographic?.gender ??
+      dataObj?.gender ??
+      dataObj?.Demographic?.gender;
+
+    const candidatePhoneNumberInput =
+      profileNested?.phoneNumber ??
+      dataObj?.phoneNumber;
+
+    const candidateLanguageInput =
+      dto.language ??
+      dataObj?.language;
+
+    const candidateBioInput =
+      profileNested?.bio ??
+      dataObj?.bio;
+
+    const candidateHeightInput =
+      demographic?.height ??
+      dataObj?.height ??
+      dataObj?.Demographic?.height;
+
+    const candidateEducationInput =
+      demographic?.degree ??
+      dataObj?.education ??
+      dataObj?.Demographic?.degree;
+
+    const candidateJobInput =
+      demographic?.profession ??
+      dataObj?.job ??
+      dataObj?.Demographic?.profession;
+
+    const candidateLanguagesInput =
+      profileNested?.languages ??
+      dataObj?.languages;
+
+    const candidateCityIdInput =
+      demographic?.City?.id ??
+      dataObj?.cityId ??
+      dataObj?.Demographic?.City?.id ??
+      dataObj?.Demographic?.cityId;
+
+    const candidateLatitudeInput =
+      dto.lat ??
+      dataObj?.lat ??
+      dataObj?.latitude;
+
+    const candidateLongitudeInput =
+      dto.lon ??
+      dataObj?.lon ??
+      dataObj?.longitude;
+
+    const candidateRelationStatusInput =
+      demographic?.relationStatus ??
+      dataObj?.relationStatus ??
+      dataObj?.Demographic?.relationStatus;
+
+    const candidateRelationInput =
+      preferences?.relation ??
+      dataObj?.relation ??
+      dataObj?.Preferences?.relation;
+
+    let candidateFavoritesInput: any[] | undefined =
+      (profileNested as any)?.LikedActivities ??
+      dataObj?.LikedActivities ??
+      dataObj?.favorites;
+
+    // Extract interest IDs from LikedActivities category structure
     if (
-      rawFirstName !== undefined &&
-      rawFirstName !== null &&
-      typeof rawFirstName === 'string' &&
-      rawFirstName.trim().length > 0
+      candidateFavoritesInput &&
+      Array.isArray(candidateFavoritesInput) &&
+      candidateFavoritesInput.length > 0 &&
+      typeof candidateFavoritesInput[0] === 'object' &&
+      candidateFavoritesInput[0] !== null
     ) {
-      cleanFirstName = rawFirstName.trim();
+      const hasInterestArrays = candidateFavoritesInput.some(
+        (cat: any) => Array.isArray(cat?.Interest),
+      );
+      if (hasInterestArrays) {
+        const extractedIds: number[] = [];
+        for (const cat of candidateFavoritesInput) {
+          if (Array.isArray(cat?.Interest)) {
+            for (const item of cat.Interest) {
+              if (typeof item?.id === 'number') extractedIds.push(item.id);
+            }
+          } else if (typeof cat?.id === 'number') {
+            extractedIds.push(cat.id);
+          }
+        }
+        candidateFavoritesInput = extractedIds;
+      }
     }
 
-    // 6. Validate and update username / last name if provided (preserves existing if omitted or sent as empty string)
-    let cleanUsername: string | null = existingProfile?.username || null;
-    const rawUsername =
-      dto.username ??
-      (dto as any).userName ??
-      dto.lastName ??
-      (dto as any).last_name;
-
+    // 5. Full name (preserves existing if omitted or sent as empty string)
+    let cleanFullName: string =
+      existingProfile?.fullName || (existingProfile as any)?.firstName || '';
     if (
-      rawUsername !== undefined &&
-      rawUsername !== null &&
-      typeof rawUsername === 'string' &&
-      rawUsername.trim().length > 0
+      candidateFullNameInput !== undefined &&
+      candidateFullNameInput !== null &&
+      typeof candidateFullNameInput === 'string' &&
+      candidateFullNameInput.trim().length > 0
     ) {
-      const candidateUsername = rawUsername.toLowerCase().trim();
+      cleanFullName = candidateFullNameInput.trim();
+    }
+
+    // 6. Validate and update username if provided (preserves existing if omitted or sent as empty string)
+    let cleanUsername: string | null = existingProfile?.username || null;
+    if (
+      candidateUsernameInput !== undefined &&
+      candidateUsernameInput !== null &&
+      typeof candidateUsernameInput === 'string' &&
+      candidateUsernameInput.trim().length > 0
+    ) {
+      const candidateUsername = candidateUsernameInput.toLowerCase().trim();
       const usernameValidation = validateUsername(candidateUsername);
       if (!usernameValidation.isValid) {
         throw new BadRequestException(usernameValidation.error);
@@ -119,67 +236,35 @@ export class UpdateProfileUseCase {
 
       if (existingWithUsername && existingWithUsername.userId !== userId) {
         throw new ConflictException(
-          `Username "${rawUsername}" is already taken. Please choose another one.`,
+          `Username "${candidateUsernameInput}" is already taken. Please choose another one.`,
         );
       }
       cleanUsername = candidateUsername;
     }
 
-    // 7. Validate Date of Birth / Age
-    const rawBirthDate =
-      dto.birthDate ??
-      (dto as any).birth_date ??
-      (dto as any).dob ??
-      (dto as any).Demographic?.birthDate ??
-      (dto as any).Demographic?.birth_date ??
-      (dto as any).demographic?.birthDate ??
-      (dto as any).demographic?.birth_date;
-
+    // 7. Validate Date of Birth
     let parsedBirthDate: Date | null = existingDemographic?.birthDate || null;
     let calculatedUserAge: number | null = parsedBirthDate
       ? calculateAge(parsedBirthDate)
       : null;
 
     if (
-      rawBirthDate !== undefined &&
-      rawBirthDate !== null &&
-      rawBirthDate !== ''
+      candidateBirthDateInput !== undefined &&
+      candidateBirthDateInput !== null &&
+      candidateBirthDateInput !== ''
     ) {
-      const dobValidation = validateDateOfBirth(rawBirthDate);
+      const dobValidation = validateDateOfBirth(candidateBirthDateInput);
       if (!dobValidation.isValid || !dobValidation.parsedDate) {
         throw new BadRequestException(dobValidation.error);
       }
       parsedBirthDate = dobValidation.parsedDate;
       calculatedUserAge = dobValidation.age ?? calculateAge(parsedBirthDate);
-    } else if (dto.age !== undefined && dto.age !== null && (dto.age as any) !== '') {
-      const ageNum = Number(dto.age);
-      if (isNaN(ageNum) || ageNum < 18 || ageNum > 80) {
-        throw new BadRequestException(
-          `Age must be between 18 and 80 years old (provided: ${dto.age}).`,
-        );
-      }
-      const approxYear = new Date().getFullYear() - ageNum;
-      parsedBirthDate = new Date(Date.UTC(approxYear, 0, 1));
-      calculatedUserAge = ageNum;
     }
 
     // 8. City ID
-    const rawCity =
-      dto.cityId ??
-      (dto as any).city_id ??
-      (dto as any).city?.id ??
-      (dto as any).city ??
-      (dto as any).City?.id ??
-      (dto as any).Demographic?.City?.id ??
-      (dto as any).Demographic?.city?.id ??
-      (dto as any).Demographic?.cityId ??
-      (dto as any).Demographic?.city_id;
-
     let validCityId: number | null = existingDemographic?.cityId ?? null;
-    if (rawCity !== undefined && rawCity !== null && rawCity !== '') {
-      const cityNum = Number(
-        typeof rawCity === 'object' && rawCity !== null ? rawCity.id : rawCity,
-      );
+    if (candidateCityIdInput !== undefined && candidateCityIdInput !== null) {
+      const cityNum = Number(candidateCityIdInput);
       if (!isNaN(cityNum) && cityNum > 0) {
         const cityExists = await this.prisma.city.findUnique({
           where: { id: cityNum },
@@ -200,9 +285,9 @@ export class UpdateProfileUseCase {
 
     // 9. Gender
     let normalizedGender: Gender | null = existingDemographic?.gender ?? null;
-    if (dto.gender) {
+    if (candidateGenderInput) {
       normalizedGender =
-        dto.gender.toUpperCase() === 'FEMALE' ? Gender.FEMALE : Gender.MALE;
+        candidateGenderInput.toUpperCase() === 'FEMALE' ? Gender.FEMALE : Gender.MALE;
     }
 
     // 10. Language (app language)
@@ -210,11 +295,11 @@ export class UpdateProfileUseCase {
       (user.language ? user.language.toLowerCase() : 'en');
     let dbUserLanguage: Language | null = null;
 
-    if (dto.language !== undefined && dto.language !== null) {
-      if (typeof dto.language !== 'string' || !dto.language.trim()) {
+    if (candidateLanguageInput !== undefined && candidateLanguageInput !== null) {
+      if (typeof candidateLanguageInput !== 'string' || !candidateLanguageInput.trim()) {
         throw new BadRequestException('Language cannot be empty');
       }
-      const candidateLang = dto.language.toLowerCase().trim();
+      const candidateLang = candidateLanguageInput.toLowerCase().trim();
       if (candidateLang !== 'en' && candidateLang !== 'fa') {
         throw new BadRequestException(
           'Language must be either EN (English) or FA (Farsi)',
@@ -227,45 +312,42 @@ export class UpdateProfileUseCase {
     // 11. Spoken Languages list
     let cleanLanguages: string[] | null =
       (existingProfile?.languages as string[]) || null;
-    const passedLanguages = normalizeLanguages(dto.languages);
+    const passedLanguages = normalizeLanguages(candidateLanguagesInput);
     if (passedLanguages !== undefined) {
       cleanLanguages = passedLanguages;
     }
 
     // 12. Height
     let cleanHeight: number | null = existingDemographic?.height ?? null;
-    if (dto.height !== undefined && dto.height !== null) {
-      const h = Number(dto.height);
+    if (candidateHeightInput !== undefined && candidateHeightInput !== null) {
+      const h = Number(candidateHeightInput);
       if (!isNaN(h) && h > 0) {
         cleanHeight = h;
       }
     }
 
-    // 13. Education / Degree
+    // 13. Education
     let cleanDegree: EducationStatus | null =
       existingDemographic?.degree ?? null;
-    const rawEducation = dto.education ?? dto.educations ?? dto.degree;
-    if (rawEducation !== undefined && rawEducation !== null) {
-      const normalized = normalizeEducation(rawEducation);
+    if (candidateEducationInput !== undefined && candidateEducationInput !== null) {
+      const normalized = normalizeEducation(candidateEducationInput);
       if (normalized) {
         cleanDegree = normalized;
       }
     }
 
-    // 14. Job / Profession
-    let cleanProfession: string | null =
-      existingDemographic?.profession ?? null;
-    const rawJob = dto.job ?? dto.profession;
-    if (rawJob !== undefined && rawJob !== null) {
-      cleanProfession = rawJob.trim() ? rawJob.trim() : null;
+    // 14. Job
+    let cleanJob: string | null =
+      existingDemographic?.job ?? null;
+    if (candidateJobInput !== undefined && candidateJobInput !== null) {
+      cleanJob = candidateJobInput.trim() ? candidateJobInput.trim() : null;
     }
 
     // 15. Relation Status
     let cleanRelationStatus: RelationshipStatus | null =
       existingDemographic?.relationStatus ?? null;
-    const rawRelStatus = dto.relationStatus ?? dto.relation_status;
-    if (rawRelStatus !== undefined && rawRelStatus !== null) {
-      const normalized = normalizeRelationshipStatus(rawRelStatus);
+    if (candidateRelationStatusInput !== undefined && candidateRelationStatusInput !== null) {
+      const normalized = normalizeRelationshipStatus(candidateRelationStatusInput);
       if (normalized) {
         cleanRelationStatus = normalized;
       }
@@ -274,61 +356,76 @@ export class UpdateProfileUseCase {
     // 16. Kind of Relationship (Preferences)
     let cleanRelationType: RelationType | null =
       existingPreferences?.relation ?? null;
-    const rawRelType = dto.kindOfRelationship ?? dto.relation;
-    if (rawRelType !== undefined && rawRelType !== null) {
-      const normalized = normalizeRelationType(rawRelType);
+    if (candidateRelationInput !== undefined && candidateRelationInput !== null) {
+      const normalized = normalizeRelationType(candidateRelationInput);
       if (normalized) {
         cleanRelationType = normalized;
       }
     }
 
-    // 17. Phone number, bio, coordinates
-    const rawPhoneNumber =
-      dto.phoneNumber ??
-      (dto as any).phone_number ??
-      (dto as any).phone;
+    // 17. Favorites list
+    let cleanFavorites: any[] = [];
+    if (
+      candidateFavoritesInput !== undefined &&
+      candidateFavoritesInput !== null &&
+      Array.isArray(candidateFavoritesInput)
+    ) {
+      cleanFavorites = candidateFavoritesInput;
+    } else {
+      const existingInterests = await (this.prisma as any).userInterest?.findMany?.({
+        where: { userId },
+        include: { interest: true },
+      });
+      if (existingInterests && Array.isArray(existingInterests)) {
+        cleanFavorites = existingInterests.map(
+          (ui: any) => ui.interest?.nameEn || ui.interestId,
+        );
+      }
+    }
+
+    // 18. Phone number, bio, coordinates
     let cleanPhoneNumber: string | null = existingProfile?.phoneNumber ?? null;
     if (
-      rawPhoneNumber !== undefined &&
-      rawPhoneNumber !== null &&
-      typeof rawPhoneNumber === 'string' &&
-      rawPhoneNumber.trim().length > 0
+      candidatePhoneNumberInput !== undefined &&
+      candidatePhoneNumberInput !== null &&
+      typeof candidatePhoneNumberInput === 'string' &&
+      candidatePhoneNumberInput.trim().length > 0
     ) {
-      cleanPhoneNumber = rawPhoneNumber.trim();
+      cleanPhoneNumber = candidatePhoneNumberInput.trim();
     }
 
     let cleanBio: string | null = existingProfile?.bio ?? null;
     if (
-      dto.bio !== undefined &&
-      dto.bio !== null &&
-      typeof dto.bio === 'string' &&
-      dto.bio.trim().length > 0
+      candidateBioInput !== undefined &&
+      candidateBioInput !== null &&
+      typeof candidateBioInput === 'string' &&
+      candidateBioInput.trim().length > 0
     ) {
-      cleanBio = dto.bio.trim();
+      cleanBio = candidateBioInput.trim();
     }
 
     const cleanLatitude =
-      dto.latitude !== undefined
-        ? dto.latitude
+      candidateLatitudeInput !== undefined
+        ? Number(candidateLatitudeInput)
         : existingProfile
           ? Number(existingProfile.latitude)
           : 0.0;
 
     const cleanLongitude =
-      dto.longitude !== undefined
-        ? dto.longitude
+      candidateLongitudeInput !== undefined
+        ? Number(candidateLongitudeInput)
         : existingProfile
           ? Number(existingProfile.longitude)
           : 0.0;
 
-    // 18. Database Transaction: atomic updates to Profile, Demographic, Preferences, User
+    // 19. Database Transaction: atomic updates to Profile, Demographic, Preferences, User
     await this.prisma.$transaction(async (tx) => {
       // 1. Profile upsert
       await tx.profile.upsert({
         where: { userId },
         create: {
           userId,
-          firstName: cleanFirstName,
+          fullName: cleanFullName,
           username: cleanUsername,
           phoneNumber: cleanPhoneNumber,
           bio: cleanBio,
@@ -337,9 +434,9 @@ export class UpdateProfileUseCase {
           selfieUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
-        },
+        } as any,
         update: {
-          firstName: cleanFirstName,
+          fullName: cleanFullName,
           username: cleanUsername,
           phoneNumber: cleanPhoneNumber,
           bio: cleanBio,
@@ -348,7 +445,7 @@ export class UpdateProfileUseCase {
           selfieUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
-        },
+        } as any,
       });
 
       // 2. Demographic handling
@@ -357,12 +454,12 @@ export class UpdateProfileUseCase {
           where: { userId },
           data: {
             ...(normalizedGender ? { gender: normalizedGender } : {}),
-            ...(rawCity !== undefined && rawCity !== null && rawCity !== ''
+            ...(candidateCityIdInput !== undefined && candidateCityIdInput !== null
               ? { cityId: validCityId }
               : {}),
             ...(cleanHeight !== null ? { height: cleanHeight } : {}),
             ...(cleanDegree ? { degree: cleanDegree } : {}),
-            ...(cleanProfession !== null ? { profession: cleanProfession } : {}),
+            ...(cleanJob !== null ? { job: cleanJob } : {}),
             ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
           },
         });
@@ -376,7 +473,7 @@ export class UpdateProfileUseCase {
             cityId: validCityId,
             height: cleanHeight,
             degree: cleanDegree,
-            profession: cleanProfession,
+            job: cleanJob,
             relationStatus: cleanRelationStatus,
           },
           update: {
@@ -385,7 +482,7 @@ export class UpdateProfileUseCase {
             cityId: validCityId,
             ...(cleanHeight !== null ? { height: cleanHeight } : {}),
             ...(cleanDegree ? { degree: cleanDegree } : {}),
-            ...(cleanProfession !== null ? { profession: cleanProfession } : {}),
+            ...(cleanJob !== null ? { job: cleanJob } : {}),
             ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
           },
         });
@@ -405,7 +502,43 @@ export class UpdateProfileUseCase {
         });
       }
 
-      // 4. User app language update if specified
+      // 4. Favorites / Interests handling if provided
+      if (
+        candidateFavoritesInput !== undefined &&
+        candidateFavoritesInput !== null &&
+        Array.isArray(candidateFavoritesInput)
+      ) {
+        if ((tx as any).userInterest) {
+          try {
+            const numericIds = candidateFavoritesInput.filter(
+              (id): id is number => typeof id === 'number',
+            );
+            if (numericIds.length > 0 && (tx as any).interest) {
+              const valid = await (tx as any).interest.findMany({
+                where: { id: { in: numericIds } },
+                select: { id: true },
+              });
+              const validIds = valid.map((v: any) => v.id);
+              await (tx as any).userInterest.deleteMany({ where: { userId } });
+              if (validIds.length > 0) {
+                await (tx as any).userInterest.createMany({
+                  data: validIds.map((interestId: number) => ({
+                    userId,
+                    interestId,
+                    isLiked: true,
+                  })),
+                });
+              }
+            } else if (candidateFavoritesInput.length === 0) {
+              await (tx as any).userInterest.deleteMany({ where: { userId } });
+            }
+          } catch (err) {
+            this.logger.warn(`Could not sync favorites to user_interests: ${err}`);
+          }
+        }
+      }
+
+      // 5. User app language update if specified
       if (dbUserLanguage) {
         await tx.user.update({
           where: { id: userId },
@@ -414,16 +547,44 @@ export class UpdateProfileUseCase {
           },
         });
       }
+
+      // 6. User question answers if provided in mobile payload (data.Answers)
+      const answersList = dataObj?.Answers;
+      if (answersList && Array.isArray(answersList) && (tx as any).userQuestionAnswer) {
+        try {
+          const numericAnswerIds = answersList.filter(
+            (id: any): id is number => typeof id === 'number' && id > 0,
+          );
+          if (numericAnswerIds.length > 0 && (tx as any).questionAnswer) {
+            const validAnswers = await (tx as any).questionAnswer.findMany({
+              where: { id: { in: numericAnswerIds } },
+              select: { id: true },
+            });
+            const validIds = validAnswers.map((va: any) => va.id);
+            if (validIds.length > 0) {
+              await (tx as any).userQuestionAnswer.deleteMany({ where: { userId } });
+              await (tx as any).userQuestionAnswer.createMany({
+                data: validIds.map((questionAnswerId: number) => ({
+                  userId,
+                  questionAnswerId,
+                })),
+                skipDuplicates: true,
+              });
+            }
+          }
+        } catch (err) {
+          this.logger.warn(`Could not sync question answers: ${err}`);
+        }
+      }
     });
 
-    // 19. Check profile completion status:
-    // Profile is only complete when all required onboarding steps are completed:
-    // - Basic profile: firstName, username, avatarUrl, selfieUrl, languages (non-empty)
-    // - Demographics: birthDate, gender, height, degree, profession, relationStatus
+    // 20. Check profile completion status:
+    // - Basic profile: fullName, username, avatarUrl, selfieUrl, languages (non-empty)
+    // - Demographics: birthDate, gender, height, degree, job, relationStatus
     // - Preferences: relation (kind of relationship)
     // - Questions: answered all questions if questions exist in DB
     const hasBasicProfile = !!(
-      cleanFirstName &&
+      cleanFullName &&
       cleanUsername &&
       avatarUrl &&
       selfieUrl &&
@@ -438,7 +599,7 @@ export class UpdateProfileUseCase {
       cleanHeight !== null &&
       cleanHeight !== undefined &&
       cleanDegree &&
-      cleanProfession &&
+      cleanJob &&
       cleanRelationStatus
     );
 
@@ -463,27 +624,75 @@ export class UpdateProfileUseCase {
       `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
     );
 
+    let cityName: string | null = null;
+    let stateName: string | null = null;
+    let countryName: string | null = null;
+
+    if (validCityId) {
+      const cityRecord = await this.prisma.city.findUnique({
+        where: { id: validCityId },
+        include: {
+          state: {
+            include: {
+              country: true,
+            },
+          },
+        },
+      });
+      if (cityRecord) {
+        cityName = cityRecord.name;
+        stateName = cityRecord.state?.name ?? null;
+        countryName = cityRecord.state?.country?.name ?? null;
+      }
+    }
+
+    const formattedBirthDate = parsedBirthDate
+      ? parsedBirthDate.toISOString().slice(0, 10)
+      : null;
+
+    const formattedGender = normalizedGender
+      ? normalizedGender.toUpperCase()
+      : null;
+
+    const cityObj =
+      validCityId !== null
+        ? {
+            id: validCityId,
+            name: cityName,
+            state: stateName,
+            country: countryName,
+          }
+        : null;
+
     return {
-      userId,
-      firstName: cleanFirstName ? cleanFirstName : null,
-      lastName: cleanUsername ? cleanUsername : null,
-      username: cleanUsername ? cleanUsername : null,
-      phoneNumber: cleanPhoneNumber,
-      bio: cleanBio,
-      avatarUrl,
-      selfieUrl,
-      age: calculatedUserAge,
-      gender: normalizedGender,
-      height: cleanHeight,
-      languages: cleanLanguages,
-      degree: cleanDegree,
-      profession: cleanProfession,
-      relationStatus: cleanRelationStatus,
-      relation: cleanRelationType,
-      cityId: validCityId,
-      language: cleanLanguage,
-      profileCompleted,
+      id: userId,
+      email: user.email,
+      language: cleanLanguage.toUpperCase(),
+      lat: cleanLatitude !== undefined ? cleanLatitude : null,
+      lon: cleanLongitude !== undefined ? cleanLongitude : null,
       profileValidated: user.profileValidated ?? false,
+      Profile: {
+        fullName: cleanFullName ? cleanFullName : null,
+        username: cleanUsername ? cleanUsername : null,
+        phoneNumber: cleanPhoneNumber,
+        bio: cleanBio,
+        languages: cleanLanguages,
+        avatar: avatarUrl,
+        // selfie url: this will not use still, only cline shoululs send
+        profileCompleted,
+        Demographic: {
+          birthDate: formattedBirthDate,
+          gender: formattedGender,
+          height: cleanHeight,
+          degree: cleanDegree,
+          profession: cleanJob,
+          relationStatus: cleanRelationStatus,
+          City: cityObj,
+        },
+        Preferences: {
+          relation: cleanRelationType,
+        },
+      },
     };
   }
 }

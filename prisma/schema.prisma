@@ -196,7 +196,7 @@ model UserSession {
 model Profile {
   id          Int       @id @default(autoincrement())
   userId      Int       @unique @map("user_id")
-  firstName   String    @map("first_name") @db.VarChar(100)
+  fullName    String    @map("first_name") @db.VarChar(100)
   username    String?   @unique @db.VarChar(50)
   phoneNumber String?   @map("phone_number") @db.VarChar(50)
   languages   Json?     @db.JsonB
@@ -226,7 +226,7 @@ model Demographic {
   height         Int?                @db.SmallInt
   weight         Int?                @db.SmallInt
   degree         EducationStatus?
-  profession     String?             @db.VarChar(100)
+  job            String?             @map("profession") @db.VarChar(100)
   religion       ReligionStatus?
   relationStatus RelationshipStatus? @map("relation_status")
   cityId         Int?                @map("city_id")

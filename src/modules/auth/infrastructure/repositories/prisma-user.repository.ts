@@ -50,7 +50,7 @@ export class PrismaUserRepository implements IUserRepository {
       where: { userId },
       select: {
         id: true,
-        firstName: true,
+        fullName: true,
         avatarUrl: true,
         username: true,
         selfieUrl: true,
@@ -59,7 +59,7 @@ export class PrismaUserRepository implements IUserRepository {
     });
     if (
       !profile ||
-      !profile.firstName ||
+      !profile.fullName ||
       !profile.avatarUrl ||
       !profile.username ||
       !profile.selfieUrl ||
@@ -78,7 +78,7 @@ export class PrismaUserRepository implements IUserRepository {
         gender: true,
         height: true,
         degree: true,
-        profession: true,
+        job: true,
         relationStatus: true,
       },
     });
@@ -88,7 +88,7 @@ export class PrismaUserRepository implements IUserRepository {
       !demographic.gender ||
       demographic.height == null ||
       !demographic.degree ||
-      !demographic.profession ||
+      !demographic.job ||
       !demographic.relationStatus
     ) {
       return false;

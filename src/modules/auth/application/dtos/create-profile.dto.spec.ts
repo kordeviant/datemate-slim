@@ -1,108 +1,176 @@
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
-import { CreateProfileDto, UpdateProfileDto } from "./create-profile.dto";
+import { CreateProfileDto, UpdateProfileDto } from "./update-profile.dto";
 
 describe("UpdateProfileDto / CreateProfileDto Validation", () => {
-  const baseValidObject = {
-    firstName: "Sara",
-    username: "sara_smith",
-    gender: "Female",
+  const baseValidPayload = {
     language: "EN",
+    lat: 35.6892,
+    lon: 51.389,
+    Profile: {
+      fullName: "Sara Connor",
+      username: "sara_connor",
+      phoneNumber: "+1234567890",
+      bio: "Software engineer living in Tehran.",
+      languages: ["Persian", "English"],
+      Demographic: {
+        birthDate: "1998-11-25",
+        gender: "Female",
+        height: 180,
+        degree: "PhD",
+        profession: "Software Engineer",
+        relationStatus: "Single",
+        City: { id: 12 },
+      },
+      Preferences: {
+        relation: "Long term",
+      },
+    },
   };
 
-  it('should pass validation when language is "EN"', async () => {
+  it("should pass validation with fully structured payload", async () => {
+    const dto = plainToInstance(UpdateProfileDto, baseValidPayload);
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0);
+    expect(dto.Profile?.fullName).toBe("Sara Connor");
+    expect(dto.language).toBe("en");
+    expect(dto.Profile?.Demographic?.height).toBe(180);
+    expect(dto.Profile?.Demographic?.City?.id).toBe(12);
+    expect(dto.Profile?.Preferences?.relation).toBe("Long term");
+    expect(dto.Profile?.username).toBe("sara_connor");
+  });
+
+  it('should pass validation and normalize language "EN" to "en"', async () => {
     const dto = plainToInstance(UpdateProfileDto, {
-      ...baseValidObject,
+      ...baseValidPayload,
       language: "EN",
     });
     const errors = await validate(dto);
-    const langError = errors.find((e) => e.property === "language");
-    expect(langError).toBeUndefined();
+    expect(errors.length).toBe(0);
     expect(dto.language).toBe("en");
   });
 
-  it('should pass validation when language is "FA"', async () => {
+  it('should pass validation and normalize language "FA" to "fa"', async () => {
     const dto = plainToInstance(UpdateProfileDto, {
-      ...baseValidObject,
+      ...baseValidPayload,
       language: "FA",
     });
     const errors = await validate(dto);
-    const langError = errors.find((e) => e.property === "language");
-    expect(langError).toBeUndefined();
+    expect(errors.length).toBe(0);
     expect(dto.language).toBe("fa");
   });
 
   it('should pass validation and normalize mixed case "Fa" and "En"', async () => {
     const dtoFa = plainToInstance(UpdateProfileDto, {
-      ...baseValidObject,
       language: "Fa",
+      Profile: { fullName: "Sara" },
     });
     const errorsFa = await validate(dtoFa);
-    expect(errorsFa.find((e) => e.property === "language")).toBeUndefined();
+    expect(errorsFa.length).toBe(0);
     expect(dtoFa.language).toBe("fa");
 
     const dtoEn = plainToInstance(CreateProfileDto, {
-      ...baseValidObject,
       language: "En",
+      Profile: { fullName: "Sara" },
     });
     const errorsEn = await validate(dtoEn);
-    expect(errorsEn.find((e) => e.property === "language")).toBeUndefined();
+    expect(errorsEn.length).toBe(0);
     expect(dtoEn.language).toBe("en");
   });
 
   it('should fail validation when language is invalid (e.g. "FR", "DE")', async () => {
     const dtoFr = plainToInstance(UpdateProfileDto, {
-      ...baseValidObject,
       language: "FR",
     });
     const errorsFr = await validate(dtoFr);
-    const langErrorFr = errorsFr.find((e) => e.property === "language");
-    expect(langErrorFr).toBeDefined();
-    expect(langErrorFr?.constraints?.isIn).toContain(
-      "Language must be either EN (English) or FA (Farsi)",
+    expect(errorsFr.length).toBeGreaterThan(0);
+    const languageErrors = errorsFr.find((e) => e.property === "language");
+    expect(languageErrors).toBeDefined();
+  });
+
+  it("should fail validation when username in Profile has invalid characters", async () => {
+    const dto = plainToInstance(UpdateProfileDto, {
+      Profile: {
+        username: "user with spaces",
+      },
+    });
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    const profileErrors = errors.find((e) => e.property === "Profile");
+    expect(profileErrors?.children?.some((c) => c.property === "username")).toBe(true);
+  });
+
+  it("should fail validation if gender in Demographic is not Male or Female", async () => {
+    const dto = plainToInstance(UpdateProfileDto, {
+      Profile: {
+        fullName: "Sara",
+        Demographic: {
+          gender: "Other",
+        },
+      },
+    });
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    const profileErrors = errors.find((e) => e.property === "Profile");
+    const demographicErrors = profileErrors?.children?.find(
+      (c) => c.property === "Demographic",
     );
+    expect(
+      demographicErrors?.children?.some((c) => c.property === "gender"),
+    ).toBe(true);
   });
 
-  it("should fail validation when language is empty", async () => {
-    const dtoEmpty = plainToInstance(UpdateProfileDto, {
-      ...baseValidObject,
-      language: "",
-    });
-    const errorsEmpty = await validate(dtoEmpty);
-    const langErrorEmpty = errorsEmpty.find((e) => e.property === "language");
-    expect(langErrorEmpty).toBeDefined();
-  });
-
-  it("should pass validation on partial payload for step-by-step onboarding (e.g. only firstName)", async () => {
+  it("should pass validation on partial payload for step-by-step onboarding (e.g. only Profile.fullName)", async () => {
     const dto = plainToInstance(UpdateProfileDto, {
-      firstName: "John",
+      Profile: {
+        fullName: "John Doe",
+      },
     });
     const errors = await validate(dto);
     expect(errors.length).toBe(0);
+    expect(dto.Profile?.fullName).toBe("John Doe");
   });
 
-  it("should pass validation on partial payload with bio and cityId for edit profile", async () => {
+  it("should pass validation on partial payload with bio and City", async () => {
     const dto = plainToInstance(UpdateProfileDto, {
-      bio: "Enthusiastic developer and hiker.",
-      cityId: 5,
+      Profile: {
+        bio: "Enthusiastic developer and hiker.",
+        Demographic: {
+          City: { id: 5 },
+        },
+      },
     });
     const errors = await validate(dto);
     expect(errors.length).toBe(0);
+    expect(dto.Profile?.bio).toBe("Enthusiastic developer and hiker.");
+    expect(dto.Profile?.Demographic?.City?.id).toBe(5);
   });
 
-  it("should fail validation if username has invalid characters", async () => {
+  it("should pass validation with top-level language and lat/lon", async () => {
     const dto = plainToInstance(UpdateProfileDto, {
-      username: "user with spaces",
+      language: "EN",
+      lat: 35.6892,
+      lon: 51.389,
+      Profile: {
+        fullName: "Alex Smith",
+        username: "alex_smith",
+        Demographic: {
+          birthDate: "1995-05-15",
+          gender: "Male",
+          degree: "PhD",
+          profession: "Architect",
+          relationStatus: "Single",
+          City: { id: 12 },
+        },
+        Preferences: {
+          relation: "Long term",
+        },
+      },
     });
     const errors = await validate(dto);
-    expect(errors.some((e) => e.property === "username")).toBe(true);
-  });
-
-  it("should fail validation if gender is not Male or Female", async () => {
-    const dto = plainToInstance(UpdateProfileDto, {
-      gender: "Other",
-    });
-    const errors = await validate(dto);
-    expect(errors.some((e) => e.property === "gender")).toBe(true);
+    expect(errors.length).toBe(0);
+    expect(dto.Profile?.fullName).toBe("Alex Smith");
+    expect(dto.language).toBe("en");
+    expect(dto.lat).toBe(35.6892);
   });
 });

@@ -2,13 +2,13 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { UnauthorizedException } from "@nestjs/common";
 import { UsersController } from "./users.controller";
 import { TokenService } from "../application/services/token.service";
+import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
-import { USER_REPOSITORY } from "../domain/repositories/user.repository.interface";
 
 describe("UsersController", () => {
   let controller: UsersController;
   let mockTokenService: any;
-  let mockUserRepo: any;
+  let mockGetProfileUseCase: any;
   let mockUpdateProfileUseCase: any;
 
   beforeEach(async () => {
@@ -16,8 +16,8 @@ describe("UsersController", () => {
       verifyAccessToken: jest.fn().mockReturnValue({ sub: 1 }),
     };
 
-    mockUserRepo = {
-      hasCompletedProfile: jest.fn().mockResolvedValue(false),
+    mockGetProfileUseCase = {
+      execute: jest.fn(),
     };
 
     mockUpdateProfileUseCase = {
@@ -28,7 +28,7 @@ describe("UsersController", () => {
       controllers: [UsersController],
       providers: [
         { provide: TokenService, useValue: mockTokenService },
-        { provide: USER_REPOSITORY, useValue: mockUserRepo },
+        { provide: GetProfileUseCase, useValue: mockGetProfileUseCase },
         { provide: UpdateProfileUseCase, useValue: mockUpdateProfileUseCase },
       ],
     }).compile();
@@ -36,21 +36,38 @@ describe("UsersController", () => {
     controller = module.get<UsersController>(UsersController);
   });
 
-  describe("GET /users/profile", () => {
+  describe("GET /users/me", () => {
     it("should throw UnauthorizedException if header is missing", async () => {
-      await expect(controller.checkUserProfile("")).rejects.toThrow(
+      await expect(controller.getMe("")).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
-    it("should return completion status", async () => {
-      mockUserRepo.hasCompletedProfile.mockResolvedValue(true);
-      const res = await controller.checkUserProfile("Bearer valid_token");
+    it("should return profile in Android-matching schema with profileCompleted status", async () => {
+      const mockProfile: any = {
+        id: 1,
+        email: "user@example.com",
+        language: "EN",
+        lat: null,
+        lon: null,
+        profileValidated: false,
+        Profile: {
+          fullName: "John Doe",
+          username: "john_doe",
+          profileCompleted: true,
+          Demographic: {},
+          Preferences: {},
+        },
+      };
+      mockGetProfileUseCase.execute.mockResolvedValue(mockProfile);
+
+      const res = await controller.getMe("Bearer valid_token");
       expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
         "valid_token",
       );
-      expect(mockUserRepo.hasCompletedProfile).toHaveBeenCalledWith(1);
-      expect(res).toBe(true);
+      expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(1);
+      expect(res).toEqual(mockProfile);
+      expect(res.Profile.profileCompleted).toBe(true);
     });
   });
 
@@ -61,23 +78,35 @@ describe("UsersController", () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it("should delegate to updateProfileUseCase and return profileCompleted: false", async () => {
+    it("should delegate dto to updateProfileUseCase and return Android-matching response", async () => {
       const dto = {
-        firstName: "John",
-        username: "john_doe",
-        birthDate: "1998-11-25",
-        gender: "Male",
         language: "EN",
+        Profile: {
+          fullName: "John Doe",
+          Demographic: {
+            birthDate: "1998-11-25",
+            gender: "Male",
+          },
+        },
       };
       const mockFile: any = { buffer: Buffer.from("img") };
       const expectedResponse: any = {
-        userId: 1,
-        firstName: "John",
-        username: "john_doe",
-        age: 27,
-        gender: "MALE",
-        language: "en",
-        profileCompleted: false,
+        id: 1,
+        email: null,
+        language: "EN",
+        lat: null,
+        lon: null,
+        profileValidated: false,
+        Profile: {
+          fullName: "John Doe",
+          username: null,
+          profileCompleted: false,
+          Demographic: {
+            birthDate: "1998-11-25",
+            gender: "MALE",
+          },
+          Preferences: {},
+        },
       };
 
       mockUpdateProfileUseCase.execute.mockResolvedValue(expectedResponse);
@@ -98,22 +127,31 @@ describe("UsersController", () => {
         undefined,
       );
       expect(res).toEqual(expectedResponse);
-      expect(res.profileCompleted).toBe(false);
+      expect(res.Profile.profileCompleted).toBe(false);
     });
 
     it("should accept both avatar and selfie files and pass to use case", async () => {
       const dto = {
-        firstName: "John",
-        height: 180,
+        Profile: {
+          fullName: "John Doe",
+          Demographic: {
+            height: 180,
+          },
+        },
       };
       const avatarFile: any = { buffer: Buffer.from("avatar_buf") };
       const selfieFile: any = { buffer: Buffer.from("selfie_buf") };
       const expectedResponse: any = {
-        userId: 1,
-        firstName: "John",
-        avatarUrl: "/uploads/avatars/avatar_1.webp",
-        selfieUrl: "/uploads/selfies/selfie_1.webp",
-        profileCompleted: false,
+        id: 1,
+        language: "EN",
+        profileValidated: false,
+        Profile: {
+          fullName: "John Doe",
+          avatar: "/uploads/avatars/avatar_1.webp",
+          profileCompleted: false,
+          Demographic: { height: 180 },
+          Preferences: {},
+        },
       };
 
       mockUpdateProfileUseCase.execute.mockResolvedValue(expectedResponse);
@@ -133,101 +171,64 @@ describe("UsersController", () => {
       expect(res).toEqual(expectedResponse);
     });
 
-    it("should parse Retrofit multipart data string and unwrap nested Demographic.City.id", async () => {
-      const rawData = JSON.stringify({
-        firstName: "Sarah",
-        Demographic: {
-          City: { id: 150293, name: "Tehran" },
-          height: 172,
-          degree: "BACHELOR",
+    it("should pass Android-matching dto structure directly to updateProfileUseCase", async () => {
+      const payload: any = {
+        language: "EN",
+        lat: 35.6892,
+        lon: 51.389,
+        Profile: {
+          fullName: "Sarah Connor",
+          username: "sarah_c",
+          Demographic: {
+            birthDate: "1995-05-15",
+            height: 172,
+            degree: "BACHELOR_DEGREE",
+            profession: "Engineer",
+            relationStatus: "SINGLE",
+            City: { id: 150293 },
+          },
+          Preferences: {
+            relation: "LONG",
+          },
         },
-        Preferences: {
-          relation: "LONG_TERM",
+      };
+
+      mockUpdateProfileUseCase.execute.mockResolvedValue({
+        id: 1,
+        language: "EN",
+        lat: 35.6892,
+        lon: 51.389,
+        profileValidated: false,
+        Profile: {
+          ...payload.Profile,
+          profileCompleted: false,
         },
       });
 
-      mockUpdateProfileUseCase.execute.mockResolvedValue({
-        userId: 1,
-        firstName: "Sarah",
-        cityId: 150293,
-        profileCompleted: false,
-      });
-
       await controller.updateProfile(
         "Bearer token123",
-        { data: rawData } as any,
+        payload,
         undefined,
       );
 
       expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
         1,
-        expect.objectContaining({
-          firstName: "Sarah",
-          cityId: 150293,
-          height: 172,
-          degree: "BACHELOR",
-          relation: "LONG_TERM",
-        }),
-        undefined,
-        undefined,
-      );
-    });
-
-    it("should unpack snake_case city_id and nested city objects", async () => {
-      mockUpdateProfileUseCase.execute.mockResolvedValue({
-        userId: 1,
-        cityId: 42,
-        profileCompleted: false,
-      });
-
-      await controller.updateProfile(
-        "Bearer token123",
-        { city_id: 42 } as any,
-        undefined,
-      );
-
-      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
-        1,
-        expect.objectContaining({
-          cityId: 42,
-        }),
-        undefined,
-        undefined,
-      );
-    });
-
-    it("should map lastName to username if username is not provided", async () => {
-      mockUpdateProfileUseCase.execute.mockResolvedValue({
-        userId: 1,
-        firstName: "Bruce",
-        lastName: "wayne",
-        username: "wayne",
-        profileCompleted: false,
-      });
-
-      await controller.updateProfile(
-        "Bearer token123",
-        { firstName: "Bruce", lastName: "wayne" } as any,
-        undefined,
-      );
-
-      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
-        1,
-        expect.objectContaining({
-          firstName: "Bruce",
-          username: "wayne",
-        }),
+        payload,
         undefined,
         undefined,
       );
     });
 
     it("should support backwards-compatible createProfile alias method", async () => {
-      const dto = { firstName: "John" };
+      const dto = { Profile: { fullName: "John Doe" } };
       const expectedResponse: any = {
-        userId: 1,
-        firstName: "John",
-        profileCompleted: false,
+        id: 1,
+        language: "EN",
+        profileValidated: false,
+        Profile: {
+          fullName: "John Doe",
+          profileCompleted: false,
+        },
       };
       mockUpdateProfileUseCase.execute.mockResolvedValue(expectedResponse);
 
@@ -237,6 +238,62 @@ describe("UsersController", () => {
         undefined,
       );
 
+      expect(res).toEqual(expectedResponse);
+    });
+  });
+
+  describe("GET /users/profile (mobile profile completion check)", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.checkProfileStatus("")).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should return boolean profileCompleted status", async () => {
+      const mockProfile: any = {
+        id: 1,
+        language: "EN",
+        Profile: { fullName: "John Doe", profileCompleted: true },
+      };
+      mockGetProfileUseCase.execute.mockResolvedValue(mockProfile);
+
+      const res = await controller.checkProfileStatus("Bearer valid_token");
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
+        "valid_token",
+      );
+      expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(1);
+      expect(res).toBe(true);
+    });
+  });
+
+  describe("POST /users/profile (mobile onboarding & profile update)", () => {
+    it("should delegate to updateProfile and return profile response", async () => {
+      const dto = {
+        Profile: { fullName: "Mobile User" },
+      };
+      const expectedResponse: any = {
+        id: 1,
+        language: "EN",
+        profileValidated: false,
+        Profile: { fullName: "Mobile User", profileCompleted: false },
+      };
+      mockUpdateProfileUseCase.execute.mockResolvedValue(expectedResponse);
+
+      const res = await controller.updateProfilePost(
+        "Bearer mobile_token",
+        dto as any,
+        undefined,
+      );
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
+        "mobile_token",
+      );
+      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
+        1,
+        dto,
+        undefined,
+        undefined,
+      );
       expect(res).toEqual(expectedResponse);
     });
   });

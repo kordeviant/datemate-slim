@@ -1,4 +1,134 @@
+import { BadRequestException } from '@nestjs/common';
 import { EducationStatus, RelationshipStatus, RelationType } from '@prisma/client';
+
+export const ALLOWED_SPOKEN_LANGUAGES = [
+  'en', 'fa', 'de', 'fr', 'es', 'it', 'pt', 'ru',
+  'uk', 'tr', 'ar', 'hi', 'ur', 'zh', 'ja', 'ko',
+  'nl', 'pl', 'sv', 'no', 'da', 'fi', 'cs', 'el', 'he',
+] as const;
+
+export type AllowedSpokenLanguage = (typeof ALLOWED_SPOKEN_LANGUAGES)[number];
+
+export const LANGUAGE_NAME_TO_CODE: Record<string, AllowedSpokenLanguage> = {
+  // English
+  english: 'en',
+
+  // Persian / Farsi
+  persian: 'fa',
+  farsi: 'fa',
+  parsi: 'fa',
+
+  // German
+  german: 'de',
+  deutsch: 'de',
+
+  // French
+  french: 'fr',
+  francais: 'fr',
+  français: 'fr',
+
+  // Spanish
+  spanish: 'es',
+  espanol: 'es',
+  español: 'es',
+  castilian: 'es',
+
+  // Italian
+  italian: 'it',
+  italiano: 'it',
+
+  // Portuguese
+  portuguese: 'pt',
+  portugues: 'pt',
+  português: 'pt',
+
+  // Russian
+  russian: 'ru',
+  russkiy: 'ru',
+  русский: 'ru',
+
+  // Ukrainian
+  ukrainian: 'uk',
+  ukrayinska: 'uk',
+  українська: 'uk',
+
+  // Turkish
+  turkish: 'tr',
+  turkce: 'tr',
+  türkçe: 'tr',
+
+  // Arabic
+  arabic: 'ar',
+  arabiya: 'ar',
+  العربية: 'ar',
+
+  // Hindi
+  hindi: 'hi',
+  हिन्दी: 'hi',
+
+  // Urdu
+  urdu: 'ur',
+  اردو: 'ur',
+
+  // Chinese
+  chinese: 'zh',
+  mandarin: 'zh',
+  cantonese: 'zh',
+  zhongwen: 'zh',
+  中文: 'zh',
+
+  // Japanese
+  japanese: 'ja',
+  nihongo: 'ja',
+  日本語: 'ja',
+
+  // Korean
+  korean: 'ko',
+  hangul: 'ko',
+  hangugeo: 'ko',
+  한국어: 'ko',
+
+  // Dutch
+  dutch: 'nl',
+  nederlands: 'nl',
+  flemish: 'nl',
+
+  // Polish
+  polish: 'pl',
+  polski: 'pl',
+
+  // Swedish
+  swedish: 'sv',
+  svenska: 'sv',
+
+  // Norwegian
+  norwegian: 'no',
+  norsk: 'no',
+
+  // Danish
+  danish: 'da',
+  dansk: 'da',
+
+  // Finnish
+  finnish: 'fi',
+  suomi: 'fi',
+
+  // Czech
+  czech: 'cs',
+  cestina: 'cs',
+  čeština: 'cs',
+
+  // Greek
+  greek: 'el',
+  ellinika: 'el',
+  ellenika: 'el',
+  ελληνικά: 'el',
+
+  // Hebrew
+  hebrew: 'he',
+  ivrit: 'he',
+  עברית: 'he',
+};
 
 export function normalizeEducation(value?: string | null): EducationStatus | undefined {
   if (!value || typeof value !== 'string') return undefined;
@@ -53,23 +183,54 @@ export function normalizeRelationType(value?: string | null): RelationType | und
 
 export function normalizeLanguages(value?: any): string[] | undefined {
   if (value === undefined || value === null) return undefined;
+
+  let rawList: any[] = [];
   if (Array.isArray(value)) {
-    return value.map((l) => String(l).trim()).filter(Boolean);
-  }
-  if (typeof value === 'string') {
+    rawList = value;
+  } else if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
       try {
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed)) {
-          return parsed.map((l) => String(l).trim()).filter(Boolean);
+          rawList = parsed;
+        } else {
+          rawList = [trimmed];
         }
-      } catch {}
+      } catch {
+        rawList = trimmed.split(',');
+      }
+    } else {
+      rawList = trimmed.split(',');
     }
-    return trimmed
-      .split(',')
-      .map((l) => l.trim())
-      .filter(Boolean);
+  } else {
+    return undefined;
   }
-  return undefined;
+
+  const normalizedSet = new Set<string>();
+
+  for (const item of rawList) {
+    if (item === undefined || item === null) continue;
+    const str = String(item).trim().toLowerCase();
+    if (!str) continue;
+
+    // Direct check for 2-letter allowed code
+    if ((ALLOWED_SPOKEN_LANGUAGES as readonly string[]).includes(str)) {
+      normalizedSet.add(str);
+      continue;
+    }
+
+    // Check if matches a full language name
+    const code = LANGUAGE_NAME_TO_CODE[str];
+    if (code) {
+      normalizedSet.add(code);
+      continue;
+    }
+
+    throw new BadRequestException(
+      `Invalid language '${item}'. Allowed languages are: ${ALLOWED_SPOKEN_LANGUAGES.join(', ')}`,
+    );
+  }
+
+  return Array.from(normalizedSet);
 }

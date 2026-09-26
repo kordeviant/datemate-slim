@@ -1,0 +1,279 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { UnauthorizedException } from '@nestjs/common';
+import { GetProfileUseCase } from './get-profile.use-case';
+import { PrismaService } from '../../../../infrastructure/database/prisma.service';
+
+describe('GetProfileUseCase', () => {
+  let useCase: GetProfileUseCase;
+  let mockPrisma: any;
+
+  beforeEach(async () => {
+    mockPrisma = {
+      user: {
+        findUnique: jest.fn(),
+      },
+      question: {
+        count: jest.fn().mockResolvedValue(0),
+      },
+      userQuestionAnswer: {
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        GetProfileUseCase,
+        { provide: PrismaService, useValue: mockPrisma },
+      ],
+    }).compile();
+
+    useCase = module.get<GetProfileUseCase>(GetProfileUseCase);
+  });
+
+  it('should throw UnauthorizedException if user is not found', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(useCase.execute(999)).rejects.toThrow(UnauthorizedException);
+    await expect(useCase.execute(999)).rejects.toThrow('User account not found');
+  });
+
+  it('should return Android-matching profile with defaults and profileCompleted: false when profile records do not exist', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'newuser@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: null,
+      demographic: null,
+      preferences: null,
+      interests: [],
+    });
+
+    const res = await useCase.execute(1);
+
+    expect(res).toEqual({
+      id: 1,
+      email: 'newuser@example.com',
+      language: 'EN',
+      lat: null,
+      lon: null,
+      profileValidated: false,
+      Profile: {
+        fullName: null,
+        username: null,
+        phoneNumber: null,
+        bio: null,
+        languages: null,
+        avatar: '',
+        profileCompleted: false,
+        Demographic: {
+          birthDate: null,
+          gender: null,
+          height: null,
+          degree: null,
+          profession: null,
+          relationStatus: null,
+          City: null,
+        },
+        Preferences: {
+          relation: null,
+        },
+      },
+    });
+  });
+
+  it('should return birthDate as YYYY-MM-DD string, uppercase gender, and City with name/state/country', async () => {
+    const birthDate = new Date('2000-01-15');
+
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'FA',
+      profileValidated: true,
+      profile: {
+        fullName: 'Ali Ahmadi',
+        username: 'ali123',
+        avatarUrl: '/uploads/avatars/ali.webp',
+        selfieUrl: '/uploads/selfies/ali.webp',
+        phoneNumber: '+989123456789',
+        bio: 'Hello world',
+        languages: ['fa'],
+        latitude: 35.6892,
+        longitude: 51.389,
+      },
+      demographic: {
+        birthDate,
+        gender: 'MALE',
+        height: 180,
+        degree: 'BACHELOR_DEGREE',
+        job: 'Developer',
+        relationStatus: 'SINGLE',
+        cityId: 5,
+        city: {
+          name: 'Tehran',
+          state: {
+            name: 'Tehran Province',
+            country: {
+              name: 'Iran',
+            },
+          },
+        },
+      },
+      preferences: {
+        relation: 'LONG',
+      },
+      interests: [
+        {
+          interest: {
+            nameEn: 'Photography',
+          },
+        },
+      ],
+    });
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.fullName).toBe('Ali Ahmadi');
+    expect(res.Profile.Demographic.birthDate).toBe('2000-01-15');
+    expect(res.Profile.Demographic.gender).toBe('MALE');
+    expect(res.language).toBe('FA');
+    expect(res.lat).toBe(35.6892);
+    expect(res.lon).toBe(51.389);
+    expect(res.Profile.Demographic.City).toEqual({
+      id: 5,
+      name: 'Tehran',
+      state: 'Tehran Province',
+      country: 'Iran',
+    });
+    expect(res.Profile.profileCompleted).toBe(true);
+    expect(res.profileValidated).toBe(true);
+    expect(res.Profile.username).toBe('ali123');
+    expect(res.email).toBe('user@example.com');
+  });
+
+  it('should return profileCompleted: false if basic profile is incomplete (missing selfie)', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        selfieUrl: null, // missing selfie
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: 175,
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+        cityId: 10,
+      },
+      preferences: {
+        relation: 'FUN',
+      },
+    });
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.profileCompleted).toBe(false);
+  });
+
+  it('should return profileCompleted: false if demographics are incomplete', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        selfieUrl: '/uploads/selfies/john.webp',
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: null, // missing height
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+      },
+      preferences: {
+        relation: 'FUN',
+      },
+    });
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.profileCompleted).toBe(false);
+  });
+
+  it('should return profileCompleted: false if preferences are missing', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        selfieUrl: '/uploads/selfies/john.webp',
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: 175,
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+      },
+      preferences: null, // missing preferences
+    });
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.profileCompleted).toBe(false);
+  });
+
+  it('should return profileCompleted: false if questions are not all answered', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        selfieUrl: '/uploads/selfies/john.webp',
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: 175,
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+      },
+      preferences: {
+        relation: 'FUN',
+      },
+    });
+
+    mockPrisma.question.count.mockResolvedValue(5);
+    mockPrisma.userQuestionAnswer.count.mockResolvedValue(3); // only answered 3 of 5
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.profileCompleted).toBe(false);
+  });
+});

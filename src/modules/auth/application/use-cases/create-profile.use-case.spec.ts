@@ -16,7 +16,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
   beforeEach(async () => {
     mockPrisma = {
       user: {
-        findUnique: jest.fn().mockResolvedValue({ id: 1, language: "EN" }),
+        findUnique: jest.fn().mockResolvedValue({ id: 1, language: "EN", email: "user@example.com" }),
         update: jest.fn().mockResolvedValue({ id: 1, language: "EN" }),
       },
       profile: {
@@ -78,16 +78,20 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     useCase = module.get<UpdateProfileUseCase>(UpdateProfileUseCase);
   });
 
+  // New DTO format matching Android client schema
   const validDto = {
-    firstName: "John",
-    username: "john_doe",
-    birthDate: "1998-11-25",
-    gender: "Male",
     language: "EN",
-    phoneNumber: "+1234567890",
-    cityId: 10,
-    latitude: 35.6892,
-    longitude: 51.389,
+    lat: 35.6892,
+    lon: 51.389,
+    Profile: {
+      fullName: "John Doe",
+      username: "john_doe",
+      Demographic: {
+        birthDate: "1998-11-25",
+        gender: "Male",
+        City: { id: 10 },
+      },
+    },
   };
 
   const mockAvatarFile: any = {
@@ -103,25 +107,25 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
 
   it("should allow step-by-step update without avatar (avatar is optional)", async () => {
     const result = await useCase.execute(1, validDto, undefined);
-    expect(result.avatarUrl).toBe("");
+    expect(result.Profile.avatar).toBe("");
     expect(mockAvatarProcessor.processAndSaveAvatar).not.toHaveBeenCalled();
     expect(mockPrisma.profile.upsert).toHaveBeenCalled();
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
-  it("should retain existing avatarUrl when no new avatar is uploaded", async () => {
+  it("should retain existing avatar when no new avatar is uploaded", async () => {
     mockPrisma.profile.findUnique.mockResolvedValue({
       userId: 1,
-      firstName: "John",
+      fullName: "John Doe",
       username: "john_doe",
       avatarUrl: "/uploads/avatars/existing.webp",
       languages: ["en"],
     });
 
-    const result = await useCase.execute(1, { firstName: "Johnny" }, undefined);
-    expect(result.avatarUrl).toBe("/uploads/avatars/existing.webp");
-    expect(result.firstName).toBe("Johnny");
-    expect(result.profileCompleted).toBe(false);
+    const result = await useCase.execute(1, { Profile: { fullName: "Johnny Doe" } }, undefined);
+    expect(result.Profile.avatar).toBe("/uploads/avatars/existing.webp");
+    expect(result.Profile.fullName).toBe("Johnny Doe");
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
   it("should process avatar when provided", async () => {
@@ -134,103 +138,128 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       mockAvatarFile.buffer,
       1,
     );
-    expect(result.avatarUrl).toBe("/uploads/avatars/avatar_1_12345.webp");
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.avatar).toBe("/uploads/avatars/avatar_1_12345.webp");
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
-  it("should throw BadRequestException if username is invalid", async () => {
+  it("should reject invalid username formats with BadRequestException", async () => {
     await expect(
-      useCase.execute(1, { ...validDto, username: "123456" }, mockAvatarFile),
-    ).rejects.toThrow("cannot contain only numbers");
+      useCase.execute(1, { Profile: { username: "a" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "user with spaces" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "-invalidstart" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "invalidend_" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "two..dots" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "emoji🎉user" } }),
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it("should throw ConflictException if username is taken by another user", async () => {
+  it("should reject reserved usernames with BadRequestException", async () => {
+    await expect(
+      useCase.execute(1, { Profile: { username: "admin" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "root" } }),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "support" } }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it("should throw ConflictException if username is already taken by another user", async () => {
     mockPrisma.profile.findFirst.mockResolvedValue({
-      id: 99,
-      userId: 2, // different user
-      username: "john_doe",
+      userId: 2,
+      username: "taken_user",
     });
 
-    await expect(useCase.execute(1, validDto, mockAvatarFile)).rejects.toThrow(
-      ConflictException,
-    );
-  });
-
-  it("should allow user to keep their own username", async () => {
-    mockPrisma.profile.findFirst.mockResolvedValue({
-      id: 99,
-      userId: 1, // same user
-      username: "john_doe",
-    });
-
-    const result = await useCase.execute(1, validDto, undefined);
-    expect(result.username).toBe("john_doe");
-  });
-
-  it("should throw BadRequestException if date of birth indicates age < 18", async () => {
     await expect(
-      useCase.execute(
-        1,
-        { ...validDto, birthDate: "2015-05-10" },
-        mockAvatarFile,
-      ),
-    ).rejects.toThrow("at least 18 years old");
+      useCase.execute(1, { Profile: { username: "taken_user" } }),
+    ).rejects.toThrow(ConflictException);
   });
 
-  it("should permit updating birthDate if user provides a valid new date of birth between 18 and 80", async () => {
-    mockPrisma.demographic.findUnique.mockResolvedValue({
+  it("should allow user to keep their own username without conflict", async () => {
+    mockPrisma.profile.findFirst.mockResolvedValue({
       userId: 1,
-      birthDate: new Date("1990-01-01"),
-      gender: "MALE",
+      username: "my_current_username",
     });
 
-    const result = await useCase.execute(1, {
-      ...validDto,
-      birthDate: "1995-06-15",
-    });
-    expect(result.age).toBeDefined();
-    expect(result.age).toBeGreaterThanOrEqual(18);
+    await expect(
+      useCase.execute(1, { Profile: { username: "my_current_username" } }),
+    ).resolves.toBeDefined();
   });
 
-  it("should reject date of birth set to today or future date", async () => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+  it("should reject birthDate for users under 18 years old", async () => {
+    const today = new Date();
+    const sixteenYearsAgo = new Date(
+      today.getFullYear() - 16,
+      today.getMonth(),
+      today.getDate(),
+    );
+    const dobString = sixteenYearsAgo.toISOString().split("T")[0];
+
     await expect(
-      useCase.execute(1, { ...validDto, birthDate: todayStr }),
-    ).rejects.toThrow("at least 18 years old");
+      useCase.execute(1, { Profile: { Demographic: { birthDate: dobString } } }),
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it("should reject impersonation usernames such as taylor_swift or elon_musk", async () => {
-    await expect(
-      useCase.execute(1, { username: "taylor_swift" }),
-    ).rejects.toThrow(/reserved or prohibited/);
+  it("should reject birthDate for users over 80 years old", async () => {
+    const today = new Date();
+    const eightyOneYearsAgo = new Date(
+      today.getFullYear() - 81,
+      today.getMonth(),
+      today.getDate(),
+    );
+    const dobString = eightyOneYearsAgo.toISOString().split("T")[0];
 
     await expect(
-      useCase.execute(1, { username: "elon_musk" }),
-    ).rejects.toThrow(/reserved or prohibited/);
+      useCase.execute(1, { Profile: { Demographic: { birthDate: dobString } } }),
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it("should reject staff/admin usernames such as admin, support, moderator, official_team", async () => {
+  it("should reject invalid/impossible calendar dates", async () => {
     await expect(
-      useCase.execute(1, { username: "admin" }),
-    ).rejects.toThrow(/administrative|reserved/);
+      useCase.execute(1, { Profile: { Demographic: { birthDate: "2000-02-30" } } }),
+    ).rejects.toThrow(BadRequestException);
 
     await expect(
-      useCase.execute(1, { username: "moderator" }),
-    ).rejects.toThrow(/administrative|reserved/);
-
-    await expect(
-      useCase.execute(1, { username: "official_team" }),
-    ).rejects.toThrow(/administrative|reserved/);
+      useCase.execute(1, { Profile: { Demographic: { birthDate: "1998-13-01" } } }),
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it("should reject status badges/words such as john_verified and anna_official", async () => {
+  it("should reject celebrity impersonation usernames", async () => {
     await expect(
-      useCase.execute(1, { username: "john_verified" }),
-    ).rejects.toThrow(/status badge|suffix|keywords/);
+      useCase.execute(1, { Profile: { username: "taylor_swift" } }),
+    ).rejects.toThrow(/reserved|prohibited/);
 
     await expect(
-      useCase.execute(1, { username: "anna_official" }),
-    ).rejects.toThrow(/status badge|suffix|keywords/);
+      useCase.execute(1, { Profile: { username: "elon_musk" } }),
+    ).rejects.toThrow(/reserved|prohibited/);
+  });
+
+  it("should reject fake official / verification status usernames", async () => {
+    await expect(
+      useCase.execute(1, { Profile: { username: "john_verified" } }),
+    ).rejects.toThrow(/status|suffix|keywords/);
+
+    await expect(
+      useCase.execute(1, { Profile: { username: "anna_official" } }),
+    ).rejects.toThrow(/status|suffix|keywords/);
   });
 
   it("should permit update without birthDate if demographic already exists", async () => {
@@ -242,12 +271,12 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
 
     const result = await useCase.execute(
       1,
-      { firstName: "John Updated" },
+      { Profile: { fullName: "John Updated" } },
       undefined,
     );
-    expect(result.firstName).toBe("John Updated");
-    expect(result.age).toBeDefined();
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.fullName).toBe("John Updated");
+    expect(result.Profile.Demographic.birthDate).toBe("1998-11-25");
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
   it("should return profileCompleted as false during onboarding steps", async () => {
@@ -258,26 +287,44 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     const result = await useCase.execute(1, validDto, mockAvatarFile);
 
     expect(result).toMatchObject({
-      userId: 1,
-      firstName: "John",
-      username: "john_doe",
-      avatarUrl: "/uploads/avatars/avatar_1.webp",
-      gender: "MALE",
-      language: "en",
-      profileCompleted: false, // returns false until all questions and steps are completed
+      id: 1,
+      Profile: {
+        fullName: "John Doe",
+        username: "john_doe",
+        avatar: "/uploads/avatars/avatar_1.webp",
+        profileCompleted: false,
+        Demographic: {
+          gender: "MALE",
+        },
+      },
     });
-    expect(result.age).toBeGreaterThanOrEqual(18);
-    expect((result as any).birthDate).toBeUndefined(); // Exact DOB remains private
+    expect(result.Profile.Demographic.birthDate).toBeDefined();
   });
 
+  // Complete DTO in the new Android-matching schema
   const completeDto = {
-    ...validDto,
-    height: 178,
-    languages: ["en", "fa"],
-    education: "PhD",
-    job: "Software Engineer",
-    relationStatus: "Single",
-    kindOfRelationship: "Fun and Dating",
+    language: "EN",
+    lat: 35.6892,
+    lon: 51.389,
+    Profile: {
+      fullName: "John Doe",
+      username: "john_doe",
+      phoneNumber: "+1234567890",
+      bio: "Software Engineer in Tehran",
+      languages: ["en", "fa"],
+      Demographic: {
+        birthDate: "1998-11-25",
+        gender: "Male",
+        height: 178,
+        degree: "PhD",
+        profession: "Software Engineer",
+        relationStatus: "Single",
+        City: { id: 10 },
+      },
+      Preferences: {
+        relation: "Fun and Dating",
+      },
+    },
   };
 
   const mockSelfieFile: any = {
@@ -300,14 +347,13 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       mockAvatarFile,
       mockSelfieFile,
     );
-    expect(result.profileCompleted).toBe(true);
-    expect(result.selfieUrl).toBe("/uploads/selfies/selfie_1.webp");
-    expect(result.height).toBe(178);
-    expect(result.degree).toBe("DOCTORATE");
-    expect(result.profession).toBe("Software Engineer");
-    expect(result.relationStatus).toBe("SINGLE");
-    expect(result.relation).toBe("FUN");
-    expect(result.languages).toEqual(["en", "fa"]);
+    expect(result.Profile.profileCompleted).toBe(true);
+    expect(result.Profile.Demographic.height).toBe(178);
+    expect(result.Profile.Demographic.degree).toBe("DOCTORATE");
+    expect(result.Profile.Demographic.profession).toBe("Software Engineer");
+    expect(result.Profile.Demographic.relationStatus).toBe("SINGLE");
+    expect(result.Profile.Preferences.relation).toBe("FUN");
+    expect(result.Profile.languages).toEqual(["en", "fa"]);
   });
 
   it("should return profileCompleted as false if questions exist but not all answered", async () => {
@@ -326,7 +372,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       mockAvatarFile,
       mockSelfieFile,
     );
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
   it("should return profileCompleted as false if selfie is missing", async () => {
@@ -340,7 +386,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       mockAvatarFile,
       undefined,
     );
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
   it("should return profileCompleted as false if height is missing", async () => {
@@ -351,17 +397,26 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       relativeUrl: "/uploads/selfies/selfie_1.webp",
     });
 
-    const { height, ...dtoWithoutHeight } = completeDto;
+    const dtoWithoutHeight = {
+      ...completeDto,
+      Profile: {
+        ...completeDto.Profile,
+        Demographic: {
+          ...completeDto.Profile.Demographic,
+          height: undefined,
+        },
+      },
+    };
     const result = await useCase.execute(
       1,
-      dtoWithoutHeight,
+      dtoWithoutHeight as any,
       mockAvatarFile,
       mockSelfieFile,
     );
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
-  it("should return profileCompleted as false if job is missing", async () => {
+  it("should return profileCompleted as false if profession is missing", async () => {
     mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
       relativeUrl: "/uploads/avatars/avatar_1.webp",
     });
@@ -369,14 +424,23 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       relativeUrl: "/uploads/selfies/selfie_1.webp",
     });
 
-    const { job, ...dtoWithoutJob } = completeDto;
+    const dtoWithoutJob = {
+      ...completeDto,
+      Profile: {
+        ...completeDto.Profile,
+        Demographic: {
+          ...completeDto.Profile.Demographic,
+          profession: undefined,
+        },
+      },
+    };
     const result = await useCase.execute(
       1,
-      dtoWithoutJob,
+      dtoWithoutJob as any,
       mockAvatarFile,
       mockSelfieFile,
     );
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
   it("should return profileCompleted as false if kind of relationship is missing", async () => {
@@ -387,20 +451,28 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       relativeUrl: "/uploads/selfies/selfie_1.webp",
     });
 
-    const { kindOfRelationship, ...dtoWithoutRelation } = completeDto;
+    const dtoWithoutRelation = {
+      ...completeDto,
+      Profile: {
+        ...completeDto.Profile,
+        Preferences: {
+          relation: undefined,
+        },
+      },
+    };
     const result = await useCase.execute(
       1,
-      dtoWithoutRelation,
+      dtoWithoutRelation as any,
       mockAvatarFile,
       mockSelfieFile,
     );
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
   it("should not touch existing fields when performing incremental update", async () => {
     mockPrisma.profile.findUnique.mockResolvedValue({
       userId: 1,
-      firstName: "John",
+      fullName: "John Doe",
       username: "john_doe",
       avatarUrl: "/uploads/avatars/avatar_existing.webp",
       selfieUrl: "/uploads/selfies/selfie_existing.webp",
@@ -412,7 +484,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       gender: "MALE",
       height: 180,
       degree: "DOCTORATE",
-      profession: "Engineer",
+      job: "Engineer",
       relationStatus: "SINGLE",
     });
     mockPrisma.preferences.findUnique.mockResolvedValue({
@@ -420,22 +492,25 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       relation: "FUN",
     });
 
-    // Only update height and job
+    // Only update height and profession
     const result = await useCase.execute(1, {
-      height: 182,
-      job: "Senior Architect",
+      Profile: {
+        Demographic: {
+          height: 182,
+          profession: "Senior Architect",
+        },
+      },
     });
 
-    expect(result.firstName).toBe("John");
-    expect(result.username).toBe("john_doe");
-    expect(result.avatarUrl).toBe("/uploads/avatars/avatar_existing.webp");
-    expect(result.selfieUrl).toBe("/uploads/selfies/selfie_existing.webp");
-    expect(result.height).toBe(182);
-    expect(result.profession).toBe("Senior Architect");
-    expect(result.degree).toBe("DOCTORATE");
-    expect(result.relationStatus).toBe("SINGLE");
-    expect(result.relation).toBe("FUN");
-    expect(result.profileCompleted).toBe(true);
+    expect(result.Profile.fullName).toBe("John Doe");
+    expect(result.Profile.username).toBe("john_doe");
+    expect(result.Profile.avatar).toBe("/uploads/avatars/avatar_existing.webp");
+    expect(result.Profile.Demographic.height).toBe(182);
+    expect(result.Profile.Demographic.profession).toBe("Senior Architect");
+    expect(result.Profile.Demographic.degree).toBe("DOCTORATE");
+    expect(result.Profile.Demographic.relationStatus).toBe("SINGLE");
+    expect(result.Profile.Preferences.relation).toBe("FUN");
+    expect(result.Profile.profileCompleted).toBe(true);
   });
 
   it("should throw BadRequestException if language is empty string", async () => {
@@ -454,18 +529,18 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     );
   });
 
-  it("should normalize uppercase EN to lowercase en for profile and EN for user", async () => {
+  it("should normalize language to uppercase in response", async () => {
     const result = await useCase.execute(1, { language: "EN" });
-    expect(result.language).toBe("en");
+    expect(result.language).toBe("EN");
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { language: "EN" },
     });
   });
 
-  it("should normalize lowercase fa to lowercase fa for profile and FA for user", async () => {
+  it("should normalize fa to FA in response", async () => {
     const result = await useCase.execute(1, { language: "fa" });
-    expect(result.language).toBe("fa");
+    expect(result.language).toBe("FA");
     expect(mockPrisma.user.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { language: "FA" },
@@ -475,67 +550,241 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
   it("should support updating bio and cityId for edit profile", async () => {
     mockPrisma.city.findUnique.mockResolvedValue({ id: 10 });
     const result = await useCase.execute(1, {
-      bio: "Loves mountain climbing and coffee.",
-      cityId: 10,
+      Profile: {
+        bio: "Loves mountain climbing and coffee.",
+        Demographic: { City: { id: 10 } },
+      },
     });
-    expect(result.bio).toBe("Loves mountain climbing and coffee.");
-    expect(result.cityId).toBe(10);
-    expect(result.profileCompleted).toBe(false);
+    expect(result.Profile.bio).toBe("Loves mountain climbing and coffee.");
+    expect(result.Profile.Demographic.City).toMatchObject({ id: 10 });
+    expect(result.Profile.profileCompleted).toBe(false);
   });
 
-  it("should support city_id alias and nested City objects in useCase", async () => {
+  it("should update cityId when valid city exists in database", async () => {
     mockPrisma.city.findUnique.mockResolvedValue({ id: 15 });
     const result = await useCase.execute(1, {
-      city_id: 15,
-    } as any);
-    expect(result.cityId).toBe(15);
+      Profile: { Demographic: { City: { id: 15 } } },
+    });
+    expect(result.Profile.Demographic.City).toMatchObject({ id: 15 });
   });
 
-  it("should return null for cityId if city does not exist in database (preventing FK violation)", async () => {
+  it("should return null for City if city does not exist in database (preventing FK violation)", async () => {
     mockPrisma.city.findUnique.mockResolvedValue(null);
     const result = await useCase.execute(1, {
-      cityId: 999999,
+      Profile: { Demographic: { City: { id: 999999 } } },
     });
-    expect(result.cityId).toBeNull();
+    expect(result.Profile.Demographic.City).toBeNull();
   });
 
-  it("should return null for unfilled firstName, username, and lastName instead of empty string", async () => {
+  it("should return null for unfilled fullName, username instead of empty string", async () => {
     mockPrisma.profile.findUnique.mockResolvedValue(null);
     const result = await useCase.execute(1, {});
-    expect(result.firstName).toBeNull();
-    expect(result.username).toBeNull();
-    expect(result.lastName).toBeNull();
+    expect(result.Profile.fullName).toBeNull();
+    expect(result.Profile.username).toBeNull();
   });
 
-  it("should preserve existing firstName when subsequent step sends empty string or omitted", async () => {
+  it("should preserve existing fullName when subsequent step sends empty string or omitted", async () => {
     mockPrisma.profile.findUnique.mockResolvedValue({
       userId: 1,
-      firstName: "Ali",
+      fullName: "Ali",
       username: "ali_dev",
       avatarUrl: "/uploads/avatars/avatar_1.webp",
     });
 
     const result = await useCase.execute(1, {
-      firstName: "",
-      username: "",
-      bio: "New bio",
+      Profile: {
+        fullName: "",
+        username: "",
+        bio: "New bio",
+      },
     });
 
-    expect(result.firstName).toBe("Ali");
-    expect(result.username).toBe("ali_dev");
-    expect(result.lastName).toBe("ali_dev");
-    expect(result.bio).toBe("New bio");
+    expect(result.Profile.fullName).toBe("Ali");
+    expect(result.Profile.username).toBe("ali_dev");
+    expect(result.Profile.bio).toBe("New bio");
   });
 
-  it("should return filled values when user provides firstName and lastName", async () => {
+  it("should return filled values when user provides fullName and username", async () => {
     mockPrisma.profile.findUnique.mockResolvedValue(null);
     const result = await useCase.execute(1, {
-      firstName: "Sarah",
-      lastName: "sarah_connor",
+      Profile: { fullName: "Sarah Connor", username: "sarah_connor" },
     });
 
-    expect(result.firstName).toBe("Sarah");
-    expect(result.username).toBe("sarah_connor");
-    expect(result.lastName).toBe("sarah_connor");
+    expect(result.Profile.fullName).toBe("Sarah Connor");
+    expect(result.Profile.username).toBe("sarah_connor");
+  });
+
+  it("should process and return the Android-matching payload format", async () => {
+    mockPrisma.city.findUnique.mockResolvedValue({
+      id: 12,
+      name: "Tehran",
+      state: { name: "Tehran Province", country: { name: "Iran" } },
+    });
+
+    const userPayload = {
+      language: "en",
+      lat: 35.6892,
+      lon: 51.389,
+      Profile: {
+        fullName: "Parsa",
+        username: "parsa",
+        phoneNumber: "+1234567890",
+        bio: "Software engineer living in Tehran.",
+        languages: ["Persian", "English"],
+        Demographic: {
+          birthDate: "1998-11-25",
+          gender: "Male",
+          height: 180,
+          degree: "PhD",
+          profession: "Software Engineer",
+          relationStatus: "Single",
+          City: { id: 12 },
+        },
+        Preferences: {
+          relation: "Long term",
+        },
+      },
+    };
+
+    const res = await useCase.execute(1, userPayload as any);
+
+    expect(res).toEqual({
+      id: 1,
+      email: "user@example.com",
+      language: "EN",
+      lat: 35.6892,
+      lon: 51.389,
+      profileValidated: false,
+      Profile: {
+        fullName: "Parsa",
+        username: "parsa",
+        phoneNumber: "+1234567890",
+        bio: "Software engineer living in Tehran.",
+        languages: ["fa", "en"],
+        avatar: "",
+        profileCompleted: false,
+        Demographic: {
+          birthDate: "1998-11-25",
+          gender: "MALE",
+          height: 180,
+          degree: "DOCTORATE",
+          profession: "Software Engineer",
+          relationStatus: "SINGLE",
+          City: {
+            id: 12,
+            name: "Tehran",
+            state: "Tehran Province",
+            country: "Iran",
+          },
+        },
+        Preferences: {
+          relation: "LONG",
+        },
+      },
+    });
+
+    // Verify old keys are completely removed from response
+    expect((res as any).personal).toBeUndefined();
+    expect((res as any).account).toBeUndefined();
+    expect((res as any).location).toBeUndefined();
+    expect((res as any).dating).toBeUndefined();
+  });
+
+  it("should gracefully extract and map fields from Android mobile data payload", async () => {
+    mockPrisma.city.findUnique.mockResolvedValue({
+      id: 12,
+      name: "Tehran",
+      state: {
+        name: "Tehran Province",
+        country: { name: "Iran" },
+      },
+    });
+
+    const mobilePayload = {
+      data: JSON.stringify({
+        firstName: "Parsa Mobile",
+        username: "parsa_mobile",
+        phoneNumber: "+989121234567",
+        languages: ["Persian", "English"],
+        bio: "Mobile app user",
+        LikedActivities: [
+          { id: 1, Interest: [{ id: 101 }, { id: 102 }] },
+        ],
+        Demographic: {
+          birthDate: "1998-11-25T00:00:00.000Z",
+          gender: "MALE",
+          height: 185,
+          degree: "MASTER",
+          profession: "Mobile Engineer",
+          relationStatus: "SINGLE",
+          City: { id: 12, name: "Tehran" },
+        },
+        Preferences: {
+          relation: "LONG_TERM",
+        },
+        language: "FA",
+      }),
+    };
+
+    const res = await useCase.execute(1, mobilePayload as any);
+
+    expect(res.Profile.fullName).toBe("Parsa Mobile");
+    expect(res.Profile.Demographic.birthDate).toBe("1998-11-25");
+    expect(res.Profile.Demographic.gender).toBe("MALE");
+    expect(res.Profile.phoneNumber).toBe("+989121234567");
+    expect(res.language).toBe("FA");
+
+    expect(res.Profile.bio).toBe("Mobile app user");
+    expect(res.Profile.Demographic.height).toBe(185);
+    expect(res.Profile.Demographic.degree).toBe("MASTER_DEGREE");
+    expect(res.Profile.Demographic.profession).toBe("Mobile Engineer");
+    expect(res.Profile.languages).toEqual(["fa", "en"]);
+
+    expect(res.Profile.Demographic.City).toMatchObject({ id: 12, name: "Tehran" });
+
+    expect(res.Profile.Demographic.relationStatus).toBe("SINGLE");
+    expect(res.Profile.Preferences.relation).toBe("LONG");
+
+    expect(res.Profile.username).toBe("parsa_mobile");
+  });
+
+  describe("Spoken languages normalization and validation", () => {
+    it("should accept valid 2-letter language codes and return them lowercase", async () => {
+      const res = await useCase.execute(1, {
+        Profile: { languages: ["EN", "de", "FR", "it"] },
+      });
+      expect(res.Profile.languages).toEqual(["en", "de", "fr", "it"]);
+    });
+
+    it("should map full language names to their 2-letter codes", async () => {
+      const res = await useCase.execute(1, {
+        Profile: { languages: ["Persian", "English", "German", "Spanish", "Japanese"] },
+      });
+      expect(res.Profile.languages).toEqual(["fa", "en", "de", "es", "ja"]);
+    });
+
+    it("should deduplicate language codes if both full name and code are sent", async () => {
+      const res = await useCase.execute(1, {
+        Profile: { languages: ["en", "English", "farsi", "fa"] },
+      });
+      expect(res.Profile.languages).toEqual(["en", "fa"]);
+    });
+
+    it("should parse comma-separated string of languages into codes", async () => {
+      const res = await useCase.execute(1, {
+        Profile: { languages: "Russian, Turkish, Arabic" },
+      });
+      expect(res.Profile.languages).toEqual(["ru", "tr", "ar"]);
+    });
+
+    it("should throw BadRequestException for unsupported languages", async () => {
+      await expect(
+        useCase.execute(1, { Profile: { languages: ["klingon"] } }),
+      ).rejects.toThrow("Invalid language 'klingon'");
+
+      await expect(
+        useCase.execute(1, { Profile: { languages: ["xx"] } }),
+      ).rejects.toThrow("Invalid language 'xx'");
+    });
   });
 });

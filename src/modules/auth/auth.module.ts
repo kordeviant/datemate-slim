@@ -11,6 +11,7 @@ import { ResetPasswordUseCase } from "./application/use-cases/reset-password.use
 import { GoogleAuthUseCase } from "./application/use-cases/google-auth.use-case";
 import { AppleAuthUseCase } from "./application/use-cases/apple-auth.use-case";
 import { UpdateProfileUseCase } from "./application/use-cases/update-profile.use-case";
+import { GetProfileUseCase } from "./application/use-cases/get-profile.use-case";
 import { PasswordHasherService } from "./application/services/password-hasher.service";
 import { TokenService } from "./application/services/token.service";
 import { AppleAuthService } from "./application/services/apple-auth.service";
@@ -47,12 +48,14 @@ import { PrismaUserSessionRepository } from "./infrastructure/repositories/prism
     ResetPasswordUseCase,
     GoogleAuthUseCase,
     AppleAuthUseCase,
+    GetProfileUseCase,
     UpdateProfileUseCase,
   ],
   exports: [
     USER_REPOSITORY,
     USER_SESSION_REPOSITORY,
     TokenService,
+    GetProfileUseCase,
     UpdateProfileUseCase,
   ],
 })

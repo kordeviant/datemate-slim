@@ -275,103 +275,135 @@ interface ResponseResult<T> {
 
 ## 3. Users Endpoints (`/v1/users`)
 
-### 3.1 Check Profile Completion
+### 3.1 Get Current User Profile & Completion Status
 - **Method**: `GET`
-- **Path**: `/v1/users/profile`
+- **Path**: `/v1/users/me`
 - **Headers**: `Authorization: Bearer <JWT_ACCESS_TOKEN>`
-- **Description**: Checks whether the authenticated user has completed their profile and answered all onboarding questions. Returns `false` until all onboarding questions and steps are completed.
-- **Success Response (200 OK)**:
-  ```json
-  {
-    "status": "success",
-    "message": "Operation successful",
-    "data": false,
-    "error": null
-  }
-  ```
-
----
-
-### 3.2 Update Profile (Step-by-Step Onboarding & Profile Editing)
-- **Method**: `PUT`
-- **Path**: `/v1/users/profile`
-- **Headers**:
-  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
-  - `Content-Type: multipart/form-data`
-- **Form-Data Fields (all fields optional to support incremental step-by-step onboarding and profile editing; unprovided existing fields remain intact)**:
-  - `avatar` (File, optional): Public profile picture avatar (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300, max 4096x4096). This is the visible profile picture seen by other users.
-  - `selfie` (File, optional): Private selfie photo for identity verification (JPEG, PNG, or WebP; 50 KB – 5 MB; min 300x300). **Note**: The selfie is NOT the avatar; it is stored privately in `selfieUrl` specifically for administrators to verify that the public profile picture (`avatar`) genuinely belongs to this user.
-  - `firstName` / `first_name` / `name` (Text, optional): User first name (2–50 characters, cannot be numbers only).
-  - `lastName` / `last_name` / `username` (Text, optional): User last name or unique handle (3–30 characters, alphanumeric, single dots/underscores/hyphens, no spaces/emojis/HTML, cannot start/end with special characters or have consecutive ones).
-    - **Identity & Impersonation Prohibitions**: Cannot impersonate celebrities (e.g. `taylor_swift`, `elon_musk`, `mark_zuckerberg`, `cristiano_ronaldo`). Cannot pretend to be staff/admin (e.g. `admin`, `support`, `moderator`, `official_team`, `staff`, `root`). Cannot use status badges/words (e.g. `john_verified`, `anna_official`, `_verified`, `_official`, `_admin`, `_support`, `_staff`).
-  - `birthDate` / `birth_date` / `dob` (Text or Date, optional): Date of birth (`YYYY-MM-DD`, valid calendar date, strictly 18–80 years old). Also accepts ISO timestamp strings or Date instances.
-    - **Strict Validation**: Rejects impossible calendar dates (e.g. `2026-02-30`, `2026-13-01`).
-    - **Age Bounds**: Minimum age 18 years old (under 18 strictly prohibited; setting today's date is rejected with 400 Bad Request). Maximum age 80 years old. Future dates strictly prohibited.
-    - **Updateability**: Users can update their DOB at any time as long as it adheres to the validation and age bounds.
-    - **Privacy**: Stored privately in `demographics.birth_date`; public responses dynamically compute age (`today - dob`) and never expose the raw date of birth.
-  - `age` (Number, optional): User age in years (alternative fallback if client sends age directly).
-  - `gender` (Text, optional): Must be strictly `Male` or `Female`.
-  - `height` (Number, optional): User height in cm (e.g. `175`).
-  - `languages` (Array or Comma-separated Text or JSON string, optional): Spoken languages (e.g. `["فارسی", "English"]` or `"فارسی, English"`).
-  - `educations` / `education` / `degree` (Text, optional): Education status (`HIGH_SCHOOL_DIPLOMA`, `SOME_COLLEGE`, `ASSOCIATE_DEGREE`, `BACHELOR_DEGREE`, `MASTER_DEGREE`, `DOCTORATE`, `RATHER_NOT_SAY` or natural labels like `"PhD"`, `"Masters"`).
-  - `job` / `profession` (Text, optional): User job / profession (e.g. `"Software Engineer"`).
-  - `relationStatus` / `relation_status` (Text, optional): Current relationship status (`SINGLE`, `IN_A_RELATIONSHIP`, `MARRIED`, `DIVORCED`, `WIDOWED`, `OPEN_RELATIONSHIP`, `COMPLICATED`, `RATHER_NOT_SAY` or labels like `"Single"`, `"Hooking up with someone"`).
-  - `kindOfRelationship` / `relation` (Text, optional): Kind of relationship looking for (`FUN`, `OPEN`, `LONG` or labels like `"Fun and Dating"`, `"Open"`, `"Long term"`).
-  - `language` (Text, optional): App interface language: `EN` (English) or `FA` (Farsi), case-insensitive (normalized to lowercase `en` or `fa` in the database).
-  - `phoneNumber` (Text, optional): Contact phone number.
-  - `bio` (Text, optional): User biography / description.
-  - `cityId` / `city_id` / `city` (Number or Object `{ id: 12 }`, optional): Selected city ID from region selection. Also accepts nested `Demographic.City.id` and Retrofit `@Part("data")` JSON strings. If the selected city ID is not yet in the `cities` table (unseeded database), `cityId` remains `null` in `demographics` until the city dataset is seeded, avoiding foreign key constraint crashes.
-  - `data` (String, optional): JSON string containing all profile fields (standard Retrofit multipart `@Part("data") updateUser: RequestBody` pattern). Automatically parsed and merged with top-level fields.
-  - `latitude` (Number, optional): Latitude coordinate (defaults to `0.0`).
-  - `longitude` (Number, optional): Longitude coordinate (defaults to `0.0`).
-
-- **Incremental Update Invariant ("Don't touch what already exists")**:
-  - When updating step-by-step, any attribute not included in the request (or sent as empty string `""` from default client models) retains its existing value in the database. A previously filled name or attribute will **never** be wiped out by an empty string or omitted field in subsequent onboarding steps.
-  - If a user filled a field, the response returns the filled value. If an attribute has not been filled yet, it returns `null` (not empty string `""`).
-  - `avatar` and `selfie` are strictly independent: uploading a selfie never changes or overwrites the avatar, and updating an avatar never changes or overwrites the selfie.
-  - `profileCompleted` remains `false` until **all** onboarding requirements are met:
-    1. Public profile picture & info: `firstName`, `username`, `avatarUrl`
-    2. Admin verification photo: `selfieUrl`
-    3. User attributes: `birthDate`, `gender`, `height`, `languages` (non-empty list), `degree`, `profession`, `relationStatus`
-    4. Relationship preference: `relation` (kind of relationship)
-    5. Questions: All questions answered (if questions are configured in the system).
-  - `profileValidated` indicates whether an administrator has reviewed the verification selfie against the profile picture and verified the user identity.
-
+- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, and nested `Profile` object containing `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `profileCompleted`, `Demographic`, and `Preferences`. (Note: `selfie` URL is not returned: this will not use still, only client should send; `LikedActivities` is removed).
 - **Success Response (200 OK)**:
   ```json
   {
     "status": "success",
     "message": "Operation successful",
     "data": {
-      "userId": 1,
-      "firstName": "John",
-      "lastName": "Doe",
-      "username": "john_doe",
-      "phoneNumber": "+1234567890",
-      "bio": "Software engineer living in Tehran.",
-      "avatarUrl": "/uploads/avatars/avatar_1_1726912345.webp",
-      "selfieUrl": "/uploads/selfies/selfie_1_1726912345.webp",
-      "age": 27,
-      "gender": "MALE",
-      "height": 178,
-      "languages": ["فارسی", "English"],
-      "degree": "DOCTORATE",
-      "profession": "Software Engineer",
-      "relationStatus": "SINGLE",
-      "relation": "FUN",
-      "cityId": 12,
-      "language": "en",
-      "profileCompleted": false,
-      "profileValidated": false
+      "id": 1,
+      "email": "user@example.com",
+      "language": "EN",
+      "lat": 35.6892,
+      "lon": 51.389,
+      "profileValidated": false,
+      "Profile": {
+        "fullName": "Parsa",
+        "username": "parsa",
+        "phoneNumber": "+1234567890",
+        "bio": "Software engineer living in Tehran.",
+        "languages": ["fa", "en"],
+        "avatar": "/uploads/avatars/avatar_1_1726912345.webp",
+        "profileCompleted": true,
+        "Demographic": {
+          "birthDate": "1998-11-25",
+          "gender": "MALE",
+          "height": 180,
+          "degree": "DOCTORATE",
+          "profession": "Software Engineer",
+          "relationStatus": "SINGLE",
+          "City": {
+            "id": 12,
+            "name": "Tehran",
+            "state": "Tehran Province",
+            "country": "Iran"
+          }
+        },
+        "Preferences": {
+          "relation": "LONG"
+        }
+      }
     },
     "error": null
   }
   ```
+- **Error Response (401 Unauthorized)**:
+  ```json
+  {
+    "status": "error",
+    "message": "Missing Authorization header",
+    "data": null,
+    "error": {
+      "type": "UNKNOWN_ERROR",
+      "message": "Missing Authorization header"
+    }
+  }
+  ```
 
+---
+
+### 3.2 Update Profile (Step-by-Step Onboarding & Profile Editing)
+- **Method**: `PUT` or `POST`
+- **Path**: `/v1/users/profile`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+  - `Content-Type: multipart/form-data` or `application/json`
+- **Mobile Client Support**: Supports `@POST("users/profile")` with `@Part("data")` JSON string (`UpdateUserHttp`) as well as direct JSON/multipart payload.
+- **Request Body (Android-matching Schema)**:
+  ```json
+  {
+    "language": "EN",
+    "lat": 35.6892,
+    "lon": 51.389,
+    "Profile": {
+      "fullName": "Parsa",
+      "username": "parsa",
+      "phoneNumber": "+1234567890",
+      "bio": "Software engineer living in Tehran.",
+      "languages": ["Persian", "English"],
+      "Demographic": {
+        "birthDate": "1998-11-25",
+        "gender": "MALE",
+        "height": 180,
+        "degree": "PhD",
+        "profession": "Software Engineer",
+        "relationStatus": "Single",
+        "City": { "id": 12 }
+      },
+      "Preferences": { "relation": "LONG" }
+    }
+  }
+  ```
+- **Optional File Fields (multipart/form-data)**:
+  - `avatar` (File): Public profile picture (JPEG/PNG/WebP, 50KB-5MB, min 300x300).
+  - `selfie` (File): Private verification selfie (JPEG/PNG/WebP, 50KB-5MB, min 300x300). Note: this will not use still, only client should send; server does not return selfie URL in response.
+- **Fields Description**:
+  - Top-level: `language` (`EN`/`FA`, case-insensitive), `lat`, `lon`
+  - `Profile`: `fullName` (2–100 chars), `username` (3–30 chars), `phoneNumber`, `bio`, `languages` (Array or comma-separated string; accepted: `en`, `fa`, `de`, `fr`, `es`, `it`, `pt`, `ru`, `uk`, `tr`, `ar`, `hi`, `ur`, `zh`, `ja`, `ko`, `nl`, `pl`, `sv`, `no`, `da`, `fi`, `cs`, `el`, `he`. Full language names are converted to 2-letter codes in DB).
+  - `Profile.Demographic`: `birthDate` (ISO or YYYY-MM-DD, age 18–80), `gender` (`MALE`/`FEMALE`), `height` (cm), `degree`, `profession`, `relationStatus`, `City.id`
+  - `Profile.Preferences`: `relation` (`FUN`, `OPEN`, `LONG`)
+- **Incremental Update**: All fields optional; omitted fields retain existing values.
+- **Success Response (200 OK)**: Same schema as `GET /users/me`.
 - **Error Responses**:
-  - `400 Bad Request`: Validation failure on username format, invalid language (not `EN`/`FA`), age limits (<18 or >80), or corrupted image.
+  - `400 Bad Request`: Validation failure (username, language, age, image).
+  - `401 Unauthorized`: Missing/invalid JWT.
+  - `409 Conflict`: Username already taken.
+
+---
+
+### 3.3 Check Profile Status (Mobile Onboarding Check)
+- **Method**: `GET`
+- **Path**: `/v1/users/profile`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Description**: Fast profile onboarding completion check designed for Android/iOS splash, login, and signup flows (`SignInApiInterface.checkUserProfile`).
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Operation successful",
+    "data": true,
+    "error": null
+  }
+  ```
+  Returns `true` in `data` if all onboarding requirements are met, or `false` otherwise.
+- **Error Responses**:
   - `401 Unauthorized`: Missing or invalid JWT access token.
-  - `409 Conflict`: Username already in use by another user.
 
 ---
 

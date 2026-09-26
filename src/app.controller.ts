@@ -90,6 +90,13 @@ export class AppController {
     @Query('format') format?: string,
     @Query('download') download?: string,
   ) {
+    res.setHeader(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    );
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     const isDownload = download === '1' || download === 'true';
     const isRaw =
       format === 'raw' ||

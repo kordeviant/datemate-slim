@@ -60,8 +60,29 @@ async function bootstrap() {
     )
     .build();
 
+  // Prevent caching for Swagger documentation so each backend deployment is visible immediately
+  app.use(
+    ['/docs', '/docs-json', '/v1/docs'],
+    (req: any, res: any, next: any) => {
+      res.setHeader(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      );
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+      next();
+    },
+  );
+
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      url: '/docs-json',
+      persistAuthorization: true,
+    },
+    customSiteTitle: 'DateMate Backend API Docs',
+  });
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);

@@ -74,39 +74,49 @@ describe("API Versioning (v1)", () => {
       expect(res.status).toBe(200);
     });
 
-    it("GET /rules returns 200 with HTML documentation view", async () => {
-      const res = await request(app.getHttpServer()).get("/rules");
+    it("GET /docs/rules returns 200 with HTML documentation view and slug anchor support", async () => {
+      const res = await request(app.getHttpServer()).get("/docs/rules");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/html");
+      expect(res.text).toContain("DateMate Platform Rules");
+      expect(res.text).toContain("/docs/rules");
+      expect(res.text).toContain("slugifyHeading");
+    });
+
+    it("GET /v1/docs/rules returns 200 with HTML documentation view", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/docs/rules");
       expect(res.status).toBe(200);
       expect(res.headers["content-type"]).toContain("text/html");
       expect(res.text).toContain("DateMate Platform Rules");
     });
 
-    it("GET /v1/rules returns 200 with HTML documentation view", async () => {
-      const res = await request(app.getHttpServer()).get("/v1/rules");
-      expect(res.status).toBe(200);
-      expect(res.headers["content-type"]).toContain("text/html");
-      expect(res.text).toContain("DateMate Platform Rules");
-    });
-
-    it("GET /rules?format=raw returns 200 with raw Markdown", async () => {
-      const res = await request(app.getHttpServer()).get("/rules?format=raw");
+    it("GET /docs/rules?format=raw returns 200 with raw Markdown", async () => {
+      const res = await request(app.getHttpServer()).get("/docs/rules?format=raw");
       expect(res.status).toBe(200);
       expect(res.headers["content-type"]).toContain("text/markdown");
       expect(res.text).toContain("# DateMate Platform Rules & Client Validation Specification");
     });
 
-    it("GET /rules?format=json returns 200 with structured JSON", async () => {
-      const res = await request(app.getHttpServer()).get("/rules?format=json");
+    it("GET /docs/rules?format=json returns 200 with structured JSON referencing /docs/rules", async () => {
+      const res = await request(app.getHttpServer()).get("/docs/rules?format=json");
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("success");
       expect(res.body.data.title).toContain("DateMate Platform Rules");
+      expect(res.body.data.rulesUrl).toBe("/docs/rules");
       expect(res.body.data.content).toBeDefined();
     });
 
-    it("GET /rules?download=1 returns 200 with attachment disposition header", async () => {
-      const res = await request(app.getHttpServer()).get("/rules?download=1");
+    it("GET /docs/rules?download=1 returns 200 with attachment disposition header", async () => {
+      const res = await request(app.getHttpServer()).get("/docs/rules?download=1");
       expect(res.status).toBe(200);
       expect(res.headers["content-disposition"]).toContain('attachment; filename="DateMate-RULES.md"');
+    });
+
+    it("GET /rules and /v1/rules backward-compatible aliases return 200", async () => {
+      const res1 = await request(app.getHttpServer()).get("/rules");
+      expect(res1.status).toBe(200);
+      const res2 = await request(app.getHttpServer()).get("/v1/rules");
+      expect(res2.status).toBe(200);
     });
   });
 

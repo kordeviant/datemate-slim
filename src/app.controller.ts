@@ -63,11 +63,11 @@ export class AppController {
   }
 
   @Version([VERSION_NEUTRAL, '1'])
-  @Get('rules')
+  @Get(['docs/rules', 'rules'])
   @ApiOperation({
     summary: 'DateMate Platform Rules & Client Validation Specification',
     description:
-      'Authoritative online specification of all client validation rules, media formats, languages, demographics, and schemas. Automatically updated on each backend update. Supports HTML view (default), JSON (?format=json), Raw Markdown (?format=raw), or file download (?download=1).',
+      'Authoritative online specification of all client validation rules, media formats, languages, demographics, and schemas. Automatically updated on each backend update. Accessible at /docs/rules or /v1/docs/rules. Supports HTML view (default), JSON (?format=json), Raw Markdown (?format=raw), or file download (?download=1).',
   })
   @ApiQuery({
     name: 'format',

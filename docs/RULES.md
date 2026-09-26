@@ -1,7 +1,7 @@
 # DateMate Platform Rules & Client Validation Specification
 
 > **Authoritative Specification for Client Developers (Android, iOS, Web)**  
-> **Live Online Endpoint**: [`/rules`](http://localhost:3000/rules) or [`/v1/rules`](http://localhost:3000/v1/rules) | **Swagger API Docs**: [`/docs`](http://localhost:3000/docs)  
+> **Live Online Endpoint**: [`/docs/rules`](http://localhost:3000/docs/rules) or [`/v1/docs/rules`](http://localhost:3000/v1/docs/rules) | **Swagger API Docs**: [`/docs`](http://localhost:3000/docs)  
 > **Last Updated**: September 2026 • Automatically synchronized on each backend update
 
 This standalone document defines all validation rules, formats, constraints, permitted values, and error behaviors for the DateMate platform. Client applications must follow these rules before submitting data to avoid `400 Bad Request` or `409 Conflict` errors.
@@ -14,10 +14,10 @@ This rules document is hosted live directly by the backend server:
 
 | Format | URL | Description |
 | :--- | :--- | :--- |
-| **Interactive Web Page** | `GET /rules` or `GET /v1/rules` | Formatted responsive documentation with dark mode and copy buttons |
-| **Raw Markdown** | `GET /rules?format=raw` | Plain markdown text for embedding in IDEs, CLIs, or mobile apps |
-| **Downloadable .md** | `GET /rules?download=1` | Downloads `DateMate-RULES.md` directly |
-| **Structured JSON** | `GET /rules?format=json` | Returns `{ title, version, lastUpdated, content }` in standard response envelope |
+| **Interactive Web Page** | `GET /docs/rules` or `GET /v1/docs/rules` | Formatted responsive documentation with dark mode and copy buttons |
+| **Raw Markdown** | `GET /docs/rules?format=raw` | Plain markdown text for embedding in IDEs, CLIs, or mobile apps |
+| **Downloadable .md** | `GET /docs/rules?download=1` | Downloads `DateMate-RULES.md` directly |
+| **Structured JSON** | `GET /docs/rules?format=json` | Returns `{ title, version, lastUpdated, content }` in standard response envelope |
 
 ---
 

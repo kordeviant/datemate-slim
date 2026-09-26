@@ -173,7 +173,7 @@ erDiagram
 ### 3.0 Profile Onboarding Rules & Constraints
 
 > 📘 **Authoritative Client Validation Rules Document**:  
-> For the complete, shareable reference document and live online endpoint, see [**docs/RULES.md**](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md) or visit **[`http://localhost:3000/rules`](http://localhost:3000/rules)**.
+> For the complete, shareable reference document and live online endpoint, see [**docs/RULES.md**](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md) or visit **[`http://localhost:3000/docs/rules`](http://localhost:3000/docs/rules)**.
 
 
 #### 1. Username Rules

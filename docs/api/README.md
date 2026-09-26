@@ -6,7 +6,7 @@ Interactive Swagger UI documentation is available when running the backend at:
 👉 **`http://localhost:3000/docs`**
 
 > 📘 **Authoritative Client Validation Rules & Guidelines**:  
-> For complete specifications on media uploads, username rules, full name, age boundaries, spoken languages whitelist, demographics, and security, refer to the standalone [**RULES.md**](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md) or access the live specification at **[`http://localhost:3000/rules`](http://localhost:3000/rules)**.
+> For complete specifications on media uploads, username rules, full name, age boundaries, spoken languages whitelist, demographics, and security, refer to the standalone [**RULES.md**](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md) or access the live specification at **[`http://localhost:3000/docs/rules`](http://localhost:3000/docs/rules)** (or `/v1/docs/rules`).
 
 ---
 
@@ -439,7 +439,7 @@ interface ResponseResult<T> {
 
 ### 4.3 Platform Rules & Client Validation Specification
 - **Method**: `GET`
-- **Path**: `/rules` or `/v1/rules`
+- **Path**: `/docs/rules` or `/v1/docs/rules` (also aliased as `/rules` and `/v1/rules`)
 - **Description**: Authoritative online specification of all validation rules, media requirements, language whitelist, demographic constraints, and payload schemas. Dynamically rendered directly from the backend to ensure clients always see up-to-date rules.
 - **Query Parameters**:
   - `format`: `html` (default responsive web view), `json` (structured API JSON), `raw` / `md` (plain Markdown).

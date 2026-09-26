@@ -44,7 +44,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('DateMate Backend API')
     .setDescription(
-      'DateMate REST API documentation covering Authentication, Users, Matching, Messaging, and Platform services.<br><br>👉 <b>Authoritative Client Validation Rules & Protocols</b>: <a href="/rules" target="_blank"><b>/rules</b></a> (Updated on every backend release)',
+      'DateMate REST API documentation covering Authentication, Users, Matching, Messaging, and Platform services.<br><br>👉 <b>Authoritative Client Validation Rules & Protocols</b>: <a href="/docs/rules" target="_blank"><b>/docs/rules</b></a> (Updated on every backend release)',
     )
     .setVersion('1.0.0')
     .addBearerAuth(

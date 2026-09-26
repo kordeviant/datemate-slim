@@ -70,9 +70,9 @@ export class AppService {
       title: 'DateMate Platform Rules & Client Validation Specification',
       version: '1.0.0',
       lastUpdated,
-      rulesUrl: '/rules',
-      rawUrl: '/rules?format=raw',
-      downloadUrl: '/rules?download=1',
+      rulesUrl: '/docs/rules',
+      rawUrl: '/docs/rules?format=raw',
+      downloadUrl: '/docs/rules?download=1',
       content,
     };
   }
@@ -498,6 +498,33 @@ export class AppService {
       text-decoration: none;
     }
 
+    h1, h2, h3, h4, [id] {
+      scroll-margin-top: 85px;
+    }
+
+    .target-glow {
+      animation: glow-pulse 2s ease;
+    }
+
+    @keyframes glow-pulse {
+      0% {
+        background-color: rgba(244, 63, 94, 0.22);
+        outline: 2px solid rgba(244, 63, 94, 0.5);
+        border-radius: 6px;
+      }
+      100% {
+        background-color: transparent;
+        outline: 2px solid transparent;
+      }
+    }
+
+    .toc-nav a.active-toc {
+      color: #ffffff !important;
+      background: var(--surface-card);
+      border-left: 2px solid var(--brand-rose);
+      font-weight: 600;
+    }
+
     .copy-notification {
       position: fixed;
       bottom: 24px;
@@ -522,7 +549,7 @@ export class AppService {
         <div class="brand-logo">DM</div>
         <div>
           <div class="brand-title">DateMate Platform Rules</div>
-          <div style="font-size: 11px; color: var(--text-dim);">Client Validation & Protocol Specification</div>
+          <div style="font-size: 11px; color: var(--text-dim);">Client Validation & Protocol Specification &bull; <code>/docs/rules</code></div>
         </div>
         <span class="badge-live">Live Synchronized</span>
       </div>
@@ -532,7 +559,7 @@ export class AppService {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           Copy Markdown
         </button>
-        <a class="btn" href="/rules?download=1">
+        <a class="btn" href="/docs/rules?download=1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           Download .md
         </a>
@@ -549,24 +576,13 @@ export class AppService {
       <div class="toc-title">Table of Contents</div>
       <nav>
         <ul class="toc-nav" id="toc-list">
-          <li><a href="#1-media--image-upload-rules">1. Media & Image Rules</a></li>
-          <li><a href="#2-username-rules">2. Username Rules</a></li>
-          <li><a href="#3-full-name-rules">3. Full Name Rules</a></li>
-          <li><a href="#4-date-of-birth--age-restrictions">4. Date of Birth & Age</a></li>
-          <li><a href="#5-languages-rules">5. Languages Rules</a></li>
-          <li><a href="#6-demographics--attributes">6. Demographics & Attributes</a></li>
-          <li><a href="#7-dating-preferences--lifestyle">7. Dating Preferences</a></li>
-          <li><a href="#8-personality--astrological-sign">8. Personality & Star Sign</a></li>
-          <li><a href="#9-profile-completion--verification">9. Profile Completion</a></li>
-          <li><a href="#10-account--security-rules">10. Account & Security</a></li>
-          <li><a href="#11-client-payload-schema-reference">11. Schema Reference</a></li>
-          <li><a href="#12-http-response-envelope--error-codes">12. Error Codes Envelope</a></li>
+          <!-- Populated dynamically from rendered headings -->
         </ul>
       </nav>
       <div style="margin-top: 24px; padding: 14px; background: var(--surface-card); border-radius: 8px; font-size: 12px; border: 1px solid var(--border-color);">
         <div style="color: var(--text-dim); margin-bottom: 4px;">Last Backend Update</div>
         <div style="font-weight: 600; color: #f1f5f9;">${formattedDate}</div>
-        <div style="color: var(--text-muted); margin-top: 4px;">Synchronized with backend validation engines</div>
+        <div style="color: var(--text-muted); margin-top: 4px;">Endpoint: <code>/docs/rules</code></div>
       </div>
     </aside>
 
@@ -579,7 +595,7 @@ export class AppService {
 
   <footer>
     <div style="max-width: 1400px; margin: 0 auto;">
-      DateMate Core Backend &bull; Authoritative Rules Specification &bull; <a href="/docs">Swagger Documentation</a> &bull; <a href="/health">Health Endpoint</a>
+      DateMate Core Backend &bull; Authoritative Rules Specification &bull; <a href="/docs/rules">/docs/rules</a> &bull; <a href="/docs">Swagger UI</a> &bull; <a href="/health">Health Endpoint</a>
     </div>
   </footer>
 
@@ -591,15 +607,75 @@ export class AppService {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script>
+    // GitHub GFM slugify algorithm matching standard markdown anchors
+    function slugifyHeading(text) {
+      return (text || '')
+        .toLowerCase()
+        .trim()
+        .replace(/<[^>]+>/g, '')         // strip tags
+        .replace(/&amp;/g, '')            // strip escaped ampersand
+        .replace(/[^\w\s-]/g, '')         // strip non-word chars (periods, symbols)
+        .replace(/\s+/g, '-');            // convert consecutive spaces to hyphens
+    }
+
+    // Smart anchor target finder: matches exact ID, normalized hyphens, or partial text
+    function findTargetHeading(hash) {
+      if (!hash) return null;
+      const cleanHash = decodeURIComponent(hash.replace(/^#/, ''));
+      if (!cleanHash) return null;
+
+      // 1. Direct ID match
+      let el = document.getElementById(cleanHash);
+      if (el) return el;
+
+      // 2. Normalized hyphens match (e.g. double hyphen vs single hyphen)
+      const normHash = cleanHash.replace(/-+/g, '-');
+      const allWithId = document.querySelectorAll('h1[id], h2[id], h3[id], h4[id], [id]');
+      for (const item of allWithId) {
+        if (item.id && item.id.replace(/-+/g, '-') === normHash) {
+          return item;
+        }
+      }
+
+      // 3. Number prefix match or partial match (e.g. "12-http" matches "12-http-response-envelope--error-codes")
+      const strippedNumber = cleanHash.replace(/^\\d+-/, '');
+      for (const item of allWithId) {
+        if (item.id && (item.id.includes(strippedNumber) || strippedNumber.includes(item.id))) {
+          return item;
+        }
+      }
+
+      return null;
+    }
+
+    // Scroll to heading and apply highlight glow
+    function scrollToHash(hash, smooth) {
+      const target = findTargetHeading(hash);
+      if (target) {
+        target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+        target.classList.remove('target-glow');
+        void target.offsetWidth; // Trigger reflow to restart animation
+        target.classList.add('target-glow');
+        setTimeout(() => target.classList.remove('target-glow'), 2200);
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
       const raw = document.getElementById("raw-markdown-data").textContent;
       const target = document.getElementById("markdown-target");
 
       if (window.marked) {
-        // Configure renderer for custom table wrappers
         const renderer = new marked.Renderer();
+
+        // Wrap tables with horizontal scroll container
         renderer.table = function(header, body) {
           return '<div class="table-wrapper"><table><thead>' + header + '</thead><tbody>' + body + '</tbody></table></div>';
+        };
+
+        // Render headings with GitHub GFM slug IDs
+        renderer.heading = function(text, level, rawHeading) {
+          const slug = slugifyHeading(rawHeading || text);
+          return '<h' + level + ' id="' + slug + '">' + text + '</h' + level + '>';
         };
 
         marked.setOptions({
@@ -616,16 +692,92 @@ export class AppService {
           }
         });
 
+        // 1. Render Markdown to HTML
         target.innerHTML = marked.parse(raw);
 
-        // Highlight any remaining code blocks
+        // 2. Highlight code blocks
         if (window.hljs) {
           document.querySelectorAll('pre code').forEach((el) => {
             hljs.highlightElement(el);
           });
         }
+
+        // 3. Populate dynamic Table of Contents
+        generateTableOfContents();
+
+        // 4. Intercept in-page markdown anchor clicks for smooth scroll
+        target.querySelectorAll('a[href^="#"]').forEach((a) => {
+          a.addEventListener('click', (e) => {
+            const href = a.getAttribute('href');
+            if (href && href.startsWith('#')) {
+              e.preventDefault();
+              history.pushState(null, '', href);
+              scrollToHash(href, true);
+            }
+          });
+        });
+
+        // 5. Handle initial URL hash on page load (e.g. /docs/rules#12-http-response-envelope--error-codes)
+        if (window.location.hash) {
+          setTimeout(() => {
+            scrollToHash(window.location.hash, false);
+          }, 80);
+        }
       }
     });
+
+    // Generate TOC links dynamically from rendered h2 and h3
+    function generateTableOfContents() {
+      const headings = document.getElementById('markdown-target').querySelectorAll('h2, h3');
+      const tocList = document.getElementById('toc-list');
+      if (!tocList || headings.length === 0) return;
+
+      tocList.innerHTML = '';
+      headings.forEach((heading) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '#' + heading.id;
+        a.textContent = heading.textContent;
+        if (heading.tagName.toLowerCase() === 'h3') {
+          a.style.paddingLeft = '20px';
+          a.style.fontSize = '12px';
+          a.style.opacity = '0.85';
+        }
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          history.pushState(null, '', '#' + heading.id);
+          scrollToHash('#' + heading.id, true);
+        });
+        li.appendChild(a);
+        tocList.appendChild(li);
+      });
+    }
+
+    // Listen to hash change event
+    window.addEventListener('hashchange', () => {
+      scrollToHash(window.location.hash, true);
+    });
+
+    // Scroll-spy to highlight active section in TOC sidebar
+    window.addEventListener('scroll', () => {
+      const headings = document.querySelectorAll('h2[id], h3[id]');
+      let currentId = '';
+      headings.forEach((h) => {
+        const rect = h.getBoundingClientRect();
+        if (rect.top <= 120) {
+          currentId = h.id;
+        }
+      });
+      if (currentId) {
+        document.querySelectorAll('#toc-list a').forEach((a) => {
+          if (a.getAttribute('href') === '#' + currentId) {
+            a.classList.add('active-toc');
+          } else {
+            a.classList.remove('active-toc');
+          }
+        });
+      }
+    }, { passive: true });
 
     function copyRawMarkdown() {
       const raw = document.getElementById("raw-markdown-data").textContent;

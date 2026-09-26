@@ -1,5 +1,6 @@
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
+import { ValidationPipe } from "@nestjs/common";
 import { CreateProfileDto, UpdateProfileDto } from "./update-profile.dto";
 
 describe("UpdateProfileDto / CreateProfileDto Validation", () => {
@@ -173,4 +174,118 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
     expect(dto.language).toBe("en");
     expect(dto.lat).toBe(35.6892);
   });
+
+  describe("ValidationPipe with whitelist: true compatibility", () => {
+    const pipe = new ValidationPipe({ whitelist: true, transform: true });
+
+    it("should preserve all properties when Profile is sent as stringified JSON (multipart/form-data)", async () => {
+      const payload = {
+        language: "FA",
+        lat: 35.6892,
+        lon: 51.389,
+        Profile: JSON.stringify({
+          fullName: "Parsa Moloody",
+          username: "parsam",
+          phoneNumber: "+989123456789",
+          bio: "Fullstack Dev",
+          languages: ["fa"],
+          Demographic: {
+            birthDate: "1998-11-25",
+            gender: "MALE",
+            height: 180,
+            degree: "DOCTORATE",
+            profession: "Software Engineer",
+            relationStatus: "SINGLE",
+            City: { id: 12 },
+          },
+          Preferences: {
+            relation: "LONG",
+          },
+        }),
+      };
+
+      const result: UpdateProfileDto = await pipe.transform(payload, {
+        type: "body",
+        metatype: UpdateProfileDto,
+      });
+
+      expect(result.language).toBe("fa");
+      expect(result.lat).toBe(35.6892);
+      expect(result.lon).toBe(51.389);
+      expect(result.Profile).toBeDefined();
+      expect(result.Profile?.fullName).toBe("Parsa Moloody");
+      expect(result.Profile?.username).toBe("parsam");
+      expect(result.Profile?.phoneNumber).toBe("+989123456789");
+      expect(result.Profile?.bio).toBe("Fullstack Dev");
+      expect(result.Profile?.languages).toEqual(["fa"]);
+      expect(result.Profile?.Demographic?.birthDate).toBe("1998-11-25");
+      expect(result.Profile?.Demographic?.gender).toBe("MALE");
+      expect(result.Profile?.Demographic?.height).toBe(180);
+      expect(result.Profile?.Demographic?.degree).toBe("DOCTORATE");
+      expect(result.Profile?.Demographic?.profession).toBe("Software Engineer");
+      expect(result.Profile?.Demographic?.relationStatus).toBe("SINGLE");
+      expect(result.Profile?.Demographic?.City?.id).toBe(12);
+      expect(result.Profile?.Preferences?.relation).toBe("LONG");
+    });
+
+    it("should preserve flat form-data properties without stripping them", async () => {
+      const payload = {
+        language: "fa",
+        lat: 35.6892,
+        lon: 51.389,
+        fullName: "Parsa Moloody",
+        username: "parsam",
+        phoneNumber: "+989123456789",
+        bio: "Fullstack Dev",
+        birthDate: "1998-11-25",
+        gender: "MALE",
+        height: 180,
+        degree: "DOCTORATE",
+        profession: "Software Engineer",
+        relationStatus: "SINGLE",
+        relation: "LONG",
+        cityId: 12,
+        languages: ["fa"],
+      };
+
+      const result: UpdateProfileDto = await pipe.transform(payload, {
+        type: "body",
+        metatype: UpdateProfileDto,
+      });
+
+      expect(result.language).toBe("fa");
+      expect(result.fullName).toBe("Parsa Moloody");
+      expect(result.username).toBe("parsam");
+      expect(result.phoneNumber).toBe("+989123456789");
+      expect(result.bio).toBe("Fullstack Dev");
+      expect(result.birthDate).toBe("1998-11-25");
+      expect(result.gender).toBe("MALE");
+      expect(result.height).toBe(180);
+      expect(result.degree).toBe("DOCTORATE");
+      expect(result.profession).toBe("Software Engineer");
+      expect(result.relationStatus).toBe("SINGLE");
+      expect(result.relation).toBe("LONG");
+      expect(result.cityId).toBe(12);
+      expect(result.languages).toEqual(["fa"]);
+    });
+
+    it("should support lowercase profile alias with stringified JSON", async () => {
+      const payload = {
+        language: "fa",
+        profile: JSON.stringify({
+          fullName: "Parsa Moloody",
+          username: "parsam",
+        }),
+      };
+
+      const result: UpdateProfileDto = await pipe.transform(payload, {
+        type: "body",
+        metatype: UpdateProfileDto,
+      });
+
+      expect(result.profile?.fullName).toBe("Parsa Moloody");
+      expect(result.profile?.username).toBe("parsam");
+    });
+  });
 });
+

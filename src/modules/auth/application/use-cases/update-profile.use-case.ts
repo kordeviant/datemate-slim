@@ -73,10 +73,18 @@ export class UpdateProfileUseCase {
       selfieUrl = processedSelfie.relativeUrl;
     }
 
-    // Extract fields from the new Android-matching DTO schema
-    const profileNested = dto.Profile;
-    const demographic = profileNested?.Demographic;
-    const preferences = profileNested?.Preferences;
+    // Extract fields from the new Android-matching DTO schema, flat fallbacks, and data payload
+    const profileNested = dto.Profile ?? (dto as any)?.profile;
+    const demographic =
+      profileNested?.Demographic ??
+      (profileNested as any)?.demographic ??
+      dto.Demographic ??
+      (dto as any)?.demographic;
+    const preferences =
+      profileNested?.Preferences ??
+      (profileNested as any)?.preferences ??
+      dto.Preferences ??
+      (dto as any)?.preferences;
     const dataObj =
       dto.data && typeof dto.data === 'object'
         ? dto.data
@@ -95,25 +103,36 @@ export class UpdateProfileUseCase {
         ? profileNested.fullName
         : (profileNested as any)?.firstName !== undefined
           ? (profileNested as any)?.firstName
-          : dataObj?.fullName !== undefined
-            ? dataObj.fullName
-            : dataObj?.firstName;
+          : dto.fullName !== undefined
+            ? dto.fullName
+            : (dto as any)?.firstName !== undefined
+              ? (dto as any).firstName
+              : dataObj?.fullName !== undefined
+                ? dataObj.fullName
+                : dataObj?.firstName;
 
     const candidateUsernameInput =
-      profileNested?.username ?? dataObj?.username;
+      profileNested?.username ??
+      dto.username ??
+      dataObj?.username;
 
     const candidateBirthDateInput =
       demographic?.birthDate ??
+      dto.birthDate ??
       dataObj?.birthDate ??
-      dataObj?.Demographic?.birthDate;
+      dataObj?.Demographic?.birthDate ??
+      dataObj?.demographic?.birthDate;
 
     const candidateGenderInput =
       demographic?.gender ??
+      dto.gender ??
       dataObj?.gender ??
-      dataObj?.Demographic?.gender;
+      dataObj?.Demographic?.gender ??
+      dataObj?.demographic?.gender;
 
     const candidatePhoneNumberInput =
       profileNested?.phoneNumber ??
+      dto.phoneNumber ??
       dataObj?.phoneNumber;
 
     const candidateLanguageInput =
@@ -122,55 +141,86 @@ export class UpdateProfileUseCase {
 
     const candidateBioInput =
       profileNested?.bio ??
+      dto.bio ??
       dataObj?.bio;
 
     const candidateHeightInput =
       demographic?.height ??
+      dto.height ??
       dataObj?.height ??
-      dataObj?.Demographic?.height;
+      dataObj?.Demographic?.height ??
+      dataObj?.demographic?.height;
 
     const candidateEducationInput =
       demographic?.degree ??
+      (demographic as any)?.education ??
+      dto.degree ??
+      (dto as any)?.education ??
+      dataObj?.degree ??
       dataObj?.education ??
-      dataObj?.Demographic?.degree;
+      dataObj?.Demographic?.degree ??
+      dataObj?.demographic?.degree;
 
     const candidateJobInput =
       demographic?.profession ??
+      (demographic as any)?.job ??
+      dto.profession ??
+      (dto as any)?.job ??
+      dataObj?.profession ??
       dataObj?.job ??
-      dataObj?.Demographic?.profession;
+      dataObj?.Demographic?.profession ??
+      dataObj?.demographic?.profession;
 
     const candidateLanguagesInput =
       profileNested?.languages ??
+      dto.languages ??
       dataObj?.languages;
 
     const candidateCityIdInput =
       demographic?.City?.id ??
+      demographic?.cityId ??
+      (demographic as any)?.city?.id ??
+      dto.cityId ??
+      dto.City?.id ??
+      (dto as any)?.city?.id ??
       dataObj?.cityId ??
+      dataObj?.City?.id ??
       dataObj?.Demographic?.City?.id ??
-      dataObj?.Demographic?.cityId;
+      dataObj?.Demographic?.cityId ??
+      dataObj?.demographic?.City?.id ??
+      dataObj?.demographic?.cityId;
 
     const candidateLatitudeInput =
       dto.lat ??
+      (dto as any)?.latitude ??
       dataObj?.lat ??
       dataObj?.latitude;
 
     const candidateLongitudeInput =
       dto.lon ??
+      (dto as any)?.longitude ??
       dataObj?.lon ??
       dataObj?.longitude;
 
     const candidateRelationStatusInput =
       demographic?.relationStatus ??
+      dto.relationStatus ??
       dataObj?.relationStatus ??
-      dataObj?.Demographic?.relationStatus;
+      dataObj?.Demographic?.relationStatus ??
+      dataObj?.demographic?.relationStatus;
 
     const candidateRelationInput =
       preferences?.relation ??
+      dto.relation ??
       dataObj?.relation ??
-      dataObj?.Preferences?.relation;
+      dataObj?.Preferences?.relation ??
+      dataObj?.preferences?.relation;
 
     let candidateFavoritesInput: any[] | undefined =
       (profileNested as any)?.LikedActivities ??
+      (profileNested as any)?.favorites ??
+      dto.LikedActivities ??
+      dto.favorites ??
       dataObj?.LikedActivities ??
       dataObj?.favorites;
 
@@ -453,6 +503,7 @@ export class UpdateProfileUseCase {
         await tx.demographic.update({
           where: { userId },
           data: {
+            ...(parsedBirthDate ? { birthDate: parsedBirthDate } : {}),
             ...(normalizedGender ? { gender: normalizedGender } : {}),
             ...(candidateCityIdInput !== undefined && candidateCityIdInput !== null
               ? { cityId: validCityId }

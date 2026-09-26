@@ -327,6 +327,12 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
 }
 ```
 
+> **Multipart Form-Data Flexibility**:
+> When uploading avatars via `multipart/form-data`, clients can send data in either:
+> 1. **Structured / JSON string**: A `Profile` text field containing stringified JSON (as shown above), or
+> 2. **Flat form-data fields**: Direct fields (`fullName`, `username`, `birthDate`, `gender`, `height`, `degree`, `profession`, `relationStatus`, `cityId`, `relation`, `languages`).
+> Both nested JSON string and flat multipart form-data formats are fully accepted and preserved.
+
 ### 11.2 Profile Response Schema (`GET /v1/users/me` & `PUT /v1/users/profile`)
 ```json
 {

@@ -787,4 +787,75 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       ).rejects.toThrow("Invalid language 'xx'");
     });
   });
+
+  describe("Flat form-data and existing demographic updates", () => {
+    it("should update profile and demographic from flat DTO fields", async () => {
+      mockPrisma.city.findUnique.mockResolvedValue({ id: 12, name: "Tehran" });
+
+      const res = await useCase.execute(1, {
+        language: "fa",
+        lat: 35.6892,
+        lon: 51.389,
+        fullName: "Parsa Moloody",
+        username: "parsam",
+        phoneNumber: "+989123456789",
+        bio: "Fullstack Dev",
+        birthDate: "1998-11-25",
+        gender: "MALE",
+        height: 180,
+        degree: "DOCTORATE",
+        profession: "Software Engineer",
+        relationStatus: "SINGLE",
+        relation: "LONG",
+        cityId: 12,
+        languages: ["fa"],
+      } as any);
+
+      expect(res.language).toBe("FA");
+      expect(res.lat).toBe(35.6892);
+      expect(res.lon).toBe(51.389);
+      expect(res.Profile.fullName).toBe("Parsa Moloody");
+      expect(res.Profile.username).toBe("parsam");
+      expect(res.Profile.phoneNumber).toBe("+989123456789");
+      expect(res.Profile.bio).toBe("Fullstack Dev");
+      expect(res.Profile.languages).toEqual(["fa"]);
+      expect(res.Profile.Demographic.birthDate).toBe("1998-11-25");
+      expect(res.Profile.Demographic.gender).toBe("MALE");
+      expect(res.Profile.Demographic.height).toBe(180);
+      expect(res.Profile.Demographic.degree).toBe("DOCTORATE");
+      expect(res.Profile.Demographic.profession).toBe("Software Engineer");
+      expect(res.Profile.Demographic.relationStatus).toBe("SINGLE");
+      expect(res.Profile.Demographic.City).toMatchObject({ id: 12, name: "Tehran" });
+      expect(res.Profile.Preferences.relation).toBe("LONG");
+    });
+
+    it("should update birthDate when existingDemographic already exists", async () => {
+      mockPrisma.demographic.findUnique.mockResolvedValue({
+        id: 10,
+        userId: 1,
+        birthDate: new Date("1990-01-01"),
+        gender: "MALE",
+        cityId: null,
+      });
+
+      const res = await useCase.execute(1, {
+        Profile: {
+          Demographic: {
+            birthDate: "1998-11-25",
+          },
+        },
+      } as any);
+
+      expect(res.Profile.Demographic.birthDate).toBe("1998-11-25");
+      expect(mockPrisma.demographic.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 1 },
+          data: expect.objectContaining({
+            birthDate: new Date("1998-11-25T00:00:00.000Z"),
+          }),
+        }),
+      );
+    });
+  });
 });
+

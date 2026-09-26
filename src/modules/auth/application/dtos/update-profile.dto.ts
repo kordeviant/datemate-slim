@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
   IsIn,
   IsNumber,
@@ -12,7 +12,7 @@ import {
 import { IsValidUsername } from '../validators/username.validator';
 import { IsValidDateOfBirth } from '../validators/dob.validator';
 
-const parseIfJsonString = ({ value }: { value: any }) => {
+export const parseIfJsonString = ({ value }: { value: any }) => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (
@@ -27,6 +27,30 @@ const parseIfJsonString = ({ value }: { value: any }) => {
     }
   }
   return value;
+};
+
+export const transformJsonOrObject = <T>(cls: new () => T) => {
+  return ({ value }: { value: any }) => {
+    if (value === undefined || value === null) return undefined;
+    let parsed = value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+      ) {
+        try {
+          parsed = JSON.parse(trimmed);
+        } catch {
+          return value;
+        }
+      }
+    }
+    if (parsed && typeof parsed === 'object') {
+      return plainToInstance(cls, parsed);
+    }
+    return parsed;
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -84,12 +108,28 @@ export class DemographicDto {
   degree?: string;
 
   @ApiPropertyOptional({
+    example: 'DOCTORATE',
+    description: 'Education alias for degree',
+  })
+  @IsOptional()
+  @IsString()
+  education?: string;
+
+  @ApiPropertyOptional({
     example: 'Software Engineer',
     description: 'Profession / occupation',
   })
   @IsOptional()
   @IsString()
   profession?: string;
+
+  @ApiPropertyOptional({
+    example: 'Software Engineer',
+    description: 'Job alias for profession',
+  })
+  @IsOptional()
+  @IsString()
+  job?: string;
 
   @ApiPropertyOptional({
     example: 'SINGLE',
@@ -101,10 +141,23 @@ export class DemographicDto {
 
   @ApiPropertyOptional({ type: CityDto, description: 'Selected city' })
   @IsOptional()
-  @Transform(parseIfJsonString)
+  @Transform(transformJsonOrObject(CityDto))
   @ValidateNested()
   @Type(() => CityDto)
   City?: CityDto;
+
+  @ApiPropertyOptional({ type: CityDto, description: 'Selected city (lowercase alias)' })
+  @IsOptional()
+  @Transform(transformJsonOrObject(CityDto))
+  @ValidateNested()
+  @Type(() => CityDto)
+  city?: CityDto;
+
+  @ApiPropertyOptional({ example: 12, description: 'City ID flat field' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  cityId?: number;
 }
 
 export class PreferencesDto {
@@ -134,6 +187,17 @@ export class ProfileNestedDto {
     message: 'Full name cannot contain only numbers',
   })
   fullName?: string;
+
+  @ApiPropertyOptional({
+    example: 'Parsa',
+    description: 'First name alias for full name',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  firstName?: string;
 
   @ApiPropertyOptional({
     example: 'parsa',
@@ -177,20 +241,40 @@ export class ProfileNestedDto {
     description: 'Demographic details (birthDate, gender, height, degree, profession, relationStatus, City)',
   })
   @IsOptional()
-  @Transform(parseIfJsonString)
+  @Transform(transformJsonOrObject(DemographicDto))
   @ValidateNested()
   @Type(() => DemographicDto)
   Demographic?: DemographicDto;
+
+  @ApiPropertyOptional({
+    type: DemographicDto,
+    description: 'Demographic details (lowercase alias)',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(DemographicDto))
+  @ValidateNested()
+  @Type(() => DemographicDto)
+  demographic?: DemographicDto;
 
   @ApiPropertyOptional({
     type: PreferencesDto,
     description: 'Preferences (relation type)',
   })
   @IsOptional()
-  @Transform(parseIfJsonString)
+  @Transform(transformJsonOrObject(PreferencesDto))
   @ValidateNested()
   @Type(() => PreferencesDto)
   Preferences?: PreferencesDto;
+
+  @ApiPropertyOptional({
+    type: PreferencesDto,
+    description: 'Preferences (lowercase alias)',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(PreferencesDto))
+  @ValidateNested()
+  @Type(() => PreferencesDto)
+  preferences?: PreferencesDto;
 }
 
 export class UpdateProfileDto {
@@ -228,10 +312,183 @@ export class UpdateProfileDto {
     description: 'Profile details including Demographic and Preferences',
   })
   @IsOptional()
-  @Transform(parseIfJsonString)
+  @Transform(transformJsonOrObject(ProfileNestedDto))
   @ValidateNested()
   @Type(() => ProfileNestedDto)
   Profile?: ProfileNestedDto;
+
+  @ApiPropertyOptional({
+    type: ProfileNestedDto,
+    description: 'Profile details (lowercase alias)',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(ProfileNestedDto))
+  @ValidateNested()
+  @Type(() => ProfileNestedDto)
+  profile?: ProfileNestedDto;
+
+  @ApiPropertyOptional({
+    type: DemographicDto,
+    description: 'Demographic details if provided at root level',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(DemographicDto))
+  @ValidateNested()
+  @Type(() => DemographicDto)
+  Demographic?: DemographicDto;
+
+  @ApiPropertyOptional({
+    type: DemographicDto,
+    description: 'Demographic details (lowercase root level alias)',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(DemographicDto))
+  @ValidateNested()
+  @Type(() => DemographicDto)
+  demographic?: DemographicDto;
+
+  @ApiPropertyOptional({
+    type: PreferencesDto,
+    description: 'Preferences if provided at root level',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(PreferencesDto))
+  @ValidateNested()
+  @Type(() => PreferencesDto)
+  Preferences?: PreferencesDto;
+
+  @ApiPropertyOptional({
+    type: PreferencesDto,
+    description: 'Preferences (lowercase root level alias)',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(PreferencesDto))
+  @ValidateNested()
+  @Type(() => PreferencesDto)
+  preferences?: PreferencesDto;
+
+  // --- Flat form-data fallback fields (prevents ValidationPipe whitelist stripping) ---
+  @ApiPropertyOptional({ description: 'Full name (flat fallback)' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  @Length(2, 100, {
+    message: 'Full name must be between 2 and 100 characters in length',
+  })
+  @Matches(/^(?!\d+$).+$/, {
+    message: 'Full name cannot contain only numbers',
+  })
+  fullName?: string;
+
+  @ApiPropertyOptional({ description: 'First name alias (flat fallback)' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  firstName?: string;
+
+  @ApiPropertyOptional({ description: 'Username (flat fallback)' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  @IsValidUsername()
+  username?: string;
+
+  @ApiPropertyOptional({ description: 'Phone number (flat fallback)' })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Bio (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @ApiPropertyOptional({ description: 'Languages list (flat fallback)' })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  languages?: string[] | string;
+
+  @ApiPropertyOptional({ description: 'Birth date YYYY-MM-DD (flat fallback)' })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && value.trim() === '') return undefined;
+    return typeof value === 'string' || value instanceof Date ? value : undefined;
+  })
+  @IsValidDateOfBirth()
+  birthDate?: string;
+
+  @ApiPropertyOptional({ description: 'Gender Male/Female (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  @IsIn(['Male', 'Female', 'MALE', 'FEMALE', 'male', 'female'], {
+    message: 'Gender must be either Male or Female',
+  })
+  gender?: string;
+
+  @ApiPropertyOptional({ description: 'Height in cm (flat fallback)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  height?: number;
+
+  @ApiPropertyOptional({ description: 'Education degree (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  degree?: string;
+
+  @ApiPropertyOptional({ description: 'Education alias (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  education?: string;
+
+  @ApiPropertyOptional({ description: 'Profession / job (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  profession?: string;
+
+  @ApiPropertyOptional({ description: 'Job alias (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  job?: string;
+
+  @ApiPropertyOptional({ description: 'Relationship status (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  relationStatus?: string;
+
+  @ApiPropertyOptional({ description: 'Kind of relationship (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  relation?: string;
+
+  @ApiPropertyOptional({ description: 'Selected City ID (flat fallback)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  cityId?: number;
+
+  @ApiPropertyOptional({ type: CityDto, description: 'Selected City (flat fallback)' })
+  @IsOptional()
+  @Transform(transformJsonOrObject(CityDto))
+  @ValidateNested()
+  @Type(() => CityDto)
+  City?: CityDto;
+
+  @ApiPropertyOptional({ type: CityDto, description: 'Selected city lowercase (flat fallback)' })
+  @IsOptional()
+  @Transform(transformJsonOrObject(CityDto))
+  @ValidateNested()
+  @Type(() => CityDto)
+  city?: CityDto;
 
   @ApiPropertyOptional({
     type: 'string',
@@ -255,6 +512,20 @@ export class UpdateProfileDto {
   @IsOptional()
   @Transform(parseIfJsonString)
   data?: any;
+
+  @ApiPropertyOptional({
+    description: 'Liked activities / interests',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  LikedActivities?: any;
+
+  @ApiPropertyOptional({
+    description: 'Favorites / interests alias',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  favorites?: any;
 }
 
 export { UpdateProfileDto as CreateProfileDto };

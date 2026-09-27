@@ -45,27 +45,50 @@ describe('QuestionsController', () => {
   });
 
   describe('GET /questions', () => {
-    it('should return questions with type and language filters', async () => {
+    it('should return questions with id, type, and language filters', async () => {
       const result = await controller.getQuestions(
         'Bearer valid-token',
+        '1',
         'PERSONALITY',
         'en',
       );
 
       expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
-      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PERSONALITY', 'en');
+      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PERSONALITY', 'en', 1);
       expect(result.questions).toHaveLength(1);
     });
 
     it('should call execute without filters when not provided', async () => {
       await controller.getQuestions('Bearer valid-token');
 
-      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith(undefined, undefined);
+      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith(undefined, undefined, undefined);
+    });
+
+    it('should throw BadRequestException when id query is not a valid number', async () => {
+      await expect(
+        controller.getQuestions('Bearer valid-token', 'invalid-id'),
+      ).rejects.toThrow('Query parameter "id" must be a valid number');
     });
 
     it('should throw UnauthorizedException when no auth header', async () => {
       await expect(
         controller.getQuestions(''),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('GET /questions/:id', () => {
+    it('should return question by id', async () => {
+      const result = await controller.getQuestionById('Bearer valid-token', 1, 'fa');
+
+      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
+      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith(undefined, 'fa', 1);
+      expect(result.questions).toHaveLength(1);
+    });
+
+    it('should throw UnauthorizedException when no auth header', async () => {
+      await expect(
+        controller.getQuestionById('', 1),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

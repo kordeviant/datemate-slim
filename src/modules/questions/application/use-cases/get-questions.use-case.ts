@@ -1,8 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   QUESTION_REPOSITORY,
   IQuestionRepository,
 } from '../../domain/repositories/question.repository.interface';
+import { QuestionEntity } from '../../domain/question.entity';
 import {
   QuestionListResponseDto,
   QuestionResponseDto,
@@ -18,67 +19,79 @@ export class GetQuestionsUseCase {
   ) {}
 
   /**
-   * Returns questions filtered by optional type and language.
-   * - If language is provided ('en' or 'fa'), returns localized name/answer fields.
-   * - If language is not provided, returns both languages in separate entries.
-   * - If type is provided, filters by QuestionType.
+   * Returns questions filtered by optional id, type, and language.
+   * - If no query parameters are set: returns all questions with their IDs, type, names, and answers (both EN & FA).
+   * - If id is provided: returns the single question matching the ID.
+   * - If type is provided: filters by QuestionType.
+   * - If language is provided ('en' or 'fa'): localizes the primary name and answer fields.
    */
   async execute(
     type?: string,
     language?: string,
+    id?: number,
   ): Promise<QuestionListResponseDto> {
     const normalizedType = type?.toUpperCase().trim();
     const normalizedLang = language?.toLowerCase().trim();
 
+    // 1. If ID is provided, query single question by ID
+    if (id !== undefined && id !== null && !isNaN(Number(id))) {
+      const numericId = Number(id);
+      const question = await this.questionRepo.findById(numericId);
+      if (!question) {
+        throw new NotFoundException(`Question with ID ${numericId} not found`);
+      }
+
+      const mapped = this.mapQuestion(question, normalizedLang);
+      this.logger.log(`[Get Questions] Found question by ID #${numericId}`);
+
+      return {
+        total: 1,
+        questions: [mapped],
+        question: mapped,
+        id: numericId,
+        type: mapped.type,
+        language: normalizedLang,
+      };
+    }
+
+    // 2. Otherwise query by type or fetch all questions
     const questions = normalizedType
       ? await this.questionRepo.findByType(normalizedType)
       : await this.questionRepo.findAll();
 
-    let result: QuestionResponseDto[];
-
-    if (normalizedLang === 'en' || normalizedLang === 'fa') {
-      // Return single language
-      result = questions.map((q) => ({
-        id: q.id,
-        type: q.type,
-        name: normalizedLang === 'en' ? q.nameEn : q.nameFa,
-        answers: q.answers.map((a) => ({
-          id: a.id,
-          answer: normalizedLang === 'en' ? a.answerEn : a.answerFa,
-        })),
-      }));
-    } else {
-      // Return both languages — each question appears twice
-      result = questions.flatMap((q) => [
-        {
-          id: q.id,
-          type: q.type,
-          name: q.nameEn,
-          answers: q.answers.map((a) => ({
-            id: a.id,
-            answer: a.answerEn,
-          })),
-        },
-        {
-          id: q.id,
-          type: q.type,
-          name: q.nameFa,
-          answers: q.answers.map((a) => ({
-            id: a.id,
-            answer: a.answerFa,
-          })),
-        },
-      ]);
-    }
+    const result: QuestionResponseDto[] = questions.map((q) =>
+      this.mapQuestion(q, normalizedLang),
+    );
 
     this.logger.log(
-      `[Get Questions] Found ${result.length} questions (type=${normalizedType ?? 'all'}, lang=${normalizedLang ?? 'both'})`,
+      `[Get Questions] Found ${result.length} questions (type=${normalizedType ?? 'all'}, lang=${normalizedLang ?? 'all'})`,
     );
 
     return {
+      total: result.length,
       questions: result,
       type: normalizedType,
       language: normalizedLang,
+    };
+  }
+
+  private mapQuestion(q: QuestionEntity, lang?: string): QuestionResponseDto {
+    const isFa = lang === 'fa';
+    const primaryName = isFa ? q.nameFa : q.nameEn;
+
+    return {
+      id: q.id,
+      type: q.type,
+      name: primaryName,
+      nameEn: q.nameEn,
+      nameFa: q.nameFa,
+      answers: (q.answers || []).map((a) => ({
+        id: a.id,
+        questionId: a.questionId,
+        answer: isFa ? a.answerFa : a.answerEn,
+        answerEn: a.answerEn,
+        answerFa: a.answerFa,
+      })),
     };
   }
 }

@@ -62,11 +62,41 @@ describe('GetQuestionsUseCase', () => {
     expect(result.questions[0].answers[0].answer).toBe('مراقبه');
   });
 
-  it('should return both languages when language is not specified', async () => {
+  it('should return all questions with bilingual fields and IDs when language is not specified', async () => {
     const result = await useCase.execute();
 
-    expect(result.questions).toHaveLength(4); // 2 questions x 2 languages
+    expect(result.questions).toHaveLength(2);
+    expect(result.total).toBe(2);
     expect(result.language).toBeUndefined();
+    expect(result.questions[0].id).toBe(1);
+    expect(result.questions[0].nameEn).toBe('How do you take care of yourself?');
+    expect(result.questions[0].nameFa).toBe('چگونه از خود مراقبت می‌کنید؟');
+    expect(result.questions[0].answers[0].id).toBe(1);
+    expect(result.questions[0].answers[0].questionId).toBe(1);
+    expect(result.questions[0].answers[0].answerEn).toBe('Meditation');
+    expect(result.questions[0].answers[0].answerFa).toBe('مراقبه');
+  });
+
+  it('should return single question when id is specified', async () => {
+    mockRepo.findById.mockResolvedValue(sampleQuestions[0]);
+
+    const result = await useCase.execute(undefined, undefined, 1);
+
+    expect(mockRepo.findById).toHaveBeenCalledWith(1);
+    expect(result.total).toBe(1);
+    expect(result.id).toBe(1);
+    expect(result.questions).toHaveLength(1);
+    expect(result.questions[0].id).toBe(1);
+    expect(result.question?.id).toBe(1);
+    expect(result.question?.nameEn).toBe('How do you take care of yourself?');
+  });
+
+  it('should throw NotFoundException when question by id does not exist', async () => {
+    mockRepo.findById.mockResolvedValue(null);
+
+    await expect(useCase.execute(undefined, undefined, 999)).rejects.toThrow(
+      'Question with ID 999 not found',
+    );
   });
 
   it('should filter by type when provided', async () => {

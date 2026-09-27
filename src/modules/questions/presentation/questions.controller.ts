@@ -1,10 +1,13 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Headers,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
   Post,
   Query,
   UnauthorizedException,
@@ -15,6 +18,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
   ApiQuery,
 } from '@nestjs/swagger';
 import { GetQuestionsUseCase } from '../application/use-cases/get-questions.use-case';
@@ -36,10 +40,17 @@ export class QuestionsController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Get questions by type and language',
+    summary: 'Get questions with optional filters or by ID',
     description:
-      'Retrieves questions filtered by optional type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). ' +
-      'If language is not provided, returns questions in both languages.',
+      'Retrieves all questions with their IDs, or filters by id, type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). ' +
+      'If no query params are provided, returns all questions with English and Farsi text. ' +
+      'If id query param is provided, returns that specific question.',
+  })
+  @ApiQuery({
+    name: 'id',
+    required: false,
+    type: Number,
+    description: 'Filter by question ID',
   })
   @ApiQuery({
     name: 'type',
@@ -50,7 +61,7 @@ export class QuestionsController {
   @ApiQuery({
     name: 'language',
     required: false,
-    description: 'Language filter (en or fa). If omitted, returns both languages.',
+    description: 'Language filter (en or fa). If omitted, returns both English and Farsi texts.',
     enum: ['en', 'fa'],
   })
   @ApiResponse({
@@ -59,11 +70,20 @@ export class QuestionsController {
     type: QuestionListResponseDto,
   })
   @ApiResponse({
+    status: 400,
+    description: 'Invalid query parameters',
+  })
+  @ApiResponse({
     status: 401,
     description: 'Missing or invalid access token',
   })
+  @ApiResponse({
+    status: 404,
+    description: 'Question with specified ID not found',
+  })
   async getQuestions(
     @Headers('authorization') authHeader: string,
+    @Query('id') id?: string,
     @Query('type') type?: string,
     @Query('language') language?: string,
   ): Promise<QuestionListResponseDto> {
@@ -76,7 +96,63 @@ export class QuestionsController {
       .replace(/^["']|["']$/g, '');
     this.tokenService.verifyAccessToken(token);
 
-    return this.getQuestionsUseCase.execute(type, language);
+    let numericId: number | undefined;
+    if (id !== undefined && id !== '') {
+      numericId = Number(id);
+      if (isNaN(numericId)) {
+        throw new BadRequestException('Query parameter "id" must be a valid number');
+      }
+    }
+
+    return this.getQuestionsUseCase.execute(type, language, numericId);
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get single question by route parameter ID',
+    description: 'Retrieves a single question by its numeric ID path parameter.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'Question ID',
+  })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: 'Language filter (en or fa). If omitted, returns both languages.',
+    enum: ['en', 'fa'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Question retrieved successfully',
+    type: QuestionListResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid access token',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Question not found',
+  })
+  async getQuestionById(
+    @Headers('authorization') authHeader: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Query('language') language?: string,
+  ): Promise<QuestionListResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException('Missing Authorization header');
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    this.tokenService.verifyAccessToken(token);
+
+    return this.getQuestionsUseCase.execute(undefined, language, id);
   }
 
   @Post()

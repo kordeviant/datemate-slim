@@ -2,6 +2,7 @@ import { QuestionEntity } from '../question.entity';
 
 export interface CreateQuestionData {
   type: string;
+  answerType?: string;
   nameEn: string;
   nameFa: string;
   answers: Array<{ answerEn: string; answerFa: string }>;

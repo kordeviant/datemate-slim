@@ -30,6 +30,13 @@ export class QuestionResponseDto {
   @ApiProperty({ example: 'PERSONALITY', description: 'Question type/category' })
   type: string;
 
+  @ApiProperty({
+    example: 'SINGLE',
+    description: 'Answer selection type: SINGLE or MULTI',
+    enum: ['SINGLE', 'MULTI'],
+  })
+  answerType: string;
+
   @ApiProperty({ example: 'How do you practice self-care?', description: 'Localized or default question text' })
   name: string;
 

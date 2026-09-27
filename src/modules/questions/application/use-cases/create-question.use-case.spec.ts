@@ -15,6 +15,7 @@ describe('CreateQuestionUseCase', () => {
       create: jest.fn().mockImplementation(async (data) => ({
         id: 1,
         type: data.type,
+        answerType: data.answerType || 'SINGLE',
         nameEn: data.nameEn,
         nameFa: data.nameFa,
         answers: data.answers.map((a: any, i: number) => ({
@@ -46,6 +47,7 @@ describe('CreateQuestionUseCase', () => {
 
     expect(mockRepo.create).toHaveBeenCalledWith({
       type: 'PERSONALITY',
+      answerType: 'SINGLE',
       nameEn: 'What makes you happy?',
       nameFa: 'چه چیزی شما را خوشحال می‌کند؟',
       answers: [
@@ -54,6 +56,7 @@ describe('CreateQuestionUseCase', () => {
       ],
     });
     expect(result.id).toBe(1);
+    expect(result.answerType).toBe('SINGLE');
     expect(result.answers).toHaveLength(2);
   });
 

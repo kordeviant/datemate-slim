@@ -10,6 +10,7 @@ describe('GetQuestionsUseCase', () => {
     {
       id: 1,
       type: 'PERSONALITY',
+      answerType: 'SINGLE',
       nameEn: 'How do you take care of yourself?',
       nameFa: 'چگونه از خود مراقبت می‌کنید؟',
       answers: [
@@ -20,6 +21,7 @@ describe('GetQuestionsUseCase', () => {
     {
       id: 2,
       type: 'PERSONALITY',
+      answerType: 'MULTI',
       nameEn: 'What are you seeking?',
       nameFa: 'به دنبال چه چیزی هستید؟',
       answers: [

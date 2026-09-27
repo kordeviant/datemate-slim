@@ -8,6 +8,7 @@ export interface QuestionAnswerEntity {
 export interface QuestionEntity {
   id: number;
   type: string;
+  answerType: string;
   nameEn: string;
   nameFa: string;
   answers: QuestionAnswerEntity[];

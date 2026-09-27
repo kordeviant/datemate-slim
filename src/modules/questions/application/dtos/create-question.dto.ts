@@ -35,6 +35,20 @@ export class CreateQuestionDto {
   })
   type: string;
 
+  @ApiPropertyOptional({
+    example: 'SINGLE',
+    description: 'Answer selection type: SINGLE or MULTI',
+    enum: ['SINGLE', 'MULTI'],
+    default: 'SINGLE',
+  })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase().trim() : value)
+  @IsEnum(['SINGLE', 'MULTI'], {
+    message: 'answerType must be either SINGLE or MULTI',
+  })
+  answerType?: string;
+
   @ApiProperty({ example: 'How do you take care of yourself?', description: 'Question text in English' })
   @IsNotEmpty()
   @IsString()

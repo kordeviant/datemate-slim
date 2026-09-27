@@ -41,6 +41,7 @@ export class CreateQuestionUseCase {
 
     const question = await this.questionRepo.create({
       type: dto.type,
+      answerType: dto.answerType || 'SINGLE',
       nameEn: dto.nameEn.trim(),
       nameFa: dto.nameFa.trim(),
       answers: dto.answers.map((a) => ({

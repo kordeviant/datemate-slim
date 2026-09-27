@@ -18,6 +18,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
     return questions.map((q) => ({
       id: q.id,
       type: q.type,
+      answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
       answers: q.answers.map((a) => ({
@@ -38,6 +39,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
     return questions.map((q) => ({
       id: q.id,
       type: q.type,
+      answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
       answers: q.answers.map((a) => ({
@@ -58,6 +60,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
     return {
       id: q.id,
       type: q.type,
+      answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
       answers: q.answers.map((a) => ({
@@ -73,6 +76,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
     const q = await this.prisma.question.create({
       data: {
         type: data.type as any,
+        answerType: (data.answerType as any) || 'SINGLE',
         nameEn: data.nameEn,
         nameFa: data.nameFa,
         answers: {
@@ -82,11 +86,12 @@ export class PrismaQuestionRepository implements IQuestionRepository {
           })),
         },
       },
-      include: { answers: true },
+      include: { answers: { orderBy: { id: 'asc' } } },
     });
     return {
       id: q.id,
       type: q.type,
+      answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
       answers: q.answers.map((a) => ({

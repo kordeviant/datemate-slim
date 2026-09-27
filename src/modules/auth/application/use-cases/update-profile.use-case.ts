@@ -679,18 +679,23 @@ export class UpdateProfileUseCase {
               }
             }
           } else if (typeof rawAnswers === 'object' && rawAnswers !== null) {
-            // Key-value map: { "1": 0, "2": 1, ... } (questionid: answerId)
+            // Key-value map: { "1": 0, "2": [0, 1], ... } (questionid: answerId or array of answerIds for MULTI)
             for (const [qKey, aVal] of Object.entries(rawAnswers)) {
               const qId = Number(qKey);
-              const aIndex = Number(aVal);
-              if (!isNaN(qId) && !isNaN(aIndex) && questionMap.has(qId)) {
+              if (!isNaN(qId) && questionMap.has(qId)) {
                 const qAnswers = questionMap.get(qId)!;
-                if (qAnswers[aIndex]) {
-                  targetAnswerDbIds.push(qAnswers[aIndex].id);
-                  questionIdsToUpdate.add(qId);
-                } else if (dbIdToInfo.has(aIndex)) {
-                  targetAnswerDbIds.push(aIndex);
-                  questionIdsToUpdate.add(qId);
+                const indices: number[] = Array.isArray(aVal)
+                  ? aVal.map(Number).filter((n) => !isNaN(n))
+                  : [Number(aVal)].filter((n) => !isNaN(n));
+
+                for (const aIndex of indices) {
+                  if (qAnswers[aIndex]) {
+                    targetAnswerDbIds.push(qAnswers[aIndex].id);
+                    questionIdsToUpdate.add(qId);
+                  } else if (dbIdToInfo.has(aIndex)) {
+                    targetAnswerDbIds.push(aIndex);
+                    questionIdsToUpdate.add(qId);
+                  }
                 }
               }
             }
@@ -783,7 +788,7 @@ export class UpdateProfileUseCase {
       `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
     );
 
-    const answersMap: Record<string, number> = {};
+    const answersMap: Record<string, number | number[]> = {};
     const dbIdToAnswerInfo = new Map<number, { questionId: number; answerIndex: number }>();
 
     if (userAnswers.length > 0) {
@@ -794,17 +799,38 @@ export class UpdateProfileUseCase {
               orderBy: { id: 'asc' },
             })
           : [];
+      const questionEntityMap = new Map<number, any>();
       for (const q of allDbQuestions) {
+        questionEntityMap.set(q.id, q);
         (q.answers || []).forEach((ans: any, idx: number) => {
           dbIdToAnswerInfo.set(ans.id, { questionId: q.id, answerIndex: idx });
         });
       }
+
+      const answersByQId = new Map<number, number[]>();
       for (const uqa of userAnswers) {
         const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
         if (info) {
-          answersMap[String(info.questionId)] = info.answerIndex;
+          if (!answersByQId.has(info.questionId)) {
+            answersByQId.set(info.questionId, []);
+          }
+          answersByQId.get(info.questionId)!.push(info.answerIndex);
         } else if (uqa.questionAnswer?.questionId) {
-          answersMap[String(uqa.questionAnswer.questionId)] = 0;
+          const qId = uqa.questionAnswer.questionId;
+          if (!answersByQId.has(qId)) {
+            answersByQId.set(qId, []);
+          }
+          answersByQId.get(qId)!.push(0);
+        }
+      }
+
+      for (const [qId, indices] of answersByQId.entries()) {
+        const qEntity = questionEntityMap.get(qId);
+        const sorted = indices.sort((a, b) => a - b);
+        if (qEntity?.answerType === 'MULTI' || sorted.length > 1) {
+          answersMap[String(qId)] = sorted;
+        } else {
+          answersMap[String(qId)] = sorted[0];
         }
       }
     }

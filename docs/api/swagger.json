@@ -1932,6 +1932,15 @@
             "example": "PERSONALITY",
             "description": "Question type/category"
           },
+          "answerType": {
+            "type": "string",
+            "example": "SINGLE",
+            "description": "Answer selection type: SINGLE or MULTI",
+            "enum": [
+              "SINGLE",
+              "MULTI"
+            ]
+          },
           "name": {
             "type": "string",
             "example": "How do you practice self-care?",
@@ -1958,6 +1967,7 @@
         "required": [
           "id",
           "type",
+          "answerType",
           "name",
           "answers"
         ]
@@ -2038,6 +2048,16 @@
               "LIFESTYLE",
               "VALUES"
             ]
+          },
+          "answerType": {
+            "type": "string",
+            "example": "SINGLE",
+            "description": "Answer selection type: SINGLE or MULTI",
+            "enum": [
+              "SINGLE",
+              "MULTI"
+            ],
+            "default": "SINGLE"
           },
           "nameEn": {
             "type": "string",

@@ -82,6 +82,7 @@ export class GetQuestionsUseCase {
     return {
       id: q.id,
       type: q.type,
+      answerType: q.answerType || 'SINGLE',
       name: primaryName,
       nameEn: q.nameEn,
       nameFa: q.nameFa,

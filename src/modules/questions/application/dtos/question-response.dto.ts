@@ -11,9 +11,15 @@ export class QuestionAnswerResponseDto {
   answer: string;
 
   @ApiPropertyOptional({ example: 'Meditation and mindfulness practices.', description: 'English answer text' })
-  answerEn?: string;
+  enAnswer?: string;
 
   @ApiPropertyOptional({ example: 'مراقبه و تمرین‌های ذهن‌آگاهی.', description: 'Farsi answer text' })
+  faAnswer?: string;
+
+  @ApiPropertyOptional({ example: 'Meditation and mindfulness practices.', description: 'English answer text (legacy alias)' })
+  answerEn?: string;
+
+  @ApiPropertyOptional({ example: 'مراقبه و تمرین‌های ذهن‌آگاهی.', description: 'Farsi answer text (legacy alias)' })
   answerFa?: string;
 }
 
@@ -21,7 +27,7 @@ export class QuestionResponseDto {
   @ApiProperty({ example: 1, description: 'Question ID' })
   id: number;
 
-  @ApiProperty({ example: 'PERSONALITY', description: 'Question type/category' })
+  @ApiProperty({ example: 'PREFERENCES', description: 'Question type/category' })
   type: string;
 
   @ApiProperty({
@@ -35,9 +41,15 @@ export class QuestionResponseDto {
   name: string;
 
   @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'English question text' })
-  nameEn?: string;
+  enName?: string;
 
   @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Farsi question text' })
+  faName?: string;
+
+  @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'English question text (legacy alias)' })
+  nameEn?: string;
+
+  @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Farsi question text (legacy alias)' })
   nameFa?: string;
 
   @ApiProperty({ type: [QuestionAnswerResponseDto], description: 'Answer options' })
@@ -57,7 +69,7 @@ export class QuestionListResponseDto {
   @ApiPropertyOptional({ example: 1, description: 'Question ID filter applied' })
   id?: number;
 
-  @ApiPropertyOptional({ example: 'PERSONALITY', description: 'Question type filter applied' })
+  @ApiPropertyOptional({ example: 'PREFERENCES', description: 'Question type filter applied' })
   type?: string;
 
   @ApiPropertyOptional({ example: 'en', description: 'Language filter applied' })

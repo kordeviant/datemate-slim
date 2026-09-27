@@ -10,28 +10,38 @@ import {
 import { Transform, Type } from 'class-transformer';
 
 export class CreateQuestionAnswerDto {
-  @ApiProperty({ example: 'Meditation and mindfulness practices.', description: 'Answer text in English' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'Meditation and mindfulness practices.', description: 'Answer text in English' })
+  @IsOptional()
   @IsString()
-  answerEn: string;
+  enAnswer?: string;
 
-  @ApiProperty({ example: 'مراقبه و تمرین‌های ذهن‌آگاهی.', description: 'Answer text in Farsi' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'مراقبه و تمرین‌های ذهن‌آگاهی.', description: 'Answer text in Farsi' })
+  @IsOptional()
   @IsString()
-  answerFa: string;
+  faAnswer?: string;
+
+  @ApiPropertyOptional({ example: 'Meditation and mindfulness practices.', description: 'Legacy alias' })
+  @IsOptional()
+  @IsString()
+  answerEn?: string;
+
+  @ApiPropertyOptional({ example: 'مراقبه و تمرین‌های ذهن‌آگاهی.', description: 'Legacy alias' })
+  @IsOptional()
+  @IsString()
+  answerFa?: string;
 }
 
 export class CreateQuestionDto {
   @ApiProperty({
-    example: 'PERSONALITY',
-    description: 'Question type/category (e.g. PERSONALITY, INTERESTS, LIFESTYLE, VALUES)',
-    enum: ['PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+    example: 'PREFERENCES',
+    description: 'Question type/category (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES)',
+    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
   })
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase().trim() : value)
-  @IsEnum(['PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'], {
-    message: 'Type must be one of: PERSONALITY, INTERESTS, LIFESTYLE, VALUES',
+  @IsEnum(['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'], {
+    message: 'Type must be one of: PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES',
   })
   type: string;
 
@@ -49,15 +59,25 @@ export class CreateQuestionDto {
   })
   answerType?: string;
 
-  @ApiProperty({ example: 'How do you take care of yourself?', description: 'Question text in English' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'Question text in English' })
+  @IsOptional()
   @IsString()
-  nameEn: string;
+  enName?: string;
 
-  @ApiProperty({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Question text in Farsi' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Question text in Farsi' })
+  @IsOptional()
   @IsString()
-  nameFa: string;
+  faName?: string;
+
+  @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'Legacy alias' })
+  @IsOptional()
+  @IsString()
+  nameEn?: string;
+
+  @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Legacy alias' })
+  @IsOptional()
+  @IsString()
+  nameFa?: string;
 
   @ApiProperty({
     type: [CreateQuestionAnswerDto],

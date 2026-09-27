@@ -77,22 +77,32 @@ export class GetQuestionsUseCase {
 
   private mapQuestion(q: QuestionEntity, lang?: string): QuestionResponseDto {
     const isFa = lang === 'fa';
-    const primaryName = isFa ? q.nameFa : q.nameEn;
+    const enName = q.enName || q.nameEn;
+    const faName = q.faName || q.nameFa;
+    const primaryName = isFa ? faName : enName;
 
     return {
       id: q.id,
       type: q.type,
       answerType: q.answerType || 'SINGLE',
       name: primaryName,
-      nameEn: q.nameEn,
-      nameFa: q.nameFa,
-      answers: (q.answers || []).map((a, index) => ({
-        id: index,
-        questionId: a.questionId,
-        answer: isFa ? a.answerFa : a.answerEn,
-        answerEn: a.answerEn,
-        answerFa: a.answerFa,
-      })),
+      enName,
+      faName,
+      nameEn: enName,
+      nameFa: faName,
+      answers: (q.answers || []).map((a, index) => {
+        const enAnswer = a.enAnswer || a.answerEn;
+        const faAnswer = a.faAnswer || a.answerFa;
+        return {
+          id: index,
+          questionId: a.questionId,
+          answer: isFa ? faAnswer : enAnswer,
+          enAnswer,
+          faAnswer,
+          answerEn: enAnswer,
+          answerFa: faAnswer,
+        };
+      }),
     };
   }
 }

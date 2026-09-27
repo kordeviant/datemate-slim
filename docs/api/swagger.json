@@ -738,7 +738,7 @@
       "get": {
         "operationId": "QuestionsController_getQuestions",
         "summary": "Get questions with optional filters or by ID",
-        "description": "Retrieves all questions with their IDs, or filters by id, type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). If no query params are provided, returns all questions with English and Farsi text. If id query param is provided, returns that specific question.",
+        "description": "Retrieves all questions with their IDs, or filters by id, type (PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). If no query params are provided, returns all questions with English and Farsi text. If id query param is provided, returns that specific question.",
         "parameters": [
           {
             "name": "authorization",
@@ -764,6 +764,7 @@
             "description": "Question type/category filter",
             "schema": {
               "enum": [
+                "PREFERENCES",
                 "PERSONALITY",
                 "INTERESTS",
                 "LIFESTYLE",
@@ -849,6 +850,144 @@
           },
           "401": {
             "description": "Missing/invalid token or insufficient permissions"
+          }
+        },
+        "tags": [
+          "Questions"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/questions/search": {
+      "get": {
+        "operationId": "QuestionsController_searchQuestionsByType",
+        "summary": "Search questions by type query parameter",
+        "description": "Searches questions by type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "description": "Question type to search",
+            "schema": {
+              "enum": [
+                "PREFERENCES",
+                "PERSONALITY",
+                "INTERESTS",
+                "LIFESTYLE",
+                "VALUES"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa)",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Questions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Questions"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/questions/type/{type}": {
+      "get": {
+        "operationId": "QuestionsController_getQuestionsByType",
+        "summary": "Search/Get questions by type route parameter",
+        "description": "Retrieves all questions of a specific type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "description": "Question type/category (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES)",
+            "schema": {
+              "enum": [
+                "PREFERENCES",
+                "PERSONALITY",
+                "INTERESTS",
+                "LIFESTYLE",
+                "VALUES"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both languages.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Questions of the specified type retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
           }
         },
         "tags": [
@@ -1292,55 +1431,9 @@
           }
         }
       },
-      "ProfileQuestionAnswerDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number",
-            "example": 1,
-            "description": "QuestionAnswer ID"
-          },
-          "questionId": {
-            "type": "number",
-            "example": 1,
-            "description": "Question ID"
-          },
-          "answer": {
-            "type": "string",
-            "example": "Meditation and mindfulness practices.",
-            "description": "Answer text (localized)"
-          },
-          "faAnswer": {
-            "type": "string",
-            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
-            "description": "Persian answer text"
-          },
-          "answerEn": {
-            "type": "string",
-            "example": "Meditation and mindfulness practices.",
-            "description": "English answer text"
-          },
-          "answerFa": {
-            "type": "string",
-            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
-            "description": "Persian answer text"
-          }
-        },
-        "required": [
-          "id",
-          "questionId",
-          "answer"
-        ]
-      },
       "ProfileNestedResponseDto": {
         "type": "object",
         "properties": {
-          "firstName": {
-            "type": "string",
-            "example": "Parsa",
-            "description": "User first name",
-            "nullable": true
-          },
           "fullName": {
             "type": "string",
             "example": "Parsa",
@@ -1414,27 +1507,6 @@
             },
             "description": "User answers formatted as { [questionid]: answerId } where answerId starts from 0 for each question",
             "nullable": true
-          },
-          "answersList": {
-            "description": "Detailed user question answers list",
-            "nullable": true,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProfileQuestionAnswerDto"
-            }
-          },
-          "answerIds": {
-            "example": [
-              1,
-              6,
-              11
-            ],
-            "description": "Array of answered database QuestionAnswer IDs",
-            "nullable": true,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         },
         "required": [
@@ -1511,6 +1583,11 @@
             "type": "string",
             "example": "1998-11-25",
             "description": "Date of birth (YYYY-MM-DD or ISO, must be 18–80 years old)"
+          },
+          "date": {
+            "type": "string",
+            "example": "1998-11-25",
+            "description": "Date of birth alias for birthDate"
           },
           "gender": {
             "type": "string",
@@ -1595,11 +1672,6 @@
             "type": "string",
             "example": "Parsa",
             "description": "User full name (2–100 chars, cannot be only numbers)"
-          },
-          "firstName": {
-            "type": "string",
-            "example": "Parsa",
-            "description": "First name alias for full name"
           },
           "username": {
             "type": "string",
@@ -1757,10 +1829,6 @@
             "type": "string",
             "description": "Full name (flat fallback)"
           },
-          "firstName": {
-            "type": "string",
-            "description": "First name alias (flat fallback)"
-          },
           "username": {
             "type": "string",
             "description": "Username (flat fallback)"
@@ -1780,6 +1848,10 @@
           "birthDate": {
             "type": "string",
             "description": "Birth date YYYY-MM-DD (flat fallback)"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date of birth alias (flat fallback)"
           },
           "gender": {
             "type": "string",
@@ -1893,15 +1965,25 @@
             "example": "Meditation and mindfulness practices.",
             "description": "Localized or default answer text"
           },
-          "answerEn": {
+          "enAnswer": {
             "type": "string",
             "example": "Meditation and mindfulness practices.",
             "description": "English answer text"
           },
-          "answerFa": {
+          "faAnswer": {
             "type": "string",
             "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
             "description": "Farsi answer text"
+          },
+          "answerEn": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "English answer text (legacy alias)"
+          },
+          "answerFa": {
+            "type": "string",
+            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "description": "Farsi answer text (legacy alias)"
           }
         },
         "required": [
@@ -1919,7 +2001,7 @@
           },
           "type": {
             "type": "string",
-            "example": "PERSONALITY",
+            "example": "PREFERENCES",
             "description": "Question type/category"
           },
           "answerType": {
@@ -1936,15 +2018,25 @@
             "example": "How do you practice self-care?",
             "description": "Localized or default question text"
           },
-          "nameEn": {
+          "enName": {
             "type": "string",
             "example": "How do you practice self-care?",
             "description": "English question text"
           },
-          "nameFa": {
+          "faName": {
             "type": "string",
             "example": "چگونه از خود مراقبت می‌کنید؟",
             "description": "Farsi question text"
+          },
+          "nameEn": {
+            "type": "string",
+            "example": "How do you practice self-care?",
+            "description": "English question text (legacy alias)"
+          },
+          "nameFa": {
+            "type": "string",
+            "example": "چگونه از خود مراقبت می‌کنید؟",
+            "description": "Farsi question text (legacy alias)"
           },
           "answers": {
             "description": "Answer options",
@@ -1992,7 +2084,7 @@
           },
           "type": {
             "type": "string",
-            "example": "PERSONALITY",
+            "example": "PREFERENCES",
             "description": "Question type filter applied"
           },
           "language": {
@@ -2009,30 +2101,37 @@
       "CreateQuestionAnswerDto": {
         "type": "object",
         "properties": {
-          "answerEn": {
+          "enAnswer": {
             "type": "string",
             "example": "Meditation and mindfulness practices.",
             "description": "Answer text in English"
           },
-          "answerFa": {
+          "faAnswer": {
             "type": "string",
             "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
             "description": "Answer text in Farsi"
+          },
+          "answerEn": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "Legacy alias"
+          },
+          "answerFa": {
+            "type": "string",
+            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "description": "Legacy alias"
           }
-        },
-        "required": [
-          "answerEn",
-          "answerFa"
-        ]
+        }
       },
       "CreateQuestionDto": {
         "type": "object",
         "properties": {
           "type": {
             "type": "string",
-            "example": "PERSONALITY",
-            "description": "Question type/category (e.g. PERSONALITY, INTERESTS, LIFESTYLE, VALUES)",
+            "example": "PREFERENCES",
+            "description": "Question type/category (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES)",
             "enum": [
+              "PREFERENCES",
               "PERSONALITY",
               "INTERESTS",
               "LIFESTYLE",
@@ -2049,15 +2148,25 @@
             ],
             "default": "SINGLE"
           },
+          "enName": {
+            "type": "string",
+            "example": "How do you practice self-care?",
+            "description": "Question text in English"
+          },
+          "faName": {
+            "type": "string",
+            "example": "چگونه از خود مراقبت می‌کنید؟",
+            "description": "Question text in Farsi"
+          },
           "nameEn": {
             "type": "string",
-            "example": "How do you take care of yourself?",
-            "description": "Question text in English"
+            "example": "How do you practice self-care?",
+            "description": "Legacy alias"
           },
           "nameFa": {
             "type": "string",
             "example": "چگونه از خود مراقبت می‌کنید؟",
-            "description": "Question text in Farsi"
+            "description": "Legacy alias"
           },
           "answers": {
             "description": "Answer options for the question (must include both en and fa)",
@@ -2069,8 +2178,6 @@
         },
         "required": [
           "type",
-          "nameEn",
-          "nameFa",
           "answers"
         ]
       }

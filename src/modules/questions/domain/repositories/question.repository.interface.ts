@@ -5,7 +5,14 @@ export interface CreateQuestionData {
   answerType?: string;
   nameEn: string;
   nameFa: string;
-  answers: Array<{ answerEn: string; answerFa: string }>;
+  enName?: string;
+  faName?: string;
+  answers: Array<{
+    answerEn: string;
+    answerFa: string;
+    enAnswer?: string;
+    faAnswer?: string;
+  }>;
 }
 
 export interface IQuestionRepository {

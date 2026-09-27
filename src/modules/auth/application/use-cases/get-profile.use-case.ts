@@ -134,6 +134,7 @@ export class GetProfileUseCase {
 
     const answersMap: Record<string, number | number[]> = {};
     const dbIdToAnswerInfo = new Map<number, { questionId: number; answerIndex: number }>();
+    const questionEntityMap = new Map<number, any>();
 
     if (user.questionAnswers && user.questionAnswers.length > 0) {
       const allDbQuestions =
@@ -143,7 +144,6 @@ export class GetProfileUseCase {
               orderBy: { id: 'asc' },
             })
           : [];
-      const questionEntityMap = new Map<number, any>();
       for (const q of allDbQuestions) {
         questionEntityMap.set(q.id, q);
         (q.answers || []).forEach((ans: any, idx: number) => {
@@ -179,27 +179,6 @@ export class GetProfileUseCase {
       }
     }
 
-    const answersList = (user.questionAnswers || []).map((uqa) => {
-      const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
-      const answerIndex = info ? info.answerIndex : 0;
-      return {
-        id: answerIndex,
-        answerId: answerIndex,
-        dbId: uqa.questionAnswer.id,
-        questionId: uqa.questionAnswer.questionId,
-        answer:
-          cleanLanguage === 'fa'
-            ? uqa.questionAnswer.answerFa
-            : uqa.questionAnswer.answerEn,
-        faAnswer: uqa.questionAnswer.answerFa,
-        answerEn: uqa.questionAnswer.answerEn,
-        answerFa: uqa.questionAnswer.answerFa,
-      };
-    });
-    const answerIds = (user.questionAnswers || []).map(
-      (uqa) => uqa.questionAnswer.id,
-    );
-
     this.logger.log(
       `[Profile Retrieved] User ${userId} profile retrieved. Completed status: ${profileCompleted}`,
     );
@@ -212,7 +191,6 @@ export class GetProfileUseCase {
       lon: cleanLongitude,
       profileValidated: user.profileValidated ?? false,
       Profile: {
-        firstName: cleanFullName,
         fullName: cleanFullName,
         username: cleanUsername,
         phoneNumber: cleanPhoneNumber,
@@ -234,8 +212,6 @@ export class GetProfileUseCase {
           relation: preferences?.relation || null,
         },
         Answers: answersMap,
-        answersList,
-        answerIds,
       },
     };
   }

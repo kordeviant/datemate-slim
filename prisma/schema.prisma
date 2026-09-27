@@ -146,6 +146,7 @@ enum QuestionType {
   INTERESTS
   LIFESTYLE
   VALUES
+  PREFERENCES
 }
 
 enum AnswerType {

@@ -93,6 +93,46 @@ describe('QuestionsController', () => {
     });
   });
 
+  describe('GET /questions/search', () => {
+    it('should search questions by type and language', async () => {
+      const result = await controller.searchQuestionsByType(
+        'Bearer valid-token',
+        'PREFERENCES',
+        'fa',
+      );
+
+      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
+      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PREFERENCES', 'fa');
+      expect(result.questions).toHaveLength(1);
+    });
+
+    it('should throw UnauthorizedException when no auth header', async () => {
+      await expect(
+        controller.searchQuestionsByType('', 'PREFERENCES'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('GET /questions/type/:type', () => {
+    it('should get questions by type param', async () => {
+      const result = await controller.getQuestionsByType(
+        'Bearer valid-token',
+        'PREFERENCES',
+        'en',
+      );
+
+      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
+      expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PREFERENCES', 'en');
+      expect(result.questions).toHaveLength(1);
+    });
+
+    it('should throw UnauthorizedException when no auth header', async () => {
+      await expect(
+        controller.getQuestionsByType('', 'PREFERENCES'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
   describe('POST /questions', () => {
     it('should create a question when user is admin', async () => {
       const dto = {

@@ -9,18 +9,31 @@ import {
  * Normalizes input DOB into YYYY-MM-DD string if provided as ISO string or Date.
  */
 export function normalizeDobString(input: any): string | null {
-  if (!input) return null;
+  if (input === undefined || input === null) return null;
+  if (typeof input === 'number') {
+    const ms = input < 1e11 ? input * 1000 : input;
+    const d = new Date(ms);
+    return !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : null;
+  }
   if (typeof input === 'string') {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    // Standard YYYY-MM-DD format
+
+    // Standard YYYY-MM-DD format (must have exactly 2-digit month and day)
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       return trimmed;
     }
-    // ISO string with T separator: e.g. 1998-11-25T...
-    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
-      return trimmed.slice(0, 10);
+
+    // YYYY/MM/DD format (normalize slashes to hyphens)
+    if (/^\d{4}\/\d{2}\/\d{2}$/.test(trimmed)) {
+      return trimmed.replace(/\//g, '-');
     }
+
+    // ISO string or datetime starting with YYYY-MM-DD or YYYY/MM/DD
+    if (/^\d{4}[-/]\d{2}[-/]\d{2}[T\s]/.test(trimmed)) {
+      return trimmed.slice(0, 10).replace(/\//g, '-');
+    }
+
     return null;
   }
   if (input instanceof Date && !isNaN(input.getTime())) {
@@ -53,9 +66,20 @@ export function validateDateOfBirth(dobInput: any): {
   parsedDate?: Date;
   age?: number;
 } {
+  if (
+    dobInput === undefined ||
+    dobInput === null ||
+    (typeof dobInput === 'string' && dobInput.trim() === '')
+  ) {
+    return { isValid: false, error: 'Date of birth cannot be empty' };
+  }
+
   const normalized = normalizeDobString(dobInput);
   if (!normalized) {
-    return { isValid: false, error: 'Date of birth cannot be empty' };
+    return {
+      isValid: false,
+      error: 'Invalid date format. Expected YYYY-MM-DD (e.g., 1998-11-25)',
+    };
   }
 
   // Strict format check: YYYY-MM-DD
@@ -134,6 +158,9 @@ export class IsValidDateOfBirthConstraint implements ValidatorConstraintInterfac
   private errorMessage = 'Invalid date of birth';
 
   validate(dob: any): boolean {
+    if (dob === undefined || dob === null || dob === '') {
+      return true;
+    }
     const res = validateDateOfBirth(dob);
     if (!res.isValid) {
       this.errorMessage = res.error || 'Invalid date of birth';

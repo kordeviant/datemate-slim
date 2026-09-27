@@ -17,7 +17,7 @@ interface QuestionSeed {
 
 const personalityQuestions: QuestionSeed[] = [
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'How do you take care of yourself?',
     nameFa: 'چگونه از خود مراقبت می‌کنید؟',
     answers: [
@@ -29,7 +29,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What should someone be aware of before dating you?',
     nameFa: 'قبل از قرار گذاشتن با شما، طرف مقابل باید چه چیزی را بداند؟',
     answers: [
@@ -41,7 +41,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's one thing on your wish list?",
     nameFa: 'یک چیز در لیست آرزوهای شما چیست؟',
     answers: [
@@ -53,7 +53,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's one thing others should know about you?",
     nameFa: 'یک چیز که دیگران باید درباره شما بدانند چیست؟',
     answers: [
@@ -65,7 +65,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'How would your best friend describe you?',
     nameFa: 'بهترین دوستتان شما را چگونه توصیف می‌کند؟',
     answers: [
@@ -77,7 +77,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your vision of an ideal life?",
     nameFa: 'دیدگاه شما از یک زندگی ایده‌آل چیست؟',
     answers: [
@@ -89,7 +89,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your perfect first date?",
     nameFa: 'اولین قرار کامل شما چگونه است؟',
     answers: [
@@ -101,7 +101,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'How do you feel about astrology?',
     nameFa: 'نظر شما در مورد طالع‌بینی چیست؟',
     answers: [
@@ -113,7 +113,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your favorite trait about yourself?",
     nameFa: 'بهترین ویژگی خودتان چیست؟',
     answers: [
@@ -125,7 +125,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What are you seeking?',
     nameFa: 'به دنبال چه چیزی هستید؟',
     answers: [
@@ -137,7 +137,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What are you proud of?',
     nameFa: 'به چه چیزی افتخار می‌کنید؟',
     answers: [
@@ -149,7 +149,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What impresses you?',
     nameFa: 'چه چیزی شما را تحت تأثیر قرار می‌دهد؟',
     answers: [
@@ -161,7 +161,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's a cause you're passionate about?",
     nameFa: 'کدام موضوع برای شما اهمیت زیادی دارد؟',
     answers: [
@@ -173,7 +173,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What should we agree on?',
     nameFa: 'ما باید در چه موردی موافقت کنیم؟',
     answers: [
@@ -185,7 +185,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What does love mean to you?',
     nameFa: 'برای شما عشق به چه معناست؟',
     answers: [
@@ -197,7 +197,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your biggest dealBreaker?",
     nameFa: 'بزرگ‌ترین عامل جدایی از طرف مقابلتان برای شما چه میتواند باشد؟',
     answers: [
@@ -209,7 +209,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What do you value most in a partner?',
     nameFa: 'در شریک زندگی خود بیش از همه به چه چیزی ارزش می‌نهید؟',
     answers: [
@@ -221,7 +221,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What makes you laugh?',
     nameFa: 'چه چیزی شما را می‌خنداند؟',
     answers: [
@@ -233,7 +233,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your dating goal this year?",
     nameFa: 'هدف شما از قرارهای ملاقات در امسال چیست؟',
     answers: [
@@ -245,7 +245,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your favorite music genre?",
     nameFa: 'ژانر موسیقی مورد علاقه شما چیست؟',
     answers: [
@@ -257,7 +257,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your dream career?",
     nameFa: 'شغل رویایی شما چیست؟',
     answers: [
@@ -269,7 +269,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'What are you currently learning?',
     nameFa: 'در حال حاضر در حال یادگیری چه چیزی هستید؟',
     answers: [
@@ -281,7 +281,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: "What's your perspective on monogamy?",
     nameFa: 'دیدگاه شما درباره تک عشقی چیست؟',
     answers: [
@@ -293,7 +293,7 @@ const personalityQuestions: QuestionSeed[] = [
     ],
   },
   {
-    type: QuestionType.PERSONALITY,
+    type: QuestionType.PREFERENCES,
     nameEn: 'How much would you pay on a weekend?',
     nameFa: 'حاظری در یک آخر هفته چقدر پول خرج کنی؟',
     answers: [

@@ -74,12 +74,26 @@ export class DemographicDto {
     description: 'Date of birth (YYYY-MM-DD or ISO, must be 18–80 years old)',
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string' && value.trim() === '') return undefined;
-    return typeof value === 'string' || value instanceof Date ? value : undefined;
+  @Transform(({ value, obj }) => {
+    const val = value ?? obj?.date ?? obj?.birth_date ?? obj?.birthdate;
+    if (typeof val === 'string' && val.trim() === '') return undefined;
+    return val !== undefined && val !== null ? val : undefined;
   })
   @IsValidDateOfBirth()
   birthDate?: string;
+
+  @ApiPropertyOptional({
+    example: '1998-11-25',
+    description: 'Date of birth alias for birthDate',
+  })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const val = value ?? obj?.birthDate ?? obj?.birth_date ?? obj?.birthdate;
+    if (typeof val === 'string' && val.trim() === '') return undefined;
+    return val !== undefined && val !== null ? val : undefined;
+  })
+  @IsValidDateOfBirth()
+  date?: string;
 
   @ApiPropertyOptional({
     example: 'MALE',
@@ -187,17 +201,6 @@ export class ProfileNestedDto {
     message: 'Full name cannot contain only numbers',
   })
   fullName?: string;
-
-  @ApiPropertyOptional({
-    example: 'Parsa',
-    description: 'First name alias for full name',
-  })
-  @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' && value.trim() === '' ? undefined : value,
-  )
-  @IsString()
-  firstName?: string;
 
   @ApiPropertyOptional({
     example: 'parsa',
@@ -408,14 +411,6 @@ export class UpdateProfileDto {
   })
   fullName?: string;
 
-  @ApiPropertyOptional({ description: 'First name alias (flat fallback)' })
-  @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' && value.trim() === '' ? undefined : value,
-  )
-  @IsString()
-  firstName?: string;
-
   @ApiPropertyOptional({ description: 'Username (flat fallback)' })
   @IsOptional()
   @Transform(({ value }) =>
@@ -445,12 +440,23 @@ export class UpdateProfileDto {
 
   @ApiPropertyOptional({ description: 'Birth date YYYY-MM-DD (flat fallback)' })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string' && value.trim() === '') return undefined;
-    return typeof value === 'string' || value instanceof Date ? value : undefined;
+  @Transform(({ value, obj }) => {
+    const val = value ?? obj?.date ?? obj?.birth_date ?? obj?.birthdate;
+    if (typeof val === 'string' && val.trim() === '') return undefined;
+    return val !== undefined && val !== null ? val : undefined;
   })
   @IsValidDateOfBirth()
   birthDate?: string;
+
+  @ApiPropertyOptional({ description: 'Date of birth alias (flat fallback)' })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const val = value ?? obj?.birthDate ?? obj?.birth_date ?? obj?.birthdate;
+    if (typeof val === 'string' && val.trim() === '') return undefined;
+    return val !== undefined && val !== null ? val : undefined;
+  })
+  @IsValidDateOfBirth()
+  date?: string;
 
   @ApiPropertyOptional({ description: 'Gender Male/Female (flat fallback)' })
   @IsOptional()

@@ -60,7 +60,6 @@ describe('GetProfileUseCase', () => {
       lon: null,
       profileValidated: false,
       Profile: {
-        firstName: null,
         fullName: null,
         username: null,
         phoneNumber: null,
@@ -81,8 +80,6 @@ describe('GetProfileUseCase', () => {
           relation: null,
         },
         Answers: {},
-        answersList: [],
-        answerIds: [],
       },
     });
   });
@@ -352,5 +349,7 @@ describe('GetProfileUseCase', () => {
     const res = await useCase.execute(1);
 
     expect(res.Profile.Answers).toEqual({ '2': 1 });
+    expect((res.Profile as any).answersList).toBeUndefined();
+    expect((res.Profile as any).answerIds).toBeUndefined();
   });
 });

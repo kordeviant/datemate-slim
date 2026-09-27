@@ -42,7 +42,7 @@ export class QuestionsController {
   @ApiOperation({
     summary: 'Get questions with optional filters or by ID',
     description:
-      'Retrieves all questions with their IDs, or filters by id, type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). ' +
+      'Retrieves all questions with their IDs, or filters by id, type (PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). ' +
       'If no query params are provided, returns all questions with English and Farsi text. ' +
       'If id query param is provided, returns that specific question.',
   })
@@ -56,7 +56,7 @@ export class QuestionsController {
     name: 'type',
     required: false,
     description: 'Question type/category filter',
-    enum: ['PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
   })
   @ApiQuery({
     name: 'language',
@@ -105,6 +105,95 @@ export class QuestionsController {
     }
 
     return this.getQuestionsUseCase.execute(type, language, numericId);
+  }
+
+  @Get('search')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Search questions by type query parameter',
+    description: 'Searches questions by type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    description: 'Question type to search',
+    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+  })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: 'Language filter (en or fa)',
+    enum: ['en', 'fa'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Questions retrieved successfully',
+    type: QuestionListResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid access token',
+  })
+  async searchQuestionsByType(
+    @Headers('authorization') authHeader: string,
+    @Query('type') type: string,
+    @Query('language') language?: string,
+  ): Promise<QuestionListResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException('Missing Authorization header');
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    this.tokenService.verifyAccessToken(token);
+
+    return this.getQuestionsUseCase.execute(type, language);
+  }
+
+  @Get('type/:type')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Search/Get questions by type route parameter',
+    description: 'Retrieves all questions of a specific type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).',
+  })
+  @ApiParam({
+    name: 'type',
+    description: 'Question type/category (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES)',
+    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+  })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    description: 'Language filter (en or fa). If omitted, returns both languages.',
+    enum: ['en', 'fa'],
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Questions of the specified type retrieved successfully',
+    type: QuestionListResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid access token',
+  })
+  async getQuestionsByType(
+    @Headers('authorization') authHeader: string,
+    @Param('type') type: string,
+    @Query('language') language?: string,
+  ): Promise<QuestionListResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException('Missing Authorization header');
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    this.tokenService.verifyAccessToken(token);
+
+    return this.getQuestionsUseCase.execute(type, language);
   }
 
   @Get(':id')

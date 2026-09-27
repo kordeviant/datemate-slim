@@ -678,7 +678,6 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       lon: 51.389,
       profileValidated: false,
       Profile: {
-        firstName: "Parsa",
         fullName: "Parsa",
         username: "parsa",
         phoneNumber: "+1234567890",
@@ -704,8 +703,6 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
           relation: "LONG",
         },
         Answers: {},
-        answersList: [],
-        answerIds: [],
       },
     });
 

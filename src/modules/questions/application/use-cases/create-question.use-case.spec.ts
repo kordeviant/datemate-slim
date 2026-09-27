@@ -60,6 +60,33 @@ describe('CreateQuestionUseCase', () => {
     expect(result.answers).toHaveLength(2);
   });
 
+  it('should create a question using new enName/faName and enAnswer/faAnswer keys', async () => {
+    const dto: CreateQuestionDto = {
+      type: 'PREFERENCES',
+      enName: 'What is your communication style?',
+      faName: 'سبک ارتباطی شما چگونه است؟',
+      answers: [
+        { enAnswer: 'Direct and honest', faAnswer: 'مستقیم و صادقانه' },
+        { enAnswer: 'Thoughtful and gentle', faAnswer: 'سنجیده و ملایم' },
+      ],
+    };
+
+    const result = await useCase.execute(dto);
+
+    expect(mockRepo.create).toHaveBeenCalledWith({
+      type: 'PREFERENCES',
+      answerType: 'SINGLE',
+      nameEn: 'What is your communication style?',
+      nameFa: 'سبک ارتباطی شما چگونه است؟',
+      answers: [
+        { answerEn: 'Direct and honest', answerFa: 'مستقیم و صادقانه' },
+        { answerEn: 'Thoughtful and gentle', answerFa: 'سنجیده و ملایم' },
+      ],
+    });
+    expect(result.id).toBe(1);
+    expect(result.answers).toHaveLength(2);
+  });
+
   it('should throw BadRequestException when answers array is empty', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
@@ -84,7 +111,7 @@ describe('CreateQuestionUseCase', () => {
 
     await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
     await expect(useCase.execute(dto)).rejects.toThrow(
-      'Each answer must have both English (answerEn) and Farsi (answerFa) text',
+      'Each answer must have both English (enAnswer) and Farsi (faAnswer) text',
     );
   });
 
@@ -94,26 +121,26 @@ describe('CreateQuestionUseCase', () => {
       nameEn: 'Test?',
       nameFa: 'تست؟',
       answers: [
-        { answerEn: 'English answer', answerFa: '' },
+        { enAnswer: 'English answer', faAnswer: '' },
       ],
     };
 
     await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
   });
 
-  it('should throw BadRequestException when question nameEn is missing', async () => {
+  it('should throw BadRequestException when question enName is missing', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: '',
-      nameFa: 'تست؟',
+      enName: '',
+      faName: 'تست؟',
       answers: [
-        { answerEn: 'Answer', answerFa: 'پاسخ' },
+        { enAnswer: 'Answer', faAnswer: 'پاسخ' },
       ],
     };
 
     await expect(useCase.execute(dto)).rejects.toThrow(BadRequestException);
     await expect(useCase.execute(dto)).rejects.toThrow(
-      'Question must have both English (nameEn) and Farsi (nameFa) text',
+      'Question must have both English (enName) and Farsi (faName) text',
     );
   });
 

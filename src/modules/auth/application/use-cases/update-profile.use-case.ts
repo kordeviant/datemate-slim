@@ -139,10 +139,21 @@ export class UpdateProfileUseCase {
 
     const candidateBirthDateInput =
       demographic?.birthDate ??
+      (demographic as any)?.date ??
+      (demographic as any)?.birth_date ??
+      (demographic as any)?.birthdate ??
       dto.birthDate ??
+      (dto as any)?.date ??
+      (dto as any)?.birth_date ??
       dataObj?.birthDate ??
+      dataObj?.date ??
+      dataObj?.birth_date ??
       dataObj?.Demographic?.birthDate ??
-      dataObj?.demographic?.birthDate;
+      dataObj?.Demographic?.date ??
+      dataObj?.Demographic?.birth_date ??
+      dataObj?.demographic?.birthDate ??
+      dataObj?.demographic?.date ??
+      dataObj?.demographic?.birth_date;
 
     const candidateGenderInput =
       demographic?.gender ??
@@ -790,6 +801,7 @@ export class UpdateProfileUseCase {
 
     const answersMap: Record<string, number | number[]> = {};
     const dbIdToAnswerInfo = new Map<number, { questionId: number; answerIndex: number }>();
+    const questionEntityMap = new Map<number, any>();
 
     if (userAnswers.length > 0) {
       const allDbQuestions =
@@ -799,7 +811,6 @@ export class UpdateProfileUseCase {
               orderBy: { id: 'asc' },
             })
           : [];
-      const questionEntityMap = new Map<number, any>();
       for (const q of allDbQuestions) {
         questionEntityMap.set(q.id, q);
         (q.answers || []).forEach((ans: any, idx: number) => {
@@ -834,25 +845,6 @@ export class UpdateProfileUseCase {
         }
       }
     }
-
-    const mappedAnswers = userAnswers.map((uqa: any) => {
-      const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
-      const answerIndex = info ? info.answerIndex : 0;
-      return {
-        id: answerIndex,
-        answerId: answerIndex,
-        dbId: uqa.questionAnswer.id,
-        questionId: uqa.questionAnswer.questionId,
-        answer:
-          cleanLanguage === 'fa'
-            ? uqa.questionAnswer.answerFa
-            : uqa.questionAnswer.answerEn,
-        faAnswer: uqa.questionAnswer.answerFa,
-        answerEn: uqa.questionAnswer.answerEn,
-        answerFa: uqa.questionAnswer.answerFa,
-      };
-    });
-    const answerIds = userAnswers.map((uqa: any) => uqa.questionAnswer.id);
 
     let cityName: string | null = null;
     let stateName: string | null = null;
@@ -902,7 +894,6 @@ export class UpdateProfileUseCase {
       lon: cleanLongitude !== undefined ? cleanLongitude : null,
       profileValidated: user.profileValidated ?? false,
       Profile: {
-        firstName: cleanFullName ? cleanFullName : null,
         fullName: cleanFullName ? cleanFullName : null,
         username: cleanUsername ? cleanUsername : null,
         phoneNumber: cleanPhoneNumber,
@@ -924,8 +915,6 @@ export class UpdateProfileUseCase {
           relation: cleanRelationType,
         },
         Answers: answersMap,
-        answersList: mappedAnswers,
-        answerIds,
       },
     };
   }

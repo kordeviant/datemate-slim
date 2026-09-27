@@ -26,27 +26,31 @@ export class CreateQuestionUseCase {
 
     // Validate all answers have both languages
     for (const answer of dto.answers) {
-      if (!answer.answerEn?.trim() || !answer.answerFa?.trim()) {
+      const enA = (answer.enAnswer || answer.answerEn)?.trim();
+      const faA = (answer.faAnswer || answer.answerFa)?.trim();
+      if (!enA || !faA) {
         throw new BadRequestException(
-          'Each answer must have both English (answerEn) and Farsi (answerFa) text',
+          'Each answer must have both English (enAnswer) and Farsi (faAnswer) text',
         );
       }
     }
 
-    if (!dto.nameEn?.trim() || !dto.nameFa?.trim()) {
+    const enName = (dto.enName || dto.nameEn)?.trim();
+    const faName = (dto.faName || dto.nameFa)?.trim();
+    if (!enName || !faName) {
       throw new BadRequestException(
-        'Question must have both English (nameEn) and Farsi (nameFa) text',
+        'Question must have both English (enName) and Farsi (faName) text',
       );
     }
 
     const question = await this.questionRepo.create({
       type: dto.type,
       answerType: dto.answerType || 'SINGLE',
-      nameEn: dto.nameEn.trim(),
-      nameFa: dto.nameFa.trim(),
+      nameEn: enName,
+      nameFa: faName,
       answers: dto.answers.map((a) => ({
-        answerEn: a.answerEn.trim(),
-        answerFa: a.answerFa.trim(),
+        answerEn: (a.enAnswer || a.answerEn)!.trim(),
+        answerFa: (a.faAnswer || a.answerFa)!.trim(),
       })),
     });
 

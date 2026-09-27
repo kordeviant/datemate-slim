@@ -3,6 +3,8 @@ export interface QuestionAnswerEntity {
   questionId: number;
   answerEn: string;
   answerFa: string;
+  enAnswer?: string;
+  faAnswer?: string;
 }
 
 export interface QuestionEntity {
@@ -11,5 +13,7 @@ export interface QuestionEntity {
   answerType: string;
   nameEn: string;
   nameFa: string;
+  enName?: string;
+  faName?: string;
   answers: QuestionAnswerEntity[];
 }

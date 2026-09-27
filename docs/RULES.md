@@ -346,7 +346,6 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
     "lon": 51.389,
     "profileValidated": false,
     "Profile": {
-      "firstName": "Parsa",
       "fullName": "Parsa",
       "username": "parsa",
       "phoneNumber": "+1234567890",
@@ -371,17 +370,9 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
       "Preferences": {
         "relation": "LONG"
       },
-      "Answers": [
-        {
-          "id": 1,
-          "questionId": 1,
-          "answer": "Meditation and mindfulness practices.",
-          "faAnswer": "مراقبه و تمرین‌های ذهن‌آگاهی.",
-          "answerEn": "Meditation and mindfulness practices.",
-          "answerFa": "مراقبه و تمرین‌های ذهن‌آگاهی."
-        }
-      ],
-      "answerIds": [1]
+      "Answers": {
+        "1": 0
+      }
     }
   },
   "error": null
@@ -389,7 +380,8 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
 ```
 
 > **Client Invariants**:
-> - `firstName` is included alongside `fullName` for mobile client compatibility.
+> - Only `fullName` is used (`firstName` is removed).
+> - Profile answers only return `Answers` map `{ [questionId]: answerId }` (no `answersList` or `answerIds`, and no text). The client resolves question and answer text using the questions list fetched from `GET /v1/questions`.
 > - `LikedActivities` is removed.
 > - `selfie` URL is omitted from responses (`this will not use still, only client should send`).
 

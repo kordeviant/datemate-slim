@@ -70,42 +70,8 @@ export class PreferencesResponseDto {
   relation?: string | null;
 }
 
-export class ProfileQuestionAnswerDto {
-  @ApiProperty({ example: 1, description: 'QuestionAnswer ID' })
-  id: number;
-
-  @ApiProperty({ example: 1, description: 'Question ID' })
-  questionId: number;
-
-  @ApiProperty({
-    example: 'Meditation and mindfulness practices.',
-    description: 'Answer text (localized)',
-  })
-  answer: string;
-
-  @ApiPropertyOptional({
-    example: 'مراقبه و تمرین‌های ذهن‌آگاهی.',
-    description: 'Persian answer text',
-  })
-  faAnswer?: string;
-
-  @ApiPropertyOptional({
-    example: 'Meditation and mindfulness practices.',
-    description: 'English answer text',
-  })
-  answerEn?: string;
-
-  @ApiPropertyOptional({
-    example: 'مراقبه و تمرین‌های ذهن‌آگاهی.',
-    description: 'Persian answer text',
-  })
-  answerFa?: string;
-}
 
 export class ProfileNestedResponseDto {
-  @ApiPropertyOptional({ example: 'Parsa', description: 'User first name', nullable: true })
-  firstName?: string | null;
-
   @ApiPropertyOptional({ example: 'Parsa', description: 'User full name', nullable: true })
   fullName?: string | null;
 
@@ -164,20 +130,6 @@ export class ProfileNestedResponseDto {
     nullable: true,
   })
   Answers?: Record<string, number> | any;
-
-  @ApiPropertyOptional({
-    type: [ProfileQuestionAnswerDto],
-    description: 'Detailed user question answers list',
-    nullable: true,
-  })
-  answersList?: ProfileQuestionAnswerDto[];
-
-  @ApiPropertyOptional({
-    example: [1, 6, 11],
-    description: 'Array of answered database QuestionAnswer IDs',
-    nullable: true,
-  })
-  answerIds?: number[];
 }
 
 export class ProfileResponseDto {

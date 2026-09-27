@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { QuestionType } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import {
   CreateQuestionData,
@@ -21,18 +22,28 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
+      enName: q.nameEn,
+      faName: q.nameFa,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
         answerEn: a.answerEn,
         answerFa: a.answerFa,
+        enAnswer: a.answerEn,
+        faAnswer: a.answerFa,
       })),
     }));
   }
 
   async findByType(type: string): Promise<QuestionEntity[]> {
+    const validTypes = Object.values(QuestionType);
+    const upperType = type.toUpperCase() as QuestionType;
+    if (!validTypes.includes(upperType)) {
+      return [];
+    }
+
     const questions = await this.prisma.question.findMany({
-      where: { type: type as any },
+      where: { type: upperType },
       include: { answers: { orderBy: { id: 'asc' } } },
       orderBy: { id: 'asc' },
     });
@@ -42,11 +53,15 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
+      enName: q.nameEn,
+      faName: q.nameFa,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
         answerEn: a.answerEn,
         answerFa: a.answerFa,
+        enAnswer: a.answerEn,
+        faAnswer: a.answerFa,
       })),
     }));
   }
@@ -63,11 +78,15 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
+      enName: q.nameEn,
+      faName: q.nameFa,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
         answerEn: a.answerEn,
         answerFa: a.answerFa,
+        enAnswer: a.answerEn,
+        faAnswer: a.answerFa,
       })),
     };
   }
@@ -94,11 +113,15 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       answerType: q.answerType,
       nameEn: q.nameEn,
       nameFa: q.nameFa,
+      enName: q.nameEn,
+      faName: q.nameFa,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
         answerEn: a.answerEn,
         answerFa: a.answerFa,
+        enAnswer: a.answerEn,
+        faAnswer: a.answerFa,
       })),
     };
   }

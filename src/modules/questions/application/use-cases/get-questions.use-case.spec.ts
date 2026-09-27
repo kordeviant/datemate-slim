@@ -71,10 +71,14 @@ describe('GetQuestionsUseCase', () => {
     expect(result.total).toBe(2);
     expect(result.language).toBeUndefined();
     expect(result.questions[0].id).toBe(1);
+    expect(result.questions[0].enName).toBe('How do you take care of yourself?');
+    expect(result.questions[0].faName).toBe('چگونه از خود مراقبت می‌کنید؟');
     expect(result.questions[0].nameEn).toBe('How do you take care of yourself?');
     expect(result.questions[0].nameFa).toBe('چگونه از خود مراقبت می‌کنید؟');
     expect(result.questions[0].answers[0].id).toBe(0);
     expect(result.questions[0].answers[0].questionId).toBe(1);
+    expect(result.questions[0].answers[0].enAnswer).toBe('Meditation');
+    expect(result.questions[0].answers[0].faAnswer).toBe('مراقبه');
     expect(result.questions[0].answers[0].answerEn).toBe('Meditation');
     expect(result.questions[0].answers[0].answerFa).toBe('مراقبه');
     expect(result.questions[0].answers[1].id).toBe(1);

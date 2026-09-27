@@ -703,7 +703,8 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         Preferences: {
           relation: "LONG",
         },
-        Answers: [],
+        Answers: {},
+        answersList: [],
         answerIds: [],
       },
     });

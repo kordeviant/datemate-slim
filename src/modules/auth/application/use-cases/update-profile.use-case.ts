@@ -621,43 +621,99 @@ export class UpdateProfileUseCase {
       }
 
       // 6. User question answers if provided in payload
-      const answersList =
+      let rawAnswers =
         dto.Answers ??
         dto.answers ??
         (profileNested as any)?.Answers ??
         (profileNested as any)?.answers ??
         dataObj?.Answers ??
         dataObj?.answers;
-      if (answersList && Array.isArray(answersList) && (tx as any).userQuestionAnswer) {
+
+      if (typeof rawAnswers === 'string') {
         try {
-          const numericAnswerIds = answersList.filter(
-            (id: any): id is number => typeof id === 'number' && id > 0,
-          );
-          if (numericAnswerIds.length > 0 && (tx as any).questionAnswer) {
-            const validAnswers = await (tx as any).questionAnswer.findMany({
-              where: { id: { in: numericAnswerIds } },
-              select: { id: true, questionId: true },
+          rawAnswers = JSON.parse(rawAnswers);
+        } catch {
+          // ignore parse error
+        }
+      }
+
+      if (rawAnswers && (tx as any).userQuestionAnswer) {
+        try {
+          const allDbQuestions = await (tx as any).question.findMany({
+            include: { answers: { orderBy: { id: 'asc' } } },
+            orderBy: { id: 'asc' },
+          });
+
+          const questionMap = new Map<number, any[]>();
+          const dbIdToInfo = new Map<number, { questionId: number; answerIndex: number }>();
+          for (const q of allDbQuestions) {
+            questionMap.set(q.id, q.answers);
+            (q.answers || []).forEach((ans: any, idx: number) => {
+              dbIdToInfo.set(ans.id, { questionId: q.id, answerIndex: idx });
             });
-            const validIds = validAnswers.map((va: any) => va.id);
-            if (validIds.length > 0) {
-              const questionIdsToUpdate = validAnswers.map((va: any) => va.questionId);
-              // Delete existing answers for the specific questions being answered
-              await (tx as any).userQuestionAnswer.deleteMany({
-                where: {
-                  userId,
-                  questionAnswer: {
-                    questionId: { in: questionIdsToUpdate },
-                  },
-                },
-              });
-              await (tx as any).userQuestionAnswer.createMany({
-                data: validIds.map((questionAnswerId: number) => ({
-                  userId,
-                  questionAnswerId,
-                })),
-                skipDuplicates: true,
-              });
+          }
+
+          const targetAnswerDbIds: number[] = [];
+          const questionIdsToUpdate = new Set<number>();
+
+          if (Array.isArray(rawAnswers)) {
+            for (const item of rawAnswers) {
+              if (typeof item === 'number' && item > 0) {
+                if (dbIdToInfo.has(item)) {
+                  targetAnswerDbIds.push(item);
+                  questionIdsToUpdate.add(dbIdToInfo.get(item)!.questionId);
+                }
+              } else if (item && typeof item === 'object') {
+                const qId = Number(item.questionId ?? item.questionid ?? item.qId);
+                const aId = Number(item.answerId ?? item.answerid ?? item.aId ?? item.id);
+                if (!isNaN(qId) && !isNaN(aId) && questionMap.has(qId)) {
+                  const qAnswers = questionMap.get(qId)!;
+                  if (qAnswers[aId]) {
+                    targetAnswerDbIds.push(qAnswers[aId].id);
+                    questionIdsToUpdate.add(qId);
+                  } else if (dbIdToInfo.has(aId)) {
+                    targetAnswerDbIds.push(aId);
+                    questionIdsToUpdate.add(qId);
+                  }
+                }
+              }
             }
+          } else if (typeof rawAnswers === 'object' && rawAnswers !== null) {
+            // Key-value map: { "1": 0, "2": 1, ... } (questionid: answerId)
+            for (const [qKey, aVal] of Object.entries(rawAnswers)) {
+              const qId = Number(qKey);
+              const aIndex = Number(aVal);
+              if (!isNaN(qId) && !isNaN(aIndex) && questionMap.has(qId)) {
+                const qAnswers = questionMap.get(qId)!;
+                if (qAnswers[aIndex]) {
+                  targetAnswerDbIds.push(qAnswers[aIndex].id);
+                  questionIdsToUpdate.add(qId);
+                } else if (dbIdToInfo.has(aIndex)) {
+                  targetAnswerDbIds.push(aIndex);
+                  questionIdsToUpdate.add(qId);
+                }
+              }
+            }
+          }
+
+          if (targetAnswerDbIds.length > 0) {
+            const uniqueAnswerIds = Array.from(new Set(targetAnswerDbIds));
+            // Delete existing answers for the specific questions being answered
+            await (tx as any).userQuestionAnswer.deleteMany({
+              where: {
+                userId,
+                questionAnswer: {
+                  questionId: { in: Array.from(questionIdsToUpdate) },
+                },
+              },
+            });
+            await (tx as any).userQuestionAnswer.createMany({
+              data: uniqueAnswerIds.map((questionAnswerId: number) => ({
+                userId,
+                questionAnswerId,
+              })),
+              skipDuplicates: true,
+            });
           }
         } catch (err) {
           this.logger.warn(`Could not sync question answers: ${err}`);
@@ -727,17 +783,49 @@ export class UpdateProfileUseCase {
       `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
     );
 
-    const mappedAnswers = userAnswers.map((uqa: any) => ({
-      id: uqa.questionAnswer.id,
-      questionId: uqa.questionAnswer.questionId,
-      answer:
-        cleanLanguage === 'fa'
-          ? uqa.questionAnswer.answerFa
-          : uqa.questionAnswer.answerEn,
-      faAnswer: uqa.questionAnswer.answerFa,
-      answerEn: uqa.questionAnswer.answerEn,
-      answerFa: uqa.questionAnswer.answerFa,
-    }));
+    const answersMap: Record<string, number> = {};
+    const dbIdToAnswerInfo = new Map<number, { questionId: number; answerIndex: number }>();
+
+    if (userAnswers.length > 0) {
+      const allDbQuestions =
+        typeof (this.prisma as any).question?.findMany === 'function'
+          ? await this.prisma.question.findMany({
+              include: { answers: { orderBy: { id: 'asc' } } },
+              orderBy: { id: 'asc' },
+            })
+          : [];
+      for (const q of allDbQuestions) {
+        (q.answers || []).forEach((ans: any, idx: number) => {
+          dbIdToAnswerInfo.set(ans.id, { questionId: q.id, answerIndex: idx });
+        });
+      }
+      for (const uqa of userAnswers) {
+        const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
+        if (info) {
+          answersMap[String(info.questionId)] = info.answerIndex;
+        } else if (uqa.questionAnswer?.questionId) {
+          answersMap[String(uqa.questionAnswer.questionId)] = 0;
+        }
+      }
+    }
+
+    const mappedAnswers = userAnswers.map((uqa: any) => {
+      const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
+      const answerIndex = info ? info.answerIndex : 0;
+      return {
+        id: answerIndex,
+        answerId: answerIndex,
+        dbId: uqa.questionAnswer.id,
+        questionId: uqa.questionAnswer.questionId,
+        answer:
+          cleanLanguage === 'fa'
+            ? uqa.questionAnswer.answerFa
+            : uqa.questionAnswer.answerEn,
+        faAnswer: uqa.questionAnswer.answerFa,
+        answerEn: uqa.questionAnswer.answerEn,
+        answerFa: uqa.questionAnswer.answerFa,
+      };
+    });
     const answerIds = userAnswers.map((uqa: any) => uqa.questionAnswer.id);
 
     let cityName: string | null = null;
@@ -809,7 +897,8 @@ export class UpdateProfileUseCase {
         Preferences: {
           relation: cleanRelationType,
         },
-        Answers: mappedAnswers,
+        Answers: answersMap,
+        answersList: mappedAnswers,
         answerIds,
       },
     };

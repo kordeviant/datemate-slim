@@ -1406,7 +1406,17 @@
             ]
           },
           "Answers": {
-            "description": "User question answers list",
+            "type": "object",
+            "example": {
+              "1": 0,
+              "2": 1,
+              "3": 0
+            },
+            "description": "User answers formatted as { [questionid]: answerId } where answerId starts from 0 for each question",
+            "nullable": true
+          },
+          "answersList": {
+            "description": "Detailed user question answers list",
             "nullable": true,
             "type": "array",
             "items": {
@@ -1419,7 +1429,7 @@
               6,
               11
             ],
-            "description": "Array of answered QuestionAnswer IDs",
+            "description": "Array of answered database QuestionAnswer IDs",
             "nullable": true,
             "type": "array",
             "items": {
@@ -1645,6 +1655,29 @@
                 "$ref": "#/components/schemas/PreferencesDto"
               }
             ]
+          },
+          "avatar": {
+            "type": "string",
+            "example": "/uploads/avatars/default.webp",
+            "description": "Avatar image URL or path"
+          },
+          "Answers": {
+            "type": "object",
+            "description": "Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { \"1\": 0, \"2\": 1 }), or array of IDs",
+            "example": {
+              "1": 0,
+              "2": 1,
+              "3": 0
+            }
+          },
+          "answers": {
+            "type": "object",
+            "description": "Question answers formatted as { [questionId]: answerId } (lowercase alias)",
+            "example": {
+              "1": 0,
+              "2": 1,
+              "3": 0
+            }
           }
         }
       },
@@ -1823,29 +1856,21 @@
             "description": "Favorites / interests alias"
           },
           "Answers": {
-            "description": "Question answer IDs — array of QuestionAnswer IDs the user selected",
-            "example": [
-              1,
-              5,
-              12,
-              18
-            ],
-            "type": "array",
-            "items": {
-              "type": "number"
+            "type": "object",
+            "description": "Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { \"1\": 0, \"2\": 1 }), or array of IDs",
+            "example": {
+              "1": 0,
+              "2": 1,
+              "3": 0
             }
           },
           "answers": {
-            "description": "Question answer IDs (lowercase alias)",
-            "example": [
-              1,
-              5,
-              12,
-              18
-            ],
-            "type": "array",
-            "items": {
-              "type": "number"
+            "type": "object",
+            "description": "Question answers formatted as { [questionId]: answerId } (lowercase alias)",
+            "example": {
+              "1": 0,
+              "2": 1,
+              "3": 0
             }
           }
         }
@@ -1855,8 +1880,18 @@
         "properties": {
           "id": {
             "type": "number",
+            "example": 0,
+            "description": "Answer ID starting from 0 for each question"
+          },
+          "answerId": {
+            "type": "number",
+            "example": 0,
+            "description": "Answer ID alias (0-indexed per question)"
+          },
+          "dbId": {
+            "type": "number",
             "example": 1,
-            "description": "Answer ID"
+            "description": "Database answer ID"
           },
           "questionId": {
             "type": "number",

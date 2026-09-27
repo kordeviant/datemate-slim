@@ -14,6 +14,7 @@ describe('GetProfileUseCase', () => {
       },
       question: {
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       userQuestionAnswer: {
         count: jest.fn().mockResolvedValue(0),
@@ -79,7 +80,8 @@ describe('GetProfileUseCase', () => {
         Preferences: {
           relation: null,
         },
-        Answers: [],
+        Answers: {},
+        answersList: [],
         answerIds: [],
       },
     });
@@ -313,5 +315,42 @@ describe('GetProfileUseCase', () => {
     const res = await useCase.execute(1);
 
     expect(res.Profile.profileCompleted).toBe(false);
+  });
+
+  it('should map user question answers as { [questionId]: answerId } starting from 0', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: true,
+      profile: null,
+      demographic: null,
+      preferences: null,
+      questionAnswers: [
+        {
+          questionAnswerId: 10,
+          questionAnswer: {
+            id: 10,
+            questionId: 2,
+            answerEn: 'Opt 2',
+            answerFa: 'گزینه ۲',
+          },
+        },
+      ],
+    });
+
+    mockPrisma.question.findMany.mockResolvedValue([
+      {
+        id: 2,
+        answers: [
+          { id: 9, questionId: 2 },
+          { id: 10, questionId: 2 },
+        ],
+      },
+    ]);
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.Answers).toEqual({ '2': 1 });
   });
 });

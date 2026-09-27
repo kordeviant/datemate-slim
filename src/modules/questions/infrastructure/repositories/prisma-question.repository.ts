@@ -12,7 +12,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
 
   async findAll(): Promise<QuestionEntity[]> {
     const questions = await this.prisma.question.findMany({
-      include: { answers: true },
+      include: { answers: { orderBy: { id: 'asc' } } },
       orderBy: { id: 'asc' },
     });
     return questions.map((q) => ({
@@ -32,7 +32,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
   async findByType(type: string): Promise<QuestionEntity[]> {
     const questions = await this.prisma.question.findMany({
       where: { type: type as any },
-      include: { answers: true },
+      include: { answers: { orderBy: { id: 'asc' } } },
       orderBy: { id: 'asc' },
     });
     return questions.map((q) => ({
@@ -52,7 +52,7 @@ export class PrismaQuestionRepository implements IQuestionRepository {
   async findById(id: number): Promise<QuestionEntity | null> {
     const q = await this.prisma.question.findUnique({
       where: { id },
-      include: { answers: true },
+      include: { answers: { orderBy: { id: 'asc' } } },
     });
     if (!q) return null;
     return {

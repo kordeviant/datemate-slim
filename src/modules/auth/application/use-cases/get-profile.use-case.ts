@@ -132,17 +132,49 @@ export class GetProfileUseCase {
 
     const cleanLanguage = user.language ? user.language.toLowerCase() : 'en';
 
-    const answersList = (user.questionAnswers || []).map((uqa) => ({
-      id: uqa.questionAnswer.id,
-      questionId: uqa.questionAnswer.questionId,
-      answer:
-        cleanLanguage === 'fa'
-          ? uqa.questionAnswer.answerFa
-          : uqa.questionAnswer.answerEn,
-      faAnswer: uqa.questionAnswer.answerFa,
-      answerEn: uqa.questionAnswer.answerEn,
-      answerFa: uqa.questionAnswer.answerFa,
-    }));
+    const answersMap: Record<string, number> = {};
+    const dbIdToAnswerInfo = new Map<number, { questionId: number; answerIndex: number }>();
+
+    if (user.questionAnswers && user.questionAnswers.length > 0) {
+      const allDbQuestions =
+        typeof (this.prisma as any).question?.findMany === 'function'
+          ? await this.prisma.question.findMany({
+              include: { answers: { orderBy: { id: 'asc' } } },
+              orderBy: { id: 'asc' },
+            })
+          : [];
+      for (const q of allDbQuestions) {
+        (q.answers || []).forEach((ans: any, idx: number) => {
+          dbIdToAnswerInfo.set(ans.id, { questionId: q.id, answerIndex: idx });
+        });
+      }
+      for (const uqa of user.questionAnswers) {
+        const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
+        if (info) {
+          answersMap[String(info.questionId)] = info.answerIndex;
+        } else if (uqa.questionAnswer?.questionId) {
+          answersMap[String(uqa.questionAnswer.questionId)] = 0;
+        }
+      }
+    }
+
+    const answersList = (user.questionAnswers || []).map((uqa) => {
+      const info = dbIdToAnswerInfo.get(uqa.questionAnswerId);
+      const answerIndex = info ? info.answerIndex : 0;
+      return {
+        id: answerIndex,
+        answerId: answerIndex,
+        dbId: uqa.questionAnswer.id,
+        questionId: uqa.questionAnswer.questionId,
+        answer:
+          cleanLanguage === 'fa'
+            ? uqa.questionAnswer.answerFa
+            : uqa.questionAnswer.answerEn,
+        faAnswer: uqa.questionAnswer.answerFa,
+        answerEn: uqa.questionAnswer.answerEn,
+        answerFa: uqa.questionAnswer.answerFa,
+      };
+    });
     const answerIds = (user.questionAnswers || []).map(
       (uqa) => uqa.questionAnswer.id,
     );
@@ -180,7 +212,8 @@ export class GetProfileUseCase {
         Preferences: {
           relation: preferences?.relation || null,
         },
-        Answers: answersList,
+        Answers: answersMap,
+        answersList,
         answerIds,
       },
     };

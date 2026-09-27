@@ -158,15 +158,23 @@ export class ProfileNestedResponseDto {
   Preferences?: PreferencesResponseDto | null;
 
   @ApiPropertyOptional({
-    type: [ProfileQuestionAnswerDto],
-    description: 'User question answers list',
+    example: { '1': 0, '2': 1, '3': 0 },
+    description:
+      'User answers formatted as { [questionid]: answerId } where answerId starts from 0 for each question',
     nullable: true,
   })
-  Answers?: ProfileQuestionAnswerDto[];
+  Answers?: Record<string, number> | any;
+
+  @ApiPropertyOptional({
+    type: [ProfileQuestionAnswerDto],
+    description: 'Detailed user question answers list',
+    nullable: true,
+  })
+  answersList?: ProfileQuestionAnswerDto[];
 
   @ApiPropertyOptional({
     example: [1, 6, 11],
-    description: 'Array of answered QuestionAnswer IDs',
+    description: 'Array of answered database QuestionAnswer IDs',
     nullable: true,
   })
   answerIds?: number[];

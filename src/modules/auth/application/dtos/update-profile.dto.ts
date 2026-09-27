@@ -285,22 +285,22 @@ export class ProfileNestedDto {
   avatar?: string;
 
   @ApiPropertyOptional({
-    description: 'Question answer IDs — array of QuestionAnswer IDs the user selected',
-    example: [1, 5, 12, 18],
-    type: [Number],
+    description:
+      'Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { "1": 0, "2": 1 }), or array of IDs',
+    example: { '1': 0, '2': 1, '3': 0 },
   })
   @IsOptional()
   @Transform(parseIfJsonString)
-  Answers?: number[];
+  Answers?: Record<string, number> | any;
 
   @ApiPropertyOptional({
-    description: 'Question answer IDs (lowercase alias)',
-    example: [1, 5, 12, 18],
-    type: [Number],
+    description:
+      'Question answers formatted as { [questionId]: answerId } (lowercase alias)',
+    example: { '1': 0, '2': 1, '3': 0 },
   })
   @IsOptional()
   @Transform(parseIfJsonString)
-  answers?: number[];
+  answers?: Record<string, number> | any;
 }
 
 export class UpdateProfileDto {
@@ -554,22 +554,22 @@ export class UpdateProfileDto {
   favorites?: any;
 
   @ApiPropertyOptional({
-    description: 'Question answer IDs — array of QuestionAnswer IDs the user selected',
-    example: [1, 5, 12, 18],
-    type: [Number],
+    description:
+      'Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { "1": 0, "2": 1 }), or array of IDs',
+    example: { '1': 0, '2': 1, '3': 0 },
   })
   @IsOptional()
   @Transform(parseIfJsonString)
-  Answers?: number[];
+  Answers?: Record<string, number> | any;
 
   @ApiPropertyOptional({
-    description: 'Question answer IDs (lowercase alias)',
-    example: [1, 5, 12, 18],
-    type: [Number],
+    description:
+      'Question answers formatted as { [questionId]: answerId } (lowercase alias)',
+    example: { '1': 0, '2': 1, '3': 0 },
   })
   @IsOptional()
   @Transform(parseIfJsonString)
-  answers?: number[];
+  answers?: Record<string, number> | any;
 }
 
 export { UpdateProfileDto as CreateProfileDto };

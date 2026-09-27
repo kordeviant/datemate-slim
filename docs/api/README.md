@@ -280,9 +280,9 @@ interface ResponseResult<T> {
 
 ### 3.1 Get Current User Profile & Completion Status
 - **Method**: `GET`
-- **Path**: `/v1/users/me`
+- **Path**: `/users/me` or `/v1/users/me`
 - **Headers**: `Authorization: Bearer <JWT_ACCESS_TOKEN>`
-- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, and nested `Profile` object containing `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `profileCompleted`, `Demographic`, and `Preferences`. (Note: `selfie` URL is not returned: this will not use still, only client should send; `LikedActivities` is removed).
+- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, and nested `Profile` object containing `firstName`, `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `profileCompleted`, `Demographic`, `Preferences`, `Answers`, and `answerIds`. (Note: `selfie` URL is not returned: this will not use still, only client should send; `LikedActivities` is removed).
 - **Success Response (200 OK)**:
   ```json
   {
@@ -296,6 +296,7 @@ interface ResponseResult<T> {
       "lon": 51.389,
       "profileValidated": false,
       "Profile": {
+        "firstName": "Parsa",
         "fullName": "Parsa",
         "username": "parsa",
         "phoneNumber": "+1234567890",
@@ -319,7 +320,18 @@ interface ResponseResult<T> {
         },
         "Preferences": {
           "relation": "LONG"
-        }
+        },
+        "Answers": [
+          {
+            "id": 1,
+            "questionId": 1,
+            "answer": "Meditation and mindfulness practices.",
+            "faAnswer": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "answerEn": "Meditation and mindfulness practices.",
+            "answerFa": "مراقبه و تمرین‌های ذهن‌آگاهی."
+          }
+        ],
+        "answerIds": [1]
       }
     },
     "error": null

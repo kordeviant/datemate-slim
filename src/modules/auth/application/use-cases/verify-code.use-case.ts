@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
 } from '@nestjs/common';
@@ -39,10 +40,19 @@ export class VerifyCodeUseCase {
     }
 
     const pendingData = JSON.parse(pendingDataRaw);
+    const normalizedEmail = (pendingData.email || email).toLowerCase().trim();
+
+    // Check if user with this email already exists
+    const existing = await this.userRepository.findByEmail(normalizedEmail);
+    if (existing) {
+      await this.redisService.del(`signup:code:${dto.code}`);
+      await this.redisService.del(`signup:pending:${email}`);
+      throw new ConflictException('Email already registered');
+    }
 
     // Create user in database
     const user = await this.userRepository.create({
-      email: pendingData.email,
+      email: normalizedEmail,
       passwordHash: pendingData.passwordHash,
     });
 

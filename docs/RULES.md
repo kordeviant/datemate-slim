@@ -260,12 +260,12 @@ Lists the languages the user speaks fluently, displayed on their public dating p
 
 ### 9.1 Profile Completion (`Profile.profileCompleted: boolean`)
 The backend calculates profile completion dynamically. It evaluates to `true` **only** when all of the following conditions are met:
-1. **Basic Info**: `fullName` (valid), `username` (valid), `avatarUrl` (uploaded), `selfieUrl` (uploaded), and at least one spoken language in `languages`.
+1. **Basic Info**: `fullName` (valid), `username` (valid), `avatarUrl` (uploaded), and at least one spoken language in `languages`. (Note: `selfie` upload is an optional identity verification step and is not required for profile onboarding completion).
 2. **Demographics**: `birthDate` (18–80), `gender`, `height` (>0), `degree`, `job`/`profession`, and `relationStatus`.
 3. **Preferences**: `relation` (relationship kind specified).
 4. **Question Answers**: The user has answered **all questions** currently configured in the database.
 
-> **Fast Status Check Endpoint**: `GET /v1/users/profile` returns `{ "status": "success", "data": boolean }` for instant splash/onboarding redirection in client apps.
+> **Status Check Endpoints**: Both `GET /users/profile` and `GET /v1/users/profile` return `{ "status": "success", "data": boolean }` for instant splash/onboarding redirection in client apps. Both `GET /users/me` and `GET /v1/users/me` retrieve the full profile with `Answers`.
 
 ### 9.2 Profile Identity Validation (`profileValidated: boolean`)
 - Indicates whether an administrator has manually approved the user's private verification selfie against their public avatar.
@@ -346,6 +346,7 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
     "lon": 51.389,
     "profileValidated": false,
     "Profile": {
+      "firstName": "Parsa",
       "fullName": "Parsa",
       "username": "parsa",
       "phoneNumber": "+1234567890",
@@ -369,7 +370,18 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
       },
       "Preferences": {
         "relation": "LONG"
-      }
+      },
+      "Answers": [
+        {
+          "id": 1,
+          "questionId": 1,
+          "answer": "Meditation and mindfulness practices.",
+          "faAnswer": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+          "answerEn": "Meditation and mindfulness practices.",
+          "answerFa": "مراقبه و تمرین‌های ذهن‌آگاهی."
+        }
+      ],
+      "answerIds": [1]
     }
   },
   "error": null
@@ -377,7 +389,7 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
 ```
 
 > **Client Invariants**:
-> - `firstName` and `lastName` are replaced with `fullName`.
+> - `firstName` is included alongside `fullName` for mobile client compatibility.
 > - `LikedActivities` is removed.
 > - `selfie` URL is omitted from responses (`this will not use still, only client should send`).
 

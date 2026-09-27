@@ -1,11 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class SignUpDto {
   @ApiProperty({
     example: 'user@example.com',
     description: 'User email address for verification',
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
   @IsEmail()
   @IsNotEmpty()
   email: string;

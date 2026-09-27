@@ -599,8 +599,14 @@ export class UpdateProfileUseCase {
         });
       }
 
-      // 6. User question answers if provided in mobile payload (data.Answers)
-      const answersList = dataObj?.Answers;
+      // 6. User question answers if provided in payload
+      const answersList =
+        dto.Answers ??
+        dto.answers ??
+        (profileNested as any)?.Answers ??
+        (profileNested as any)?.answers ??
+        dataObj?.Answers ??
+        dataObj?.answers;
       if (answersList && Array.isArray(answersList) && (tx as any).userQuestionAnswer) {
         try {
           const numericAnswerIds = answersList.filter(
@@ -609,11 +615,20 @@ export class UpdateProfileUseCase {
           if (numericAnswerIds.length > 0 && (tx as any).questionAnswer) {
             const validAnswers = await (tx as any).questionAnswer.findMany({
               where: { id: { in: numericAnswerIds } },
-              select: { id: true },
+              select: { id: true, questionId: true },
             });
             const validIds = validAnswers.map((va: any) => va.id);
             if (validIds.length > 0) {
-              await (tx as any).userQuestionAnswer.deleteMany({ where: { userId } });
+              const questionIdsToUpdate = validAnswers.map((va: any) => va.questionId);
+              // Delete existing answers for the specific questions being answered
+              await (tx as any).userQuestionAnswer.deleteMany({
+                where: {
+                  userId,
+                  questionAnswer: {
+                    questionId: { in: questionIdsToUpdate },
+                  },
+                },
+              });
               await (tx as any).userQuestionAnswer.createMany({
                 data: validIds.map((questionAnswerId: number) => ({
                   userId,
@@ -630,7 +645,8 @@ export class UpdateProfileUseCase {
     });
 
     // 20. Check profile completion status:
-    // - Basic profile: fullName, username, avatarUrl, selfieUrl, languages (non-empty)
+    // - Basic profile: fullName, username, avatarUrl, languages (non-empty)
+    //   Note: selfie is an optional verification photo and not required for completion.
     // - Demographics: birthDate, gender, height, degree, job, relationStatus
     // - Preferences: relation (kind of relationship)
     // - Questions: answered all questions if questions exist in DB
@@ -638,7 +654,6 @@ export class UpdateProfileUseCase {
       cleanFullName &&
       cleanUsername &&
       avatarUrl &&
-      selfieUrl &&
       cleanLanguages &&
       Array.isArray(cleanLanguages) &&
       cleanLanguages.length > 0
@@ -656,13 +671,29 @@ export class UpdateProfileUseCase {
 
     const hasPreferences = !!cleanRelationType;
 
+    const questionsCount =
+      typeof (this.prisma as any).question?.count === 'function'
+        ? await this.prisma.question.count()
+        : 0;
     let hasAnsweredAllQuestions = true;
-    const questionsCount = await this.prisma.question.count();
-    if (questionsCount > 0) {
-      const answeredCount = await this.prisma.userQuestionAnswer.count({
+    let userAnswers: any[] = [];
+    if (typeof (this.prisma as any).userQuestionAnswer?.findMany === 'function') {
+      userAnswers = await (this.prisma as any).userQuestionAnswer.findMany({
         where: { userId },
+        include: {
+          questionAnswer: {
+            include: {
+              question: true,
+            },
+          },
+        },
       });
-      hasAnsweredAllQuestions = answeredCount >= questionsCount;
+      if (questionsCount > 0) {
+        const distinctAnsweredQuestions = new Set(
+          userAnswers.map((ua: any) => ua.questionAnswer?.questionId),
+        );
+        hasAnsweredAllQuestions = distinctAnsweredQuestions.size >= questionsCount;
+      }
     }
 
     const profileCompleted =
@@ -674,6 +705,19 @@ export class UpdateProfileUseCase {
     this.logger.log(
       `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
     );
+
+    const mappedAnswers = userAnswers.map((uqa: any) => ({
+      id: uqa.questionAnswer.id,
+      questionId: uqa.questionAnswer.questionId,
+      answer:
+        cleanLanguage === 'fa'
+          ? uqa.questionAnswer.answerFa
+          : uqa.questionAnswer.answerEn,
+      faAnswer: uqa.questionAnswer.answerFa,
+      answerEn: uqa.questionAnswer.answerEn,
+      answerFa: uqa.questionAnswer.answerFa,
+    }));
+    const answerIds = userAnswers.map((uqa: any) => uqa.questionAnswer.id);
 
     let cityName: string | null = null;
     let stateName: string | null = null;
@@ -723,13 +767,14 @@ export class UpdateProfileUseCase {
       lon: cleanLongitude !== undefined ? cleanLongitude : null,
       profileValidated: user.profileValidated ?? false,
       Profile: {
+        firstName: cleanFullName ? cleanFullName : null,
         fullName: cleanFullName ? cleanFullName : null,
         username: cleanUsername ? cleanUsername : null,
         phoneNumber: cleanPhoneNumber,
         bio: cleanBio,
         languages: cleanLanguages,
         avatar: avatarUrl,
-        // selfie url: this will not use still, only cline shoululs send
+        // selfie url: this will not use still, only client should send
         profileCompleted,
         Demographic: {
           birthDate: formattedBirthDate,
@@ -743,6 +788,8 @@ export class UpdateProfileUseCase {
         Preferences: {
           relation: cleanRelationType,
         },
+        Answers: mappedAnswers,
+        answerIds,
       },
     };
   }

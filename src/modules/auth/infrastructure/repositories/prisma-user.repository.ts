@@ -15,8 +15,15 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+    if (!email) return null;
+    const normalized = email.toLowerCase().trim();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalized,
+          mode: 'insensitive',
+        },
+      },
     });
     return user ? new UserEntity(user) : null;
   }
@@ -53,7 +60,6 @@ export class PrismaUserRepository implements IUserRepository {
         fullName: true,
         avatarUrl: true,
         username: true,
-        selfieUrl: true,
         languages: true,
       },
     });
@@ -62,7 +68,6 @@ export class PrismaUserRepository implements IUserRepository {
       !profile.fullName ||
       !profile.avatarUrl ||
       !profile.username ||
-      !profile.selfieUrl ||
       !profile.languages ||
       !Array.isArray(profile.languages) ||
       profile.languages.length === 0
@@ -104,10 +109,18 @@ export class PrismaUserRepository implements IUserRepository {
 
     const questionsCount = await this.prisma.question.count();
     if (questionsCount > 0) {
-      const answeredCount = await this.prisma.userQuestionAnswer.count({
+      const userAnswers = await this.prisma.userQuestionAnswer.findMany({
         where: { userId },
+        include: {
+          questionAnswer: {
+            select: { questionId: true },
+          },
+        },
       });
-      if (answeredCount < questionsCount) {
+      const distinctQuestionsAnswered = new Set(
+        userAnswers.map((ua) => ua.questionAnswer.questionId),
+      );
+      if (distinctQuestionsAnswered.size < questionsCount) {
         return false;
       }
     }

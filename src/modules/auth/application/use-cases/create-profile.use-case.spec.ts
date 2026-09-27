@@ -42,6 +42,9 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       },
       userQuestionAnswer: {
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       $transaction: jest.fn().mockImplementation(async (callback) => {
         return callback(mockPrisma);
@@ -348,7 +351,13 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       relativeUrl: "/uploads/selfies/selfie_1.webp",
     });
     mockPrisma.question.count.mockResolvedValue(5);
-    mockPrisma.userQuestionAnswer.count.mockResolvedValue(5);
+    mockPrisma.userQuestionAnswer.findMany.mockResolvedValue([
+      { questionAnswer: { id: 1, questionId: 1, answerEn: "A1", answerFa: "A1" } },
+      { questionAnswer: { id: 2, questionId: 2, answerEn: "A2", answerFa: "A2" } },
+      { questionAnswer: { id: 3, questionId: 3, answerEn: "A3", answerFa: "A3" } },
+      { questionAnswer: { id: 4, questionId: 4, answerEn: "A4", answerFa: "A4" } },
+      { questionAnswer: { id: 5, questionId: 5, answerEn: "A5", answerFa: "A5" } },
+    ]);
 
     const result = await useCase.execute(
       1,
@@ -373,7 +382,11 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       relativeUrl: "/uploads/selfies/selfie_1.webp",
     });
     mockPrisma.question.count.mockResolvedValue(5);
-    mockPrisma.userQuestionAnswer.count.mockResolvedValue(3); // only 3 answered
+    mockPrisma.userQuestionAnswer.findMany.mockResolvedValue([
+      { questionAnswer: { questionId: 1 } },
+      { questionAnswer: { questionId: 2 } },
+      { questionAnswer: { questionId: 3 } },
+    ]); // only 3 answered
 
     const result = await useCase.execute(
       1,
@@ -384,7 +397,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect(result.Profile.profileCompleted).toBe(false);
   });
 
-  it("should return profileCompleted as false if selfie is missing", async () => {
+  it("should return profileCompleted as true even if selfie is missing when all other required steps are completed", async () => {
     mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
       relativeUrl: "/uploads/avatars/avatar_1.webp",
     });
@@ -395,7 +408,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       mockAvatarFile,
       undefined,
     );
-    expect(result.Profile.profileCompleted).toBe(false);
+    expect(result.Profile.profileCompleted).toBe(true);
   });
 
   it("should return profileCompleted as false if height is missing", async () => {
@@ -665,6 +678,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       lon: 51.389,
       profileValidated: false,
       Profile: {
+        firstName: "Parsa",
         fullName: "Parsa",
         username: "parsa",
         phoneNumber: "+1234567890",
@@ -689,6 +703,8 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         Preferences: {
           relation: "LONG",
         },
+        Answers: [],
+        answerIds: [],
       },
     });
 

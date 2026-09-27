@@ -4,6 +4,7 @@ import { PrismaModule } from './infrastructure/database/prisma.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { MailModule } from './infrastructure/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { QuestionsModule } from './modules/questions/questions.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -17,8 +18,10 @@ import { AppService } from './app.service';
     RedisModule,
     MailModule,
     AuthModule,
+    QuestionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+

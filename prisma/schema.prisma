@@ -141,6 +141,13 @@ enum NotificationType {
   LIKE_USER
 }
 
+enum QuestionType {
+  PERSONALITY
+  INTERESTS
+  LIFESTYLE
+  VALUES
+}
+
 // ----------------------------------------------------
 // MODELS
 // ----------------------------------------------------
@@ -331,6 +338,7 @@ model UserInterest {
 
 model Question {
   id      Int              @id @default(autoincrement())
+  type    QuestionType     @default(PERSONALITY)
   nameEn  String           @map("name_en") @db.VarChar(255)
   nameFa  String           @map("name_fa") @db.VarChar(255)
   answers QuestionAnswer[]

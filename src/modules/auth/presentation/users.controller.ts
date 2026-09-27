@@ -10,6 +10,7 @@ import {
   UploadedFiles,
   UseInterceptors,
   UnauthorizedException,
+  VERSION_NEUTRAL,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -27,7 +28,7 @@ import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
 import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
 
 @ApiTags("Users")
-@Controller({ path: "users", version: "1" })
+@Controller({ path: "users", version: ["1", VERSION_NEUTRAL] })
 export class UsersController {
   constructor(
     private readonly tokenService: TokenService,

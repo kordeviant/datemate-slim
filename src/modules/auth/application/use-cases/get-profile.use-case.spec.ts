@@ -59,6 +59,7 @@ describe('GetProfileUseCase', () => {
       lon: null,
       profileValidated: false,
       Profile: {
+        firstName: null,
         fullName: null,
         username: null,
         phoneNumber: null,
@@ -78,6 +79,8 @@ describe('GetProfileUseCase', () => {
         Preferences: {
           relation: null,
         },
+        Answers: [],
+        answerIds: [],
       },
     });
   });
@@ -151,7 +154,7 @@ describe('GetProfileUseCase', () => {
     expect(res.email).toBe('user@example.com');
   });
 
-  it('should return profileCompleted: false if basic profile is incomplete (missing selfie)', async () => {
+  it('should return profileCompleted: false if basic profile is incomplete (missing avatar)', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 1,
       email: 'user@example.com',
@@ -160,8 +163,8 @@ describe('GetProfileUseCase', () => {
       profile: {
         fullName: 'John Doe',
         username: 'john_doe',
-        avatarUrl: '/uploads/avatars/john.webp',
-        selfieUrl: null, // missing selfie
+        avatarUrl: '', // missing avatar
+        selfieUrl: null,
         languages: ['en'],
       },
       demographic: {
@@ -181,6 +184,41 @@ describe('GetProfileUseCase', () => {
     const res = await useCase.execute(1);
 
     expect(res.Profile.profileCompleted).toBe(false);
+  });
+
+  it('should return profileCompleted: true when selfie is missing but other required steps are completed', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        selfieUrl: null, // missing optional selfie
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: 175,
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+        cityId: 10,
+      },
+      preferences: {
+        relation: 'FUN',
+      },
+      questionAnswers: [],
+    });
+
+    mockPrisma.question.count.mockResolvedValue(0);
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.profileCompleted).toBe(true);
   });
 
   it('should return profileCompleted: false if demographics are incomplete', async () => {

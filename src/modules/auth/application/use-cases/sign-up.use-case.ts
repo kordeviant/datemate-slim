@@ -31,7 +31,8 @@ export class SignUpUseCase {
   ) {}
 
   async execute(dto: SignUpDto): Promise<{ message: string }> {
-    const existingUser = await this.userRepository.findByEmail(dto.email);
+    const normalizedEmail = (dto.email || '').toLowerCase().trim();
+    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
     if (existingUser) {
       throw new ConflictException('Email already registered');
     }
@@ -42,21 +43,21 @@ export class SignUpUseCase {
 
     // Save pending verification to Redis (TTL 10 minutes)
     const pendingData = JSON.stringify({
-      email: dto.email.toLowerCase().trim(),
+      email: normalizedEmail,
       passwordHash,
       code: otpCode,
     });
 
-    await this.redisService.set(`signup:pending:${dto.email.toLowerCase().trim()}`, pendingData, 600);
-    await this.redisService.set(`signup:code:${otpCode}`, dto.email.toLowerCase().trim(), 600);
+    await this.redisService.set(`signup:pending:${normalizedEmail}`, pendingData, 600);
+    await this.redisService.set(`signup:code:${otpCode}`, normalizedEmail, 600);
 
-    this.logger.log(`[OTP DISPATCH] Verification code for ${dto.email} is: ${otpCode}`);
+    this.logger.log(`[OTP DISPATCH] Verification code for ${normalizedEmail} is: ${otpCode}`);
 
     // Send email asynchronously in background so SMTP delays never cause Cloudflare 524 timeouts
-    Promise.resolve(this.mailService.sendVerificationOtp(dto.email, otpCode)).catch(
+    Promise.resolve(this.mailService.sendVerificationOtp(normalizedEmail, otpCode)).catch(
       (err) => {
         this.logger.error(
-          `Failed to send verification email to ${dto.email}`,
+          `Failed to send verification email to ${normalizedEmail}`,
           err,
         );
       },

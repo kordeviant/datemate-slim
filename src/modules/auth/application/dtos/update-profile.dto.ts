@@ -526,6 +526,24 @@ export class UpdateProfileDto {
   @IsOptional()
   @Transform(parseIfJsonString)
   favorites?: any;
+
+  @ApiPropertyOptional({
+    description: 'Question answer IDs — array of QuestionAnswer IDs the user selected',
+    example: [1, 5, 12, 18],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  Answers?: number[];
+
+  @ApiPropertyOptional({
+    description: 'Question answer IDs (lowercase alias)',
+    example: [1, 5, 12, 18],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  answers?: number[];
 }
 
 export { UpdateProfileDto as CreateProfileDto };

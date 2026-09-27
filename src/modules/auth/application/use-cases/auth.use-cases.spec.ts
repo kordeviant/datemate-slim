@@ -17,6 +17,7 @@ import { UserEntity } from '../../domain/user.entity';
 describe('Auth Use Cases', () => {
   let signUpUseCase: SignUpUseCase;
   let signInUseCase: SignInUseCase;
+  let verifyCodeUseCase: VerifyCodeUseCase;
   let mockUserRepo: any;
   let mockSessionRepo: any;
   let mockRedisService: any;
@@ -81,6 +82,7 @@ describe('Auth Use Cases', () => {
 
     signUpUseCase = module.get<SignUpUseCase>(SignUpUseCase);
     signInUseCase = module.get<SignInUseCase>(SignInUseCase);
+    verifyCodeUseCase = module.get<VerifyCodeUseCase>(VerifyCodeUseCase);
     passwordHasher = module.get<PasswordHasherService>(PasswordHasherService);
     tokenService = module.get<TokenService>(TokenService);
   });
@@ -99,6 +101,21 @@ describe('Auth Use Cases', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    it('should normalize email and reject if already registered (case-insensitive & trimmed)', async () => {
+      mockUserRepo.findByEmail.mockResolvedValue(new UserEntity({ id: 1, email: 'test@example.com' }));
+
+      await expect(
+        signUpUseCase.execute({
+          email: '  TEST@EXAMPLE.COM  ',
+          password: 'password123',
+          integrityToken: 'token',
+          packageName: 'com.dmate.datemate',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockUserRepo.findByEmail).toHaveBeenCalledWith('test@example.com');
+    });
+
     it('should generate OTP and save to redis if email is new', async () => {
       mockUserRepo.findByEmail.mockResolvedValue(null);
       mockRedisService.set.mockResolvedValue('OK');
@@ -112,6 +129,64 @@ describe('Auth Use Cases', () => {
 
       expect(result.message).toBe('Verification code sent to email');
       expect(mockRedisService.set).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('VerifyCodeUseCase', () => {
+    it('should throw ConflictException if email is already registered during verification', async () => {
+      mockRedisService.get.mockImplementation(async (key: string) => {
+        if (key === 'signup:code:123456') return 'existing@example.com';
+        if (key === 'signup:pending:existing@example.com') {
+          return JSON.stringify({
+            email: 'existing@example.com',
+            passwordHash: 'hash',
+            code: '123456',
+          });
+        }
+        return null;
+      });
+      mockUserRepo.findByEmail.mockResolvedValue(new UserEntity({ id: 1, email: 'existing@example.com' }));
+
+      await expect(
+        verifyCodeUseCase.execute({
+          code: '123456',
+          device: 'Pixel 8',
+          userAgent: 'Android',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockRedisService.del).toHaveBeenCalledWith('signup:code:123456');
+      expect(mockRedisService.del).toHaveBeenCalledWith('signup:pending:existing@example.com');
+    });
+
+    it('should successfully create user and return tokens when code is valid and email is unique', async () => {
+      mockRedisService.get.mockImplementation(async (key: string) => {
+        if (key === 'signup:code:123456') return 'newuser@example.com';
+        if (key === 'signup:pending:newuser@example.com') {
+          return JSON.stringify({
+            email: 'newuser@example.com',
+            passwordHash: 'hash',
+            code: '123456',
+          });
+        }
+        return null;
+      });
+      mockUserRepo.findByEmail.mockResolvedValue(null);
+      mockUserRepo.create.mockResolvedValue(new UserEntity({ id: 2, email: 'newuser@example.com', role: 'USER' }));
+      mockSessionRepo.createSession.mockResolvedValue({});
+
+      const result = await verifyCodeUseCase.execute({
+        code: '123456',
+        device: 'Pixel 8',
+        userAgent: 'Android',
+      });
+
+      expect(result.userId).toBe(2);
+      expect(result.access).toBe('mock_access_token');
+      expect(mockUserRepo.create).toHaveBeenCalledWith({
+        email: 'newuser@example.com',
+        passwordHash: 'hash',
+      });
     });
   });
 

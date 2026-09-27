@@ -32,6 +32,15 @@ export class GetProfileUseCase {
             interest: true,
           },
         },
+        questionAnswers: {
+          include: {
+            questionAnswer: {
+              include: {
+                question: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -44,7 +53,6 @@ export class GetProfileUseCase {
     const cleanFullName = profile?.fullName || (profile as any)?.firstName || null;
     const cleanUsername = profile?.username || null;
     const avatarUrl = profile?.avatarUrl || '';
-    const selfieUrl = profile?.selfieUrl || null;
     const cleanLanguages = (profile?.languages as string[]) || null;
     const cleanBio = profile?.bio || null;
     const cleanPhoneNumber = profile?.phoneNumber || null;
@@ -77,8 +85,9 @@ export class GetProfileUseCase {
           }
         : null;
 
-    // Profile is only complete when all required onboarding steps are completed:
-    // - Basic profile: fullName, username, avatarUrl, selfieUrl, languages (non-empty)
+    // Profile is complete when all required onboarding steps are completed:
+    // - Basic profile: fullName, username, avatarUrl, languages (non-empty)
+    //   Note: selfie is an optional verification photo and not required for completion.
     // - Demographics: birthDate, gender, height, degree, job, relationStatus
     // - Preferences: relation (kind of relationship)
     // - Questions: answered all questions if questions exist in DB
@@ -86,7 +95,6 @@ export class GetProfileUseCase {
       cleanFullName &&
       cleanUsername &&
       avatarUrl &&
-      selfieUrl &&
       cleanLanguages &&
       Array.isArray(cleanLanguages) &&
       cleanLanguages.length > 0
@@ -104,13 +112,16 @@ export class GetProfileUseCase {
 
     const hasPreferences = !!preferences?.relation;
 
+    const answeredQuestionIds = new Set(
+      user.questionAnswers?.map((uqa) => uqa.questionAnswer.questionId) || [],
+    );
+    const questionsCount =
+      typeof (this.prisma as any).question?.count === 'function'
+        ? await this.prisma.question.count()
+        : 0;
     let hasAnsweredAllQuestions = true;
-    const questionsCount = await this.prisma.question.count();
     if (questionsCount > 0) {
-      const answeredCount = await this.prisma.userQuestionAnswer.count({
-        where: { userId },
-      });
-      hasAnsweredAllQuestions = answeredCount >= questionsCount;
+      hasAnsweredAllQuestions = answeredQuestionIds.size >= questionsCount;
     }
 
     const profileCompleted =
@@ -120,6 +131,21 @@ export class GetProfileUseCase {
       hasAnsweredAllQuestions;
 
     const cleanLanguage = user.language ? user.language.toLowerCase() : 'en';
+
+    const answersList = (user.questionAnswers || []).map((uqa) => ({
+      id: uqa.questionAnswer.id,
+      questionId: uqa.questionAnswer.questionId,
+      answer:
+        cleanLanguage === 'fa'
+          ? uqa.questionAnswer.answerFa
+          : uqa.questionAnswer.answerEn,
+      faAnswer: uqa.questionAnswer.answerFa,
+      answerEn: uqa.questionAnswer.answerEn,
+      answerFa: uqa.questionAnswer.answerFa,
+    }));
+    const answerIds = (user.questionAnswers || []).map(
+      (uqa) => uqa.questionAnswer.id,
+    );
 
     this.logger.log(
       `[Profile Retrieved] User ${userId} profile retrieved. Completed status: ${profileCompleted}`,
@@ -133,13 +159,14 @@ export class GetProfileUseCase {
       lon: cleanLongitude,
       profileValidated: user.profileValidated ?? false,
       Profile: {
+        firstName: cleanFullName,
         fullName: cleanFullName,
         username: cleanUsername,
         phoneNumber: cleanPhoneNumber,
         bio: cleanBio,
         languages: cleanLanguages,
         avatar: avatarUrl,
-        // selfie url: this will not use still, only cline shoululs send
+        // selfie url: this will not use still, only client should send
         profileCompleted,
         Demographic: {
           birthDate: formattedBirthDate,
@@ -153,6 +180,8 @@ export class GetProfileUseCase {
         Preferences: {
           relation: preferences?.relation || null,
         },
+        Answers: answersList,
+        answerIds,
       },
     };
   }

@@ -80,7 +80,7 @@ deploy:
         npm run build
 
         echo '===> Starting / reloading backend with PM2...'
-        pm2 reload datemate-backend || pm2 restart datemate-backend || pm2 start dist/main.js --name 'datemate-backend'
+        pm2 reload datemate-backend || pm2 restart datemate-backend || pm2 start dist/src/main.js --name 'datemate-backend'
         pm2 save
 
         echo '===> Reloading Nginx proxy...'

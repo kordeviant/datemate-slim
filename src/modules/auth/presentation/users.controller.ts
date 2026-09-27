@@ -59,7 +59,10 @@ export class UsersController {
     if (!authHeader) {
       throw new UnauthorizedException("Missing Authorization header");
     }
-    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
     const decoded = this.tokenService.verifyAccessToken(token);
     return this.getProfileUseCase.execute(decoded.sub);
   }
@@ -87,7 +90,10 @@ export class UsersController {
     if (!authHeader) {
       throw new UnauthorizedException("Missing Authorization header");
     }
-    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
     const decoded = this.tokenService.verifyAccessToken(token);
     const profile = await this.getProfileUseCase.execute(decoded.sub);
     return profile.Profile.profileCompleted;
@@ -145,7 +151,10 @@ export class UsersController {
     if (!authHeader) {
       throw new UnauthorizedException("Missing Authorization header");
     }
-    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
     const decoded = this.tokenService.verifyAccessToken(token);
 
     let avatarFile: Express.Multer.File | undefined;

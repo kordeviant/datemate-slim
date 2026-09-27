@@ -70,7 +70,10 @@ export class QuestionsController {
     if (!authHeader) {
       throw new UnauthorizedException('Missing Authorization header');
     }
-    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
     this.tokenService.verifyAccessToken(token);
 
     return this.getQuestionsUseCase.execute(type, language);
@@ -105,7 +108,10 @@ export class QuestionsController {
     if (!authHeader) {
       throw new UnauthorizedException('Missing Authorization header');
     }
-    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
     const decoded = this.tokenService.verifyAccessToken(token);
 
     // Only admins can create questions

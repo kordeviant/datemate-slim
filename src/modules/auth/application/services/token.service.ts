@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   JwtService,
@@ -10,6 +10,8 @@ import * as crypto from "crypto";
 
 @Injectable()
 export class TokenService {
+  private readonly logger = new Logger(TokenService.name);
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -40,11 +42,23 @@ export class TokenService {
   }
 
   verifyAccessToken(token: string): any {
+    if (!token || typeof token !== "string" || !token.trim()) {
+      this.logger.warn(`verifyAccessToken received empty token`);
+      throw new UnauthorizedException("Invalid access token");
+    }
+    const cleanToken = token.trim();
     try {
-      return this.jwtService.verify(token, {
+      return this.jwtService.verify(cleanToken, {
         secret: this.configService.get<string>("JWT_ACCESS_SECRET", "access_secret"),
       });
     } catch (error: any) {
+      const preview =
+        cleanToken.length > 20
+          ? `${cleanToken.slice(0, 10)}...${cleanToken.slice(-6)} (len: ${cleanToken.length})`
+          : `"${cleanToken}"`;
+      this.logger.warn(
+        `verifyAccessToken failed for token ${preview}: [${error?.name}] ${error?.message}`,
+      );
       if (
         error instanceof TokenExpiredError ||
         error?.name === "TokenExpiredError"

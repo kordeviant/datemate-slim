@@ -53,7 +53,7 @@ export class UpdateProfileUseCase {
       where: { userId },
     });
 
-    // 3. Process avatar if uploaded
+    // 3. Process avatar if uploaded or provided as string URL
     let avatarUrl = existingProfile?.avatarUrl || '';
     if (avatarFile && avatarFile.buffer) {
       const processedAvatar = await this.avatarProcessor.processAndSaveAvatar(
@@ -61,6 +61,27 @@ export class UpdateProfileUseCase {
         userId,
       );
       avatarUrl = processedAvatar.relativeUrl;
+    } else {
+      const initialProfileNested = dto.Profile ?? (dto as any)?.profile;
+      const initialDataObj =
+        dto.data && typeof dto.data === 'object'
+          ? dto.data
+          : typeof dto.data === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(dto.data);
+                } catch {
+                  return {};
+                }
+              })()
+            : {};
+      const candidateAvatar =
+        initialProfileNested?.avatar ??
+        dto.avatar ??
+        initialDataObj?.avatar;
+      if (typeof candidateAvatar === 'string' && candidateAvatar.trim().length > 0) {
+        avatarUrl = candidateAvatar.trim();
+      }
     }
 
     // 4. Process selfie if uploaded

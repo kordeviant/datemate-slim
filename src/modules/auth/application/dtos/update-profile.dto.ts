@@ -275,6 +275,32 @@ export class ProfileNestedDto {
   @ValidateNested()
   @Type(() => PreferencesDto)
   preferences?: PreferencesDto;
+
+  @ApiPropertyOptional({
+    example: '/uploads/avatars/default.webp',
+    description: 'Avatar image URL or path',
+  })
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  @ApiPropertyOptional({
+    description: 'Question answer IDs — array of QuestionAnswer IDs the user selected',
+    example: [1, 5, 12, 18],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  Answers?: number[];
+
+  @ApiPropertyOptional({
+    description: 'Question answer IDs (lowercase alias)',
+    example: [1, 5, 12, 18],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  answers?: number[];
 }
 
 export class UpdateProfileDto {

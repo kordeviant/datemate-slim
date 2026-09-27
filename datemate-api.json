@@ -737,8 +737,8 @@
     "/questions": {
       "get": {
         "operationId": "QuestionsController_getQuestions",
-        "summary": "Get questions by type and language",
-        "description": "Retrieves questions filtered by optional type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). If language is not provided, returns questions in both languages.",
+        "summary": "Get questions with optional filters or by ID",
+        "description": "Retrieves all questions with their IDs, or filters by id, type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). If no query params are provided, returns all questions with English and Farsi text. If id query param is provided, returns that specific question.",
         "parameters": [
           {
             "name": "authorization",
@@ -746,6 +746,15 @@
             "in": "header",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by question ID",
+            "schema": {
+              "type": "number"
             }
           },
           {
@@ -767,7 +776,7 @@
             "name": "language",
             "required": false,
             "in": "query",
-            "description": "Language filter (en or fa). If omitted, returns both languages.",
+            "description": "Language filter (en or fa). If omitted, returns both English and Farsi texts.",
             "schema": {
               "enum": [
                 "en",
@@ -788,8 +797,14 @@
               }
             }
           },
+          "400": {
+            "description": "Invalid query parameters"
+          },
           "401": {
             "description": "Missing or invalid access token"
+          },
+          "404": {
+            "description": "Question with specified ID not found"
           }
         },
         "tags": [
@@ -834,6 +849,71 @@
           },
           "401": {
             "description": "Missing/invalid token or insufficient permissions"
+          }
+        },
+        "tags": [
+          "Questions"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/questions/{id}": {
+      "get": {
+        "operationId": "QuestionsController_getQuestionById",
+        "summary": "Get single question by route parameter ID",
+        "description": "Retrieves a single question by its numeric ID path parameter.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Question ID",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both languages.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Question retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "404": {
+            "description": "Question not found"
           }
         },
         "tags": [
@@ -1778,10 +1858,25 @@
             "example": 1,
             "description": "Answer ID"
           },
+          "questionId": {
+            "type": "number",
+            "example": 1,
+            "description": "Parent Question ID"
+          },
           "answer": {
             "type": "string",
             "example": "Meditation and mindfulness practices.",
-            "description": "Answer text"
+            "description": "Localized or default answer text"
+          },
+          "answerEn": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "English answer text"
+          },
+          "answerFa": {
+            "type": "string",
+            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "description": "Farsi answer text"
           }
         },
         "required": [
@@ -1804,8 +1899,18 @@
           },
           "name": {
             "type": "string",
-            "example": "How do you take care of yourself?",
-            "description": "Question text"
+            "example": "How do you practice self-care?",
+            "description": "Localized or default question text"
+          },
+          "nameEn": {
+            "type": "string",
+            "example": "How do you practice self-care?",
+            "description": "English question text"
+          },
+          "nameFa": {
+            "type": "string",
+            "example": "چگونه از خود مراقبت می‌کنید؟",
+            "description": "Farsi question text"
           },
           "answers": {
             "description": "Answer options",
@@ -1825,12 +1930,30 @@
       "QuestionListResponseDto": {
         "type": "object",
         "properties": {
+          "total": {
+            "type": "number",
+            "example": 24,
+            "description": "Total number of questions returned"
+          },
           "questions": {
             "description": "List of questions",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/QuestionResponseDto"
             }
+          },
+          "question": {
+            "description": "Single question when queried by ID",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QuestionResponseDto"
+              }
+            ]
+          },
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "Question ID filter applied"
           },
           "type": {
             "type": "string",
@@ -1844,6 +1967,7 @@
           }
         },
         "required": [
+          "total",
           "questions"
         ]
       },

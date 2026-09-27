@@ -1,0 +1,1910 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_healthCheck",
+        "summary": "Health check",
+        "description": "Basic healthcheck endpoint for client connectivity testing.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "ok"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "AppController_healthCheck",
+        "summary": "Health check",
+        "description": "Basic healthcheck endpoint for client connectivity testing.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "ok"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/time": {
+      "get": {
+        "operationId": "AppController_getServerTime",
+        "summary": "Authoritative server time",
+        "description": "Returns current server epoch time in milliseconds for client clock synchronization.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current epoch time in milliseconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "success",
+                    "message": "Operation successful",
+                    "data": 1726830000000,
+                    "error": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/docs/rules": {
+      "get": {
+        "operationId": "AppController_getRules",
+        "summary": "DateMate Platform Rules & Client Validation Specification",
+        "description": "Authoritative online specification of all client validation rules, media formats, languages, demographics, and schemas. Automatically updated on each backend update. Accessible at /docs/rules or /v1/docs/rules. Supports HTML view (default), JSON (?format=json), Raw Markdown (?format=raw), or file download (?download=1).",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Format of the rules document (default: html)",
+            "schema": {
+              "enum": [
+                "html",
+                "json",
+                "raw",
+                "md"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "required": false,
+            "in": "query",
+            "description": "Pass 1 to download the RULES.md file directly",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform rules document in the requested format"
+          }
+        },
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/rules": {
+      "get": {
+        "operationId": "AppController_getRules",
+        "summary": "DateMate Platform Rules & Client Validation Specification",
+        "description": "Authoritative online specification of all client validation rules, media formats, languages, demographics, and schemas. Automatically updated on each backend update. Accessible at /docs/rules or /v1/docs/rules. Supports HTML view (default), JSON (?format=json), Raw Markdown (?format=raw), or file download (?download=1).",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Format of the rules document (default: html)",
+            "schema": {
+              "enum": [
+                "html",
+                "json",
+                "raw",
+                "md"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "required": false,
+            "in": "query",
+            "description": "Pass 1 to download the RULES.md file directly",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform rules document in the requested format"
+          }
+        },
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "operationId": "AuthController_signUp",
+        "summary": "Initiate user registration",
+        "description": "Validates email & password, generates a 6-digit OTP, stores it in Redis (10m TTL), and sends a verification email via Nodemailer.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification code sent to email successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "success",
+                    "message": "Verification code sent to email",
+                    "data": null,
+                    "error": null
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "error",
+                    "message": "Email already registered",
+                    "data": null,
+                    "error": {
+                      "type": "UNKNOWN_ERROR",
+                      "message": "Email already registered"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "operationId": "AuthController_verifyCode",
+        "summary": "Verify OTP code and create user account",
+        "description": "Verifies the 6-digit OTP code, creates user in PostgreSQL, initiates session, and returns JWT access + refresh tokens.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User verified successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthValidateResultModel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired verification code"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/signin": {
+      "post": {
+        "operationId": "AuthController_signIn",
+        "summary": "Sign in with email and password",
+        "description": "Authenticates credentials, verifies ban status, creates a new session, and returns JWT access and refresh tokens.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthValidateResultModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials or user banned"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refreshToken",
+        "summary": "Refresh expired JWT access token",
+        "description": "Validates the refresh token, deletes the used token (token rotation), and issues a new access/refresh pair.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens refreshed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthValidateResultModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired refresh token"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "summary": "Request password reset code",
+        "description": "Generates a 6-digit reset code in Redis and dispatches it via email to the user.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reset code sent if email exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "success",
+                    "message": "If the email exists, a reset code was sent",
+                    "data": null,
+                    "error": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "summary": "Reset account password with code",
+        "description": "Verifies the 6-digit code, updates user password hash, and revokes all active sessions for security.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "success",
+                    "message": "Password reset successfully",
+                    "data": null,
+                    "error": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired reset code"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/nonce": {
+      "post": {
+        "operationId": "AuthController_getNonce",
+        "summary": "Get Google Play Integrity nonce",
+        "description": "Returns a cryptographically secure random nonce string for Google Play Integrity verification.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Nonce string generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "status": "success",
+                    "message": "Operation successful",
+                    "data": "a1b2c3d4e5f6...",
+                    "error": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "operationId": "AuthController_googleAuth",
+        "summary": "Sign in or register with Google OAuth",
+        "description": "Verifies the Google OAuth ID Token in the Authorization header, creates or retrieves user, and returns JWT tokens.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Google ID Token (Bearer <token>)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Google authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthValidateResultModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing Google ID Token"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/auth/apple": {
+      "post": {
+        "operationId": "AuthController_appleAuth",
+        "summary": "Sign in or register with Apple OAuth",
+        "description": "Verifies the Apple Sign-In Identity Token in the Authorization header (or body), creates or retrieves user, and returns JWT tokens.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Apple Identity Token (Bearer <token>)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleAuthDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Apple authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthValidateResultModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing Apple Identity Token"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/users/me": {
+      "get": {
+        "operationId": "UsersController_getMe",
+        "summary": "Get current authenticated user profile",
+        "description": "Retrieves the authenticated user profile details in Android schema: language, lat, lon, profileValidated, and Profile (fullName, username, phoneNumber, bio, languages, avatar, profileCompleted, Demographic, Preferences).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/users/profile": {
+      "get": {
+        "operationId": "UsersController_checkProfileStatus",
+        "summary": "Check profile completion status",
+        "description": "Checks whether the authenticated user has completed their profile onboarding. Returns boolean status wrapped in ResponseResult envelope for mobile onboarding check.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile completion status boolean",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "UsersController_updateProfile",
+        "summary": "Update user profile (step-by-step onboarding & edit profile)",
+        "description": "Updates user profile using Android schema (language, lat, lon, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Also supports optional avatar or selfie verification image files.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Android schema profile update payload and optional image files",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile successfully updated with categorized response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image)"
+          },
+          "401": {
+            "description": "Missing or invalid authorization token"
+          },
+          "409": {
+            "description": "Conflict error (username is already taken)"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "UsersController_updateProfilePost",
+        "summary": "Update user profile via POST (mobile client onboarding & edit profile)",
+        "description": "Handles profile updates for mobile clients that submit via HTTP POST to /users/profile.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Categorized profile update payload or mobile multipart data and optional image files",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile successfully updated with categorized response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authorization token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/questions": {
+      "get": {
+        "operationId": "QuestionsController_getQuestions",
+        "summary": "Get questions by type and language",
+        "description": "Retrieves questions filtered by optional type (PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). If language is not provided, returns questions in both languages.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Question type/category filter",
+            "schema": {
+              "enum": [
+                "PERSONALITY",
+                "INTERESTS",
+                "LIFESTYLE",
+                "VALUES"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both languages.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Questions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Questions"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "QuestionsController_createQuestion",
+        "summary": "Create a new question (admin only)",
+        "description": "Creates a new question with bilingual name and answer options. Each question is stored with both English and Farsi text. Requires admin role.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuestionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Question created successfully"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient permissions"
+          }
+        },
+        "tags": [
+          "Questions"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "DateMate Backend API",
+    "description": "DateMate REST API documentation covering Authentication, Users, Matching, Messaging, and Platform services.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "JWT-auth": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "name": "JWT",
+        "description": "Enter JWT Access Token",
+        "in": "header"
+      }
+    },
+    "schemas": {
+      "SignUpDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "User email address for verification"
+          },
+          "password": {
+            "type": "string",
+            "example": "StrongPassword123!",
+            "description": "User password (minimum 6 characters)"
+          },
+          "integrityToken": {
+            "type": "string",
+            "example": "base64_google_play_integrity_token_here",
+            "description": "Google Play Integrity token from Android device"
+          },
+          "packageName": {
+            "type": "string",
+            "example": "com.dmate.datemate",
+            "description": "Android application package name"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "integrityToken",
+          "packageName"
+        ]
+      },
+      "ValidateCodeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "123456",
+            "description": "6-digit OTP verification code received via email"
+          },
+          "device": {
+            "type": "string",
+            "example": "Samsung Galaxy S23",
+            "description": "Client device model"
+          },
+          "userAgent": {
+            "type": "string",
+            "example": "DateMate/2.6 (Android 14)",
+            "description": "Client user-agent string"
+          },
+          "fcmToken": {
+            "type": "string",
+            "example": "eXamPLe-fCm-ToKen...",
+            "description": "Firebase Cloud Messaging device token for push alerts"
+          }
+        },
+        "required": [
+          "code",
+          "device",
+          "userAgent"
+        ]
+      },
+      "AuthValidateResultModel": {
+        "type": "object",
+        "properties": {
+          "access": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "description": "Short-lived JWT access token (15m)"
+          },
+          "refresh": {
+            "type": "string",
+            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
+            "description": "Long-lived refresh token for token rotation (30d)"
+          },
+          "userId": {
+            "type": "number",
+            "example": 101,
+            "description": "User ID in the database"
+          }
+        },
+        "required": [
+          "access",
+          "refresh",
+          "userId"
+        ]
+      },
+      "SignInDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "User registered email address"
+          },
+          "password": {
+            "type": "string",
+            "example": "StrongPassword123!",
+            "description": "Account password"
+          },
+          "device": {
+            "type": "string",
+            "example": "Google Pixel 8",
+            "description": "Client device model"
+          },
+          "userAgent": {
+            "type": "string",
+            "example": "DateMate/2.6 (Android 14)",
+            "description": "Client user-agent string"
+          },
+          "fcmToken": {
+            "type": "string",
+            "example": "eXamPLe-fCm-ToKen...",
+            "description": "FCM push token for notifications"
+          },
+          "integrityToken": {
+            "type": "string",
+            "example": "base64_integrity_token_string",
+            "description": "Google Play Integrity token"
+          },
+          "packageName": {
+            "type": "string",
+            "example": "com.dmate.datemate",
+            "description": "Application package name"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "device",
+          "userAgent",
+          "integrityToken",
+          "packageName"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
+            "description": "Long-lived refresh token string previously received"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "Email address of the account to reset password for"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "Email address of the account"
+          },
+          "code": {
+            "type": "string",
+            "example": "654321",
+            "description": "6-digit password reset OTP received via email"
+          },
+          "password": {
+            "type": "string",
+            "example": "NewStrongPassword456!",
+            "description": "New password (minimum 6 characters)"
+          }
+        },
+        "required": [
+          "email",
+          "code",
+          "password"
+        ]
+      },
+      "GoogleAuthDto": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string",
+            "example": "Pixel 8",
+            "description": "Device model"
+          },
+          "userAgent": {
+            "type": "string",
+            "example": "DateMate/2.6 (Android 14)",
+            "description": "User-agent string"
+          },
+          "integrityToken": {
+            "type": "string",
+            "example": "base64_play_integrity_token",
+            "description": "Google Play Integrity token"
+          },
+          "packageName": {
+            "type": "string",
+            "example": "com.dmate.datemate",
+            "description": "Application package name"
+          }
+        },
+        "required": [
+          "device",
+          "userAgent",
+          "integrityToken",
+          "packageName"
+        ]
+      },
+      "AppleAuthDto": {
+        "type": "object",
+        "properties": {
+          "device": {
+            "type": "string",
+            "example": "iPhone 15 Pro",
+            "description": "Device model"
+          },
+          "userAgent": {
+            "type": "string",
+            "example": "DateMate/2.6 (iOS 17.5)",
+            "description": "User-agent string"
+          },
+          "identityToken": {
+            "type": "string",
+            "example": "eyJhbGciOiJSUzI1NiIsImtpZCI6...",
+            "description": "Apple Identity Token (optional in body if provided in Authorization Bearer header)"
+          },
+          "bundleId": {
+            "type": "string",
+            "example": "com.dmate.datemate",
+            "description": "Application bundle identifier / client ID"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "John",
+            "description": "First name provided by Apple on initial sign-in"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Doe",
+            "description": "Last name provided by Apple on initial sign-in"
+          }
+        },
+        "required": [
+          "device",
+          "userAgent"
+        ]
+      },
+      "CityResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12,
+            "description": "City ID",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "example": "Tehran",
+            "description": "City name",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "example": "Tehran Province",
+            "description": "State name",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "example": "Iran",
+            "description": "Country name",
+            "nullable": true
+          }
+        }
+      },
+      "DemographicResponseDto": {
+        "type": "object",
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "example": "1998-11-25",
+            "description": "Date of birth in YYYY-MM-DD format",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "example": "MALE",
+            "description": "Gender (uppercase: MALE or FEMALE)",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "example": 180,
+            "description": "Height in cm",
+            "nullable": true
+          },
+          "degree": {
+            "type": "string",
+            "example": "DOCTORATE",
+            "description": "Education degree status enum",
+            "nullable": true
+          },
+          "profession": {
+            "type": "string",
+            "example": "Software Engineer",
+            "description": "Profession / occupation",
+            "nullable": true
+          },
+          "relationStatus": {
+            "type": "string",
+            "example": "SINGLE",
+            "description": "Relationship status",
+            "nullable": true
+          },
+          "City": {
+            "description": "Selected city details",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CityResponseDto"
+              }
+            ]
+          }
+        }
+      },
+      "PreferencesResponseDto": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship looking for",
+            "nullable": true
+          }
+        }
+      },
+      "ProfileQuestionAnswerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "QuestionAnswer ID"
+          },
+          "questionId": {
+            "type": "number",
+            "example": 1,
+            "description": "Question ID"
+          },
+          "answer": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "Answer text (localized)"
+          },
+          "faAnswer": {
+            "type": "string",
+            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "description": "Persian answer text"
+          },
+          "answerEn": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "English answer text"
+          },
+          "answerFa": {
+            "type": "string",
+            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "description": "Persian answer text"
+          }
+        },
+        "required": [
+          "id",
+          "questionId",
+          "answer"
+        ]
+      },
+      "ProfileNestedResponseDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Parsa",
+            "description": "User first name",
+            "nullable": true
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Parsa",
+            "description": "User full name",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "example": "parsa",
+            "description": "Username handle",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "+1234567890",
+            "description": "Phone number",
+            "nullable": true
+          },
+          "bio": {
+            "type": "string",
+            "example": "Software engineer living in Tehran.",
+            "description": "User bio",
+            "nullable": true
+          },
+          "languages": {
+            "example": [
+              "en",
+              "fa"
+            ],
+            "description": "User spoken language 2-letter codes list",
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "avatar": {
+            "type": "string",
+            "example": "/uploads/avatars/avatar_1.webp",
+            "description": "Public profile picture avatar URL"
+          },
+          "profileCompleted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Profile completion status"
+          },
+          "Demographic": {
+            "description": "Demographic details",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemographicResponseDto"
+              }
+            ]
+          },
+          "Preferences": {
+            "description": "Relationship preferences",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PreferencesResponseDto"
+              }
+            ]
+          },
+          "Answers": {
+            "description": "User question answers list",
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileQuestionAnswerDto"
+            }
+          },
+          "answerIds": {
+            "example": [
+              1,
+              6,
+              11
+            ],
+            "description": "Array of answered QuestionAnswer IDs",
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "avatar",
+          "profileCompleted"
+        ]
+      },
+      "ProfileResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "User ID"
+          },
+          "email": {
+            "type": "string",
+            "example": "user@example.com",
+            "description": "User email",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "example": "EN",
+            "description": "App language (uppercase: EN or FA)"
+          },
+          "lat": {
+            "type": "number",
+            "example": 35.6892,
+            "description": "Latitude coordinate",
+            "nullable": true
+          },
+          "lon": {
+            "type": "number",
+            "example": 51.389,
+            "description": "Longitude coordinate",
+            "nullable": true
+          },
+          "profileValidated": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether admin has verified user identity"
+          },
+          "Profile": {
+            "description": "Nested profile details including Demographic and Preferences",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileNestedResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "language",
+          "profileValidated",
+          "Profile"
+        ]
+      },
+      "CityDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12,
+            "description": "Selected city ID"
+          }
+        }
+      },
+      "DemographicDto": {
+        "type": "object",
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "example": "1998-11-25",
+            "description": "Date of birth (YYYY-MM-DD or ISO, must be 18–80 years old)"
+          },
+          "gender": {
+            "type": "string",
+            "example": "MALE",
+            "description": "Gender: Male or Female (case-insensitive)",
+            "enum": [
+              "Male",
+              "Female",
+              "MALE",
+              "FEMALE",
+              "male",
+              "female"
+            ]
+          },
+          "height": {
+            "type": "number",
+            "example": 180,
+            "description": "Height in cm"
+          },
+          "degree": {
+            "type": "string",
+            "example": "DOCTORATE",
+            "description": "Education degree (e.g. DOCTORATE, MASTER, BACHELOR, HIGH_SCHOOL)"
+          },
+          "education": {
+            "type": "string",
+            "example": "DOCTORATE",
+            "description": "Education alias for degree"
+          },
+          "profession": {
+            "type": "string",
+            "example": "Software Engineer",
+            "description": "Profession / occupation"
+          },
+          "job": {
+            "type": "string",
+            "example": "Software Engineer",
+            "description": "Job alias for profession"
+          },
+          "relationStatus": {
+            "type": "string",
+            "example": "SINGLE",
+            "description": "Relationship status (e.g. SINGLE, MARRIED, IN_A_RELATIONSHIP)"
+          },
+          "City": {
+            "description": "Selected city",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CityDto"
+              }
+            ]
+          },
+          "city": {
+            "description": "Selected city (lowercase alias)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CityDto"
+              }
+            ]
+          },
+          "cityId": {
+            "type": "number",
+            "example": 12,
+            "description": "City ID flat field"
+          }
+        }
+      },
+      "PreferencesDto": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship (e.g. FUN, OPEN, LONG)"
+          }
+        }
+      },
+      "ProfileNestedDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "Parsa",
+            "description": "User full name (2–100 chars, cannot be only numbers)"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "Parsa",
+            "description": "First name alias for full name"
+          },
+          "username": {
+            "type": "string",
+            "example": "parsa",
+            "description": "Unique username (3–30 chars, alphanumeric, dots/hyphens/underscores)"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "+1234567890",
+            "description": "Phone number"
+          },
+          "bio": {
+            "type": "string",
+            "example": "Software engineer living in Tehran.",
+            "description": "User bio / description"
+          },
+          "languages": {
+            "type": "object",
+            "example": [
+              "en",
+              "fa"
+            ],
+            "description": "Spoken languages list (2-letter codes or full names). Accepted: en, fa, de, fr, es, it, pt, ru, uk, tr, ar, hi, ur, zh, ja, ko, nl, pl, sv, no, da, fi, cs, el, he"
+          },
+          "Demographic": {
+            "description": "Demographic details (birthDate, gender, height, degree, profession, relationStatus, City)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemographicDto"
+              }
+            ]
+          },
+          "demographic": {
+            "description": "Demographic details (lowercase alias)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemographicDto"
+              }
+            ]
+          },
+          "Preferences": {
+            "description": "Preferences (relation type)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PreferencesDto"
+              }
+            ]
+          },
+          "preferences": {
+            "description": "Preferences (lowercase alias)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PreferencesDto"
+              }
+            ]
+          }
+        }
+      },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "example": "EN",
+            "description": "App language: EN or FA (case-insensitive)",
+            "enum": [
+              "EN",
+              "FA",
+              "en",
+              "fa"
+            ]
+          },
+          "lat": {
+            "type": "number",
+            "example": 35.6892,
+            "description": "Latitude coordinate"
+          },
+          "lon": {
+            "type": "number",
+            "example": 51.389,
+            "description": "Longitude coordinate"
+          },
+          "Profile": {
+            "description": "Profile details including Demographic and Preferences",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileNestedDto"
+              }
+            ]
+          },
+          "profile": {
+            "description": "Profile details (lowercase alias)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfileNestedDto"
+              }
+            ]
+          },
+          "Demographic": {
+            "description": "Demographic details if provided at root level",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemographicDto"
+              }
+            ]
+          },
+          "demographic": {
+            "description": "Demographic details (lowercase root level alias)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemographicDto"
+              }
+            ]
+          },
+          "Preferences": {
+            "description": "Preferences if provided at root level",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PreferencesDto"
+              }
+            ]
+          },
+          "preferences": {
+            "description": "Preferences (lowercase root level alias)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PreferencesDto"
+              }
+            ]
+          },
+          "fullName": {
+            "type": "string",
+            "description": "Full name (flat fallback)"
+          },
+          "firstName": {
+            "type": "string",
+            "description": "First name alias (flat fallback)"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username (flat fallback)"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "Phone number (flat fallback)"
+          },
+          "bio": {
+            "type": "string",
+            "description": "Bio (flat fallback)"
+          },
+          "languages": {
+            "type": "object",
+            "description": "Languages list (flat fallback)"
+          },
+          "birthDate": {
+            "type": "string",
+            "description": "Birth date YYYY-MM-DD (flat fallback)"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Gender Male/Female (flat fallback)"
+          },
+          "height": {
+            "type": "number",
+            "description": "Height in cm (flat fallback)"
+          },
+          "degree": {
+            "type": "string",
+            "description": "Education degree (flat fallback)"
+          },
+          "education": {
+            "type": "string",
+            "description": "Education alias (flat fallback)"
+          },
+          "profession": {
+            "type": "string",
+            "description": "Profession / job (flat fallback)"
+          },
+          "job": {
+            "type": "string",
+            "description": "Job alias (flat fallback)"
+          },
+          "relationStatus": {
+            "type": "string",
+            "description": "Relationship status (flat fallback)"
+          },
+          "relation": {
+            "type": "string",
+            "description": "Kind of relationship (flat fallback)"
+          },
+          "cityId": {
+            "type": "number",
+            "description": "Selected City ID (flat fallback)"
+          },
+          "City": {
+            "description": "Selected City (flat fallback)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CityDto"
+              }
+            ]
+          },
+          "city": {
+            "description": "Selected city lowercase (flat fallback)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CityDto"
+              }
+            ]
+          },
+          "avatar": {
+            "type": "string",
+            "format": "binary",
+            "description": "Public profile picture avatar image file (50KB–5MB, JPEG/PNG/WebP, min 300x300)"
+          },
+          "selfie": {
+            "type": "string",
+            "format": "binary",
+            "description": "Private selfie photo for admin verification (50KB–5MB, JPEG/PNG/WebP, min 300x300)"
+          },
+          "data": {
+            "type": "object",
+            "description": "Android multipart payload containing JSON string of user data"
+          },
+          "LikedActivities": {
+            "type": "object",
+            "description": "Liked activities / interests"
+          },
+          "favorites": {
+            "type": "object",
+            "description": "Favorites / interests alias"
+          },
+          "Answers": {
+            "description": "Question answer IDs — array of QuestionAnswer IDs the user selected",
+            "example": [
+              1,
+              5,
+              12,
+              18
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "answers": {
+            "description": "Question answer IDs (lowercase alias)",
+            "example": [
+              1,
+              5,
+              12,
+              18
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "QuestionAnswerResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "Answer ID"
+          },
+          "answer": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "Answer text"
+          }
+        },
+        "required": [
+          "id",
+          "answer"
+        ]
+      },
+      "QuestionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "Question ID"
+          },
+          "type": {
+            "type": "string",
+            "example": "PERSONALITY",
+            "description": "Question type/category"
+          },
+          "name": {
+            "type": "string",
+            "example": "How do you take care of yourself?",
+            "description": "Question text"
+          },
+          "answers": {
+            "description": "Answer options",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionAnswerResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "name",
+          "answers"
+        ]
+      },
+      "QuestionListResponseDto": {
+        "type": "object",
+        "properties": {
+          "questions": {
+            "description": "List of questions",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionResponseDto"
+            }
+          },
+          "type": {
+            "type": "string",
+            "example": "PERSONALITY",
+            "description": "Question type filter applied"
+          },
+          "language": {
+            "type": "string",
+            "example": "en",
+            "description": "Language filter applied"
+          }
+        },
+        "required": [
+          "questions"
+        ]
+      },
+      "CreateQuestionAnswerDto": {
+        "type": "object",
+        "properties": {
+          "answerEn": {
+            "type": "string",
+            "example": "Meditation and mindfulness practices.",
+            "description": "Answer text in English"
+          },
+          "answerFa": {
+            "type": "string",
+            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "description": "Answer text in Farsi"
+          }
+        },
+        "required": [
+          "answerEn",
+          "answerFa"
+        ]
+      },
+      "CreateQuestionDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "PERSONALITY",
+            "description": "Question type/category (e.g. PERSONALITY, INTERESTS, LIFESTYLE, VALUES)",
+            "enum": [
+              "PERSONALITY",
+              "INTERESTS",
+              "LIFESTYLE",
+              "VALUES"
+            ]
+          },
+          "nameEn": {
+            "type": "string",
+            "example": "How do you take care of yourself?",
+            "description": "Question text in English"
+          },
+          "nameFa": {
+            "type": "string",
+            "example": "چگونه از خود مراقبت می‌کنید؟",
+            "description": "Question text in Farsi"
+          },
+          "answers": {
+            "description": "Answer options for the question (must include both en and fa)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateQuestionAnswerDto"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "nameEn",
+          "nameFa",
+          "answers"
+        ]
+      }
+    }
+  }
+}

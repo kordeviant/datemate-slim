@@ -5,6 +5,21 @@ Complete reference for all implemented REST API endpoints with request bodies, r
 Interactive Swagger UI documentation is available when running the backend at:
 👉 **`http://localhost:3000/docs`**
 
+### OpenAPI JSON & Postman Export
+You can export the full OpenAPI 3.0 specification file (`swagger.json`) to import directly into **Postman** or other API clients:
+
+```bash
+# Export/update OpenAPI JSON files (datemate-api.json & docs/api/swagger.json)
+npm run docs:export
+```
+
+- **Offline Files**: Generated at [datemate-api.json](file:///home/parsa/Documents/projects/datemate/backend/datemate-api.json) and [docs/api/swagger.json](file:///home/parsa/Documents/projects/datemate/backend/docs/api/swagger.json).
+- **Live Endpoint**: When running the dev server, fetch via `http://localhost:3000/docs-json` or:
+  ```bash
+  curl -o datemate-api.json http://localhost:3000/docs-json
+  ```
+- **Postman Import**: Open Postman -> **Import** -> Select `datemate-api.json` (or paste `http://localhost:3000/docs-json`).
+
 > 📘 **Authoritative Client Validation Rules & Guidelines**:  
 > For complete specifications on media uploads, username rules, full name, age boundaries, spoken languages whitelist, demographics, and security, refer to the standalone [**RULES.md**](file:///home/parsa/Documents/projects/datemate/backend/docs/RULES.md) or access the live specification at **[`http://localhost:3000/docs/rules`](http://localhost:3000/docs/rules)** (or `/v1/docs/rules`).
 

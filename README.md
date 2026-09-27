@@ -34,4 +34,7 @@ npx prisma migrate dev
 
 # 5. Start development server
 npm run start:dev
+
+# 6. Export OpenAPI JSON for Postman
+npm run docs:export
 ```

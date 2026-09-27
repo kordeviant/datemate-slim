@@ -15,7 +15,7 @@ interface QuestionSeed {
   answers: Array<{ answerEn: string; answerFa: string }>;
 }
 
-const personalityQuestions: QuestionSeed[] = [
+const preferencesQuestions: QuestionSeed[] = [
   {
     type: QuestionType.PREFERENCES,
     nameEn: 'How do you take care of yourself?',
@@ -306,16 +306,158 @@ const personalityQuestions: QuestionSeed[] = [
   },
 ];
 
+const personalityQuestions: QuestionSeed[] = [
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'What is your relationship status?',
+    nameFa: 'وضعیت تاهل یا رابطه شما چیست؟',
+    answers: [
+      { answerEn: 'Single', answerFa: 'مجرد' },
+      { answerEn: 'In a relationship', answerFa: 'در رابطه' },
+      { answerEn: 'Married', answerFa: 'متاهل' },
+      { answerEn: "It's complicated", answerFa: 'پیچیده است' },
+      { answerEn: 'Open relationship', answerFa: 'رابطه باز' },
+      { answerEn: 'Divorced', answerFa: 'جدا شده / طلاق گرفته' },
+      { answerEn: 'Widowed', answerFa: 'همسر فوت شده' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'How often do you drink?',
+    nameFa: 'چقدر نوشیدنی الکلی مصرف می‌کنید؟',
+    answers: [
+      { answerEn: 'Socially', answerFa: 'در جمع‌های دوستانه و مهمانی‌ها' },
+      { answerEn: 'Never', answerFa: 'هرگز' },
+      { answerEn: 'Occasionally', answerFa: 'گاهی اوقات' },
+      { answerEn: 'Regularly', answerFa: 'به‌طور منظم' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'Do you smoke?',
+    nameFa: 'آیا سیگار یا دخانیات مصرف می‌کنید؟',
+    answers: [
+      { answerEn: 'Yes', answerFa: 'بله' },
+      { answerEn: 'No', answerFa: 'خیر' },
+      { answerEn: 'Sometimes', answerFa: 'گاهی اوقات' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'What are your thoughts on having kids?',
+    nameFa: 'دیدگاه شما درباره داشتن فرزند چیست؟',
+    answers: [
+      { answerEn: 'Love kids', answerFa: 'عاشق بچه‌ها هستم' },
+      { answerEn: 'Maybe someday want kids', answerFa: 'شاید در آینده بچه بخواهم' },
+      { answerEn: 'Undecided about kids', answerFa: 'هنوز تصمیم نگرفته‌ام' },
+      { answerEn: 'Do not want kids', answerFa: 'بچه نمی‌خواهم' },
+      { answerEn: 'Already have kids', answerFa: 'در حال حاضر فرزند دارم' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'What is your highest level of education?',
+    nameFa: 'بالاترین مدرک تحصیلی شما چیست؟',
+    answers: [
+      { answerEn: 'High school diploma', answerFa: 'دیپلم دبیرستان' },
+      { answerEn: 'Some college', answerFa: 'دانشجو یا انصرافی' },
+      { answerEn: 'Associate degree', answerFa: 'کاردانی / فوق دیپلم' },
+      { answerEn: "Bachelor's degree", answerFa: 'کارشناسی / لیسانس' },
+      { answerEn: "Master's degree", answerFa: 'کارشناسی ارشد / فوق لیسانس' },
+      { answerEn: 'Doctorate', answerFa: 'دکتری' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'How would you describe your personality type?',
+    nameFa: 'تیپ شخصیتی خود را چگونه توصیف می‌کنید؟',
+    answers: [
+      { answerEn: 'Introvert', answerFa: 'درون‌گرا' },
+      { answerEn: 'Extrovert', answerFa: 'برون‌گرا' },
+      { answerEn: 'Somewhere in between', answerFa: 'میانه‌رو / میان‌گرا' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'What is your zodiac star sign?',
+    nameFa: 'ماه تولد یا نماد زودیاک شما چیست؟',
+    answers: [
+      { answerEn: 'Aries', answerFa: 'حمل (فروردین)' },
+      { answerEn: 'Taurus', answerFa: 'ثور (اردیبهشت)' },
+      { answerEn: 'Gemini', answerFa: 'جوزا (خرداد)' },
+      { answerEn: 'Cancer', answerFa: 'سرطان (تیر)' },
+      { answerEn: 'Leo', answerFa: 'اسد (مرداد)' },
+      { answerEn: 'Virgo', answerFa: 'سنبله (شهریور)' },
+      { answerEn: 'Libra', answerFa: 'میزان (مهر)' },
+      { answerEn: 'Scorpio', answerFa: 'عقرب (آبان)' },
+      { answerEn: 'Sagittarius', answerFa: 'قوس (آذر)' },
+      { answerEn: 'Capricorn', answerFa: 'جدی (دی)' },
+      { answerEn: 'Aquarius', answerFa: 'دلو (بهمن)' },
+      { answerEn: 'Pisces', answerFa: 'حوت (اسفند)' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'Do you have any pets?',
+    nameFa: 'آیا حیوان خانگی دارید؟',
+    answers: [
+      { answerEn: 'Cats', answerFa: 'گربه' },
+      { answerEn: 'Dogs', answerFa: 'سگ' },
+      { answerEn: 'Both cats and dogs', answerFa: 'هم گربه و هم سگ' },
+      { answerEn: 'Other animals', answerFa: 'سایر حیوانات' },
+      { answerEn: 'No pets', answerFa: 'حیوان خانگی ندارم' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+  {
+    type: QuestionType.PERSONALITY,
+    nameEn: 'What are your religious or spiritual beliefs?',
+    nameFa: 'باورهای مذهبی یا معنوی شما چیست؟',
+    answers: [
+      { answerEn: 'Christianity', answerFa: 'مسیحیت' },
+      { answerEn: 'Islam', answerFa: 'اسلام' },
+      { answerEn: 'Hinduism', answerFa: 'هندوئیسم' },
+      { answerEn: 'Buddhism', answerFa: 'بودیسم' },
+      { answerEn: 'Judaism', answerFa: 'یهودیت' },
+      { answerEn: 'Spirituality', answerFa: 'معنوی (اسپیریچوال)' },
+      { answerEn: 'Agnostic', answerFa: 'ندانم‌گرا (آگنوستیک)' },
+      { answerEn: 'Atheism', answerFa: 'خداناباور (آتئیست)' },
+      { answerEn: 'Other', answerFa: 'سایر موارد' },
+      { answerEn: 'Prefer not to say', answerFa: 'ترجیح می‌دهم نگویم' },
+    ],
+  },
+];
+
 async function seedQuestions() {
-  console.log('🌱 Seeding personality questions...');
+  console.log('🌱 Seeding questions...');
 
-  const existingCount = await prisma.question.count();
-  if (existingCount > 0) {
-    console.log(`⏭️  Questions table already has ${existingCount} records. Skipping seed.`);
-    return;
-  }
+  const allQuestions = [...preferencesQuestions, ...personalityQuestions];
 
-  for (const question of personalityQuestions) {
+  for (const question of allQuestions) {
+    const existing = await prisma.question.findFirst({
+      where: { nameEn: question.nameEn },
+    });
+
+    if (existing) {
+      if (existing.type !== question.type) {
+        await prisma.question.update({
+          where: { id: existing.id },
+          data: { type: question.type },
+        });
+        console.log(`  🔄 Updated question #${existing.id} type to ${question.type}: "${question.nameEn}"`);
+      } else {
+        console.log(`  ⏭️  Question already exists: "${question.nameEn}"`);
+      }
+      continue;
+    }
+
     const created = await prisma.question.create({
       data: {
         type: question.type,
@@ -330,10 +472,14 @@ async function seedQuestions() {
       },
       include: { answers: true },
     });
-    console.log(`  ✅ Created question #${created.id}: "${created.nameEn}" (${created.answers.length} answers)`);
+    console.log(`  ✅ Created question #${created.id} (${created.type}): "${created.nameEn}" (${created.answers.length} answers)`);
   }
 
-  console.log(`\n🎉 Seeded ${personalityQuestions.length} personality questions successfully!`);
+  const finalCounts = await prisma.question.groupBy({
+    by: ['type'],
+    _count: true,
+  });
+  console.log(`\n🎉 Seeding finished! Current question distribution:`, finalCounts);
 }
 
 seedQuestions()

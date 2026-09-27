@@ -16,8 +16,9 @@ import {
   normalizeLanguages,
   normalizeRelationshipStatus,
   normalizeRelationType,
+  normalizeReligion,
 } from '../validators/profile-attributes.validator';
-import { EducationStatus, Gender, Language, RelationshipStatus, RelationType } from '@prisma/client';
+import { EducationStatus, Gender, Language, RelationshipStatus, RelationType, ReligionStatus } from '@prisma/client';
 
 @Injectable()
 export class UpdateProfileUseCase {
@@ -178,14 +179,25 @@ export class UpdateProfileUseCase {
 
     const candidateHeightInput =
       demographic?.height ??
+      profileNested?.height ??
       dto.height ??
       dataObj?.height ??
       dataObj?.Demographic?.height ??
       dataObj?.demographic?.height;
 
+    const candidateWeightInput =
+      demographic?.weight ??
+      profileNested?.weight ??
+      dto.weight ??
+      dataObj?.weight ??
+      dataObj?.Demographic?.weight ??
+      dataObj?.demographic?.weight;
+
     const candidateEducationInput =
       demographic?.degree ??
       (demographic as any)?.education ??
+      profileNested?.degree ??
+      (profileNested as any)?.education ??
       dto.degree ??
       (dto as any)?.education ??
       dataObj?.degree ??
@@ -196,6 +208,8 @@ export class UpdateProfileUseCase {
     const candidateJobInput =
       demographic?.profession ??
       (demographic as any)?.job ??
+      profileNested?.profession ??
+      (profileNested as any)?.job ??
       dto.profession ??
       (dto as any)?.job ??
       dataObj?.profession ??
@@ -203,24 +217,55 @@ export class UpdateProfileUseCase {
       dataObj?.Demographic?.profession ??
       dataObj?.demographic?.profession;
 
+    const candidateReligionInput =
+      demographic?.religion ??
+      profileNested?.religion ??
+      dto.religion ??
+      dataObj?.religion ??
+      dataObj?.Demographic?.religion ??
+      dataObj?.demographic?.religion;
+
     const candidateLanguagesInput =
       profileNested?.languages ??
       dto.languages ??
       dataObj?.languages;
 
-    const candidateCityIdInput =
+    const rawCandidateCity =
       demographic?.City?.id ??
+      (typeof demographic?.City === 'number' ? demographic.City : undefined) ??
+      demographic?.city?.id ??
+      (typeof demographic?.city === 'number' ? demographic.city : undefined) ??
       demographic?.cityId ??
-      (demographic as any)?.city?.id ??
+      (demographic as any)?.city_id ??
+      profileNested?.City?.id ??
+      (typeof profileNested?.City === 'number' ? profileNested.City : undefined) ??
+      profileNested?.city?.id ??
+      (typeof profileNested?.city === 'number' ? profileNested.city : undefined) ??
+      profileNested?.cityId ??
+      (profileNested as any)?.city_id ??
       dto.cityId ??
+      (dto as any)?.city_id ??
       dto.City?.id ??
+      (typeof dto.City === 'number' ? dto.City : undefined) ??
       (dto as any)?.city?.id ??
+      (typeof (dto as any)?.city === 'number' ? (dto as any).city : undefined) ??
       dataObj?.cityId ??
+      dataObj?.city_id ??
       dataObj?.City?.id ??
+      (typeof dataObj?.City === 'number' ? dataObj.City : undefined) ??
       dataObj?.Demographic?.City?.id ??
+      (typeof dataObj?.Demographic?.City === 'number' ? dataObj.Demographic.City : undefined) ??
       dataObj?.Demographic?.cityId ??
+      dataObj?.Demographic?.city_id ??
       dataObj?.demographic?.City?.id ??
-      dataObj?.demographic?.cityId;
+      (typeof dataObj?.demographic?.City === 'number' ? dataObj.demographic.City : undefined) ??
+      dataObj?.demographic?.cityId ??
+      dataObj?.demographic?.city_id;
+
+    const candidateCityIdInput =
+      rawCandidateCity !== undefined && rawCandidateCity !== null && rawCandidateCity !== ''
+        ? Number(rawCandidateCity)
+        : undefined;
 
     const candidateLatitudeInput =
       dto.lat ??
@@ -408,6 +453,15 @@ export class UpdateProfileUseCase {
       }
     }
 
+    // 12b. Weight
+    let cleanWeight: number | null = existingDemographic?.weight ?? null;
+    if (candidateWeightInput !== undefined && candidateWeightInput !== null) {
+      const w = Number(candidateWeightInput);
+      if (!isNaN(w) && w > 0) {
+        cleanWeight = w;
+      }
+    }
+
     // 13. Education
     let cleanDegree: EducationStatus | null =
       existingDemographic?.degree ?? null;
@@ -423,6 +477,16 @@ export class UpdateProfileUseCase {
       existingDemographic?.job ?? null;
     if (candidateJobInput !== undefined && candidateJobInput !== null) {
       cleanJob = candidateJobInput.trim() ? candidateJobInput.trim() : null;
+    }
+
+    // 14b. Religion
+    let cleanReligion: ReligionStatus | null =
+      existingDemographic?.religion ?? null;
+    if (candidateReligionInput !== undefined && candidateReligionInput !== null) {
+      const normalized = normalizeReligion(candidateReligionInput);
+      if (normalized) {
+        cleanReligion = normalized;
+      }
     }
 
     // 15. Relation Status
@@ -541,8 +605,10 @@ export class UpdateProfileUseCase {
               ? { cityId: validCityId }
               : {}),
             ...(cleanHeight !== null ? { height: cleanHeight } : {}),
+            ...(cleanWeight !== null ? { weight: cleanWeight } : {}),
             ...(cleanDegree ? { degree: cleanDegree } : {}),
             ...(cleanJob !== null ? { job: cleanJob } : {}),
+            ...(cleanReligion ? { religion: cleanReligion } : {}),
             ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
           },
         });
@@ -555,8 +621,10 @@ export class UpdateProfileUseCase {
             gender: normalizedGender,
             cityId: validCityId,
             height: cleanHeight,
+            weight: cleanWeight,
             degree: cleanDegree,
             job: cleanJob,
+            religion: cleanReligion,
             relationStatus: cleanRelationStatus,
           },
           update: {
@@ -564,8 +632,10 @@ export class UpdateProfileUseCase {
             birthDate: parsedBirthDate,
             cityId: validCityId,
             ...(cleanHeight !== null ? { height: cleanHeight } : {}),
+            ...(cleanWeight !== null ? { weight: cleanWeight } : {}),
             ...(cleanDegree ? { degree: cleanDegree } : {}),
             ...(cleanJob !== null ? { job: cleanJob } : {}),
+            ...(cleanReligion ? { religion: cleanReligion } : {}),
             ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
           },
         });
@@ -906,8 +976,10 @@ export class UpdateProfileUseCase {
           birthDate: formattedBirthDate,
           gender: formattedGender,
           height: cleanHeight,
+          weight: cleanWeight,
           degree: cleanDegree,
           profession: cleanJob,
+          religion: cleanReligion,
           relationStatus: cleanRelationStatus,
           City: cityObj,
         },

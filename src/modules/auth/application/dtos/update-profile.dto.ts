@@ -56,7 +56,7 @@ export const transformJsonOrObject = <T>(cls: new () => T) => {
 // ---------------------------------------------------------------------------
 // Nested DTO classes matching the Android client schema:
 //   { language, lat, lon, Profile: { fullName, username, ...,
-//       Demographic: { birthDate, gender, height, degree, profession, relationStatus, City: { id } },
+//       Demographic: { birthDate, gender, height, weight, degree, profession, religion, relationStatus, City: { id } },
 //       Preferences: { relation } } }
 // ---------------------------------------------------------------------------
 
@@ -67,6 +67,34 @@ export class CityDto {
   @IsNumber()
   id?: number;
 }
+
+export const transformCity = ({ value }: { value: any }) => {
+  if (value === undefined || value === null) return undefined;
+  let parsed = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        // keep as is
+      }
+    } else if (!isNaN(Number(trimmed)) && trimmed !== '') {
+      return plainToInstance(CityDto, { id: Number(trimmed) });
+    }
+  }
+  if (typeof parsed === 'number') {
+    return plainToInstance(CityDto, { id: parsed });
+  }
+  if (parsed && typeof parsed === 'object') {
+    const idVal = parsed.id ?? parsed.cityId ?? parsed.city_id;
+    return plainToInstance(CityDto, {
+      ...parsed,
+      id: idVal !== undefined && idVal !== null && !isNaN(Number(idVal)) ? Number(idVal) : undefined,
+    });
+  }
+  return parsed;
+};
 
 export class DemographicDto {
   @ApiPropertyOptional({
@@ -113,6 +141,12 @@ export class DemographicDto {
   @IsNumber()
   height?: number;
 
+  @ApiPropertyOptional({ example: 75, description: 'Weight in kg' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  weight?: number;
+
   @ApiPropertyOptional({
     example: 'DOCTORATE',
     description: 'Education degree (e.g. DOCTORATE, MASTER, BACHELOR, HIGH_SCHOOL)',
@@ -146,6 +180,14 @@ export class DemographicDto {
   job?: string;
 
   @ApiPropertyOptional({
+    example: 'ISLAM',
+    description: 'Religion status (e.g. CHRISTIANITY, ISLAM, HINDUISM, BUDDHISM, JUDAISM, SPIRITUALITY, AGNOSTIC, ATHEISM, OTHER, RATHER_NOT_SAY)',
+  })
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
+  @ApiPropertyOptional({
     example: 'SINGLE',
     description: 'Relationship status (e.g. SINGLE, MARRIED, IN_A_RELATIONSHIP)',
   })
@@ -155,14 +197,14 @@ export class DemographicDto {
 
   @ApiPropertyOptional({ type: CityDto, description: 'Selected city' })
   @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
+  @Transform(transformCity)
   @ValidateNested()
   @Type(() => CityDto)
   City?: CityDto;
 
   @ApiPropertyOptional({ type: CityDto, description: 'Selected city (lowercase alias)' })
   @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
+  @Transform(transformCity)
   @ValidateNested()
   @Type(() => CityDto)
   city?: CityDto;
@@ -172,6 +214,12 @@ export class DemographicDto {
   @Type(() => Number)
   @IsNumber()
   cityId?: number;
+
+  @ApiPropertyOptional({ example: 12, description: 'City ID snake_case alias' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  city_id?: number;
 }
 
 export class PreferencesDto {
@@ -304,6 +352,46 @@ export class ProfileNestedDto {
   @IsOptional()
   @Transform(parseIfJsonString)
   answers?: Record<string, number> | any;
+
+  @ApiPropertyOptional({ example: 75, description: 'Weight in kg' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  weight?: number;
+
+  @ApiPropertyOptional({
+    example: 'ISLAM',
+    description: 'Religion status',
+  })
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
+  @ApiPropertyOptional({ type: CityDto, description: 'Selected city' })
+  @IsOptional()
+  @Transform(transformCity)
+  @ValidateNested()
+  @Type(() => CityDto)
+  City?: CityDto;
+
+  @ApiPropertyOptional({ type: CityDto, description: 'Selected city (lowercase alias)' })
+  @IsOptional()
+  @Transform(transformCity)
+  @ValidateNested()
+  @Type(() => CityDto)
+  city?: CityDto;
+
+  @ApiPropertyOptional({ example: 12, description: 'City ID flat field' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  cityId?: number;
+
+  @ApiPropertyOptional({ example: 12, description: 'City ID snake_case alias' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  city_id?: number;
 }
 
 export class UpdateProfileDto {
@@ -472,6 +560,12 @@ export class UpdateProfileDto {
   @IsNumber()
   height?: number;
 
+  @ApiPropertyOptional({ description: 'Weight in kg (flat fallback)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  weight?: number;
+
   @ApiPropertyOptional({ description: 'Education degree (flat fallback)' })
   @IsOptional()
   @IsString()
@@ -492,6 +586,11 @@ export class UpdateProfileDto {
   @IsString()
   job?: string;
 
+  @ApiPropertyOptional({ description: 'Religion status (flat fallback)' })
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
   @ApiPropertyOptional({ description: 'Relationship status (flat fallback)' })
   @IsOptional()
   @IsString()
@@ -508,16 +607,22 @@ export class UpdateProfileDto {
   @IsNumber()
   cityId?: number;
 
+  @ApiPropertyOptional({ description: 'Selected City ID snake_case (flat fallback)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  city_id?: number;
+
   @ApiPropertyOptional({ type: CityDto, description: 'Selected City (flat fallback)' })
   @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
+  @Transform(transformCity)
   @ValidateNested()
   @Type(() => CityDto)
   City?: CityDto;
 
   @ApiPropertyOptional({ type: CityDto, description: 'Selected city lowercase (flat fallback)' })
   @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
+  @Transform(transformCity)
   @ValidateNested()
   @Type(() => CityDto)
   city?: CityDto;

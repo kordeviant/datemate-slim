@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { EducationStatus, RelationshipStatus, RelationType } from '@prisma/client';
+import { EducationStatus, RelationshipStatus, RelationType, ReligionStatus } from '@prisma/client';
 
 export const ALLOWED_SPOKEN_LANGUAGES = [
   'en', 'fa', 'de', 'fr', 'es', 'it', 'pt', 'ru',
@@ -176,6 +176,27 @@ export function normalizeRelationType(value?: string | null): RelationType | und
 
   const upper = value.toUpperCase().trim() as RelationType;
   if (Object.values(RelationType).includes(upper)) {
+    return upper;
+  }
+  return undefined;
+}
+
+export function normalizeReligion(value?: string | null): ReligionStatus | undefined {
+  if (!value || typeof value !== 'string') return undefined;
+  const clean = value.toLowerCase().replace(/[\s\-_]+/g, '');
+  if (clean.includes('christian')) return ReligionStatus.CHRISTIANITY;
+  if (clean.includes('islam') || clean.includes('muslim')) return ReligionStatus.ISLAM;
+  if (clean.includes('hindu')) return ReligionStatus.HINDUISM;
+  if (clean.includes('buddh')) return ReligionStatus.BUDDHISM;
+  if (clean.includes('judai') || clean.includes('jew')) return ReligionStatus.JUDAISM;
+  if (clean.includes('spirit')) return ReligionStatus.SPIRITUALITY;
+  if (clean.includes('agnostic')) return ReligionStatus.AGNOSTIC;
+  if (clean.includes('atheis')) return ReligionStatus.ATHEISM;
+  if (clean.includes('other')) return ReligionStatus.OTHER;
+  if (clean.includes('rathernotsay')) return ReligionStatus.RATHER_NOT_SAY;
+
+  const upper = value.toUpperCase().trim() as ReligionStatus;
+  if (Object.values(ReligionStatus).includes(upper)) {
     return upper;
   }
   return undefined;

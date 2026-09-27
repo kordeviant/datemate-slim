@@ -4,12 +4,6 @@ export class QuestionAnswerResponseDto {
   @ApiProperty({ example: 0, description: 'Answer ID starting from 0 for each question' })
   id: number;
 
-  @ApiPropertyOptional({ example: 0, description: 'Answer ID alias (0-indexed per question)' })
-  answerId?: number;
-
-  @ApiPropertyOptional({ example: 1, description: 'Database answer ID' })
-  dbId?: number;
-
   @ApiPropertyOptional({ example: 1, description: 'Parent Question ID' })
   questionId?: number;
 

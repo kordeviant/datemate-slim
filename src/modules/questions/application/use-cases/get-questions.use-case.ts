@@ -88,8 +88,6 @@ export class GetQuestionsUseCase {
       nameFa: q.nameFa,
       answers: (q.answers || []).map((a, index) => ({
         id: index,
-        answerId: index,
-        dbId: a.id,
         questionId: a.questionId,
         answer: isFa ? a.answerFa : a.answerEn,
         answerEn: a.answerEn,

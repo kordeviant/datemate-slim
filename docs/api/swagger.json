@@ -1883,16 +1883,6 @@
             "example": 0,
             "description": "Answer ID starting from 0 for each question"
           },
-          "answerId": {
-            "type": "number",
-            "example": 0,
-            "description": "Answer ID alias (0-indexed per question)"
-          },
-          "dbId": {
-            "type": "number",
-            "example": 1,
-            "description": "Database answer ID"
-          },
           "questionId": {
             "type": "number",
             "example": 1,

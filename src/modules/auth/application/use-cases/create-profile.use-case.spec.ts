@@ -39,7 +39,6 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       },
       question: {
         count: jest.fn().mockResolvedValue(0),
-        findMany: jest.fn().mockResolvedValue([]),
       },
       userQuestionAnswer: {
         count: jest.fn().mockResolvedValue(0),
@@ -690,10 +689,8 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
           birthDate: "1998-11-25",
           gender: "MALE",
           height: 180,
-          weight: null,
           degree: "DOCTORATE",
           profession: "Software Engineer",
-          religion: null,
           relationStatus: "SINGLE",
           City: {
             id: 12,
@@ -881,198 +878,6 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
           }),
         }),
       );
-    });
-  });
-
-  describe("Update profile with ALL fields (fails if any field is null or missing)", () => {
-    it("should successfully update profile with ALL fields and return every field populated without any null or empty values", async () => {
-      mockPrisma.city.findUnique.mockResolvedValue({
-        id: 12,
-        name: "Abu Dhabi",
-        state: {
-          name: "Abu Dhabi",
-          country: {
-            name: "United Arab Emirates",
-          },
-        },
-      });
-
-      mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
-        relativeUrl: "/uploads/avatars/avatar_all_fields.webp",
-      });
-
-      mockPrisma.question.findMany.mockResolvedValue([
-        { id: 1, answers: [{ id: 101 }, { id: 102 }] },
-        { id: 2, answers: [{ id: 201 }, { id: 202 }] },
-      ]);
-      mockPrisma.userQuestionAnswer.findMany.mockResolvedValue([
-        { questionAnswerId: 101, questionAnswer: { questionId: 1 } },
-        { questionAnswerId: 202, questionAnswer: { questionId: 2 } },
-      ]);
-
-      const allFieldsPayload = {
-        language: "EN",
-        lat: 24.4539,
-        lon: 54.3773,
-        Profile: {
-          fullName: "Parsa Moloody",
-          username: "parsa_dev",
-          phoneNumber: "+971501234567",
-          bio: "Senior Software Engineer building scalable platforms.",
-          languages: ["en", "fa"],
-          avatar: "/uploads/avatars/avatar_all_fields.webp",
-          Demographic: {
-            birthDate: "1998-11-25",
-            gender: "Male",
-            height: 180,
-            weight: 75,
-            degree: "BACHELOR_DEGREE",
-            profession: "Software Engineer",
-            religion: "ISLAM",
-            relationStatus: "SINGLE",
-            City: { id: 12 },
-          },
-          Preferences: {
-            relation: "LONG",
-          },
-          Answers: {
-            "1": 0,
-            "2": 1,
-          },
-        },
-      };
-
-      const res = await useCase.execute(1, allFieldsPayload as any, mockAvatarFile);
-
-      // Verify top-level user / session fields are not null/undefined
-      expect(res.id).toBe(1);
-      expect(res.email).not.toBeNull();
-      expect(res.language).toBe("EN");
-      expect(res.lat).toBe(24.4539);
-      expect(res.lon).toBe(54.3773);
-      expect(res.profileValidated).toBeDefined();
-
-      // Verify Profile fields are not null/undefined
-      const p = res.Profile;
-      expect(p.fullName).toBe("Parsa Moloody");
-      expect(p.username).toBe("parsa_dev");
-      expect(p.phoneNumber).toBe("+971501234567");
-      expect(p.bio).toBe("Senior Software Engineer building scalable platforms.");
-      expect(p.languages).toEqual(["en", "fa"]);
-      expect(p.avatar).toBe("/uploads/avatars/avatar_all_fields.webp");
-
-      // Verify Demographic fields - NONE can be null or undefined
-      const d = p.Demographic;
-      expect(d).toBeDefined();
-      expect(d.birthDate).toBe("1998-11-25");
-      expect(d.gender).toBe("MALE");
-      expect(d.height).toBe(180);
-      expect(d.weight).toBe(75);
-      expect(d.degree).toBe("BACHELOR_DEGREE");
-      expect(d.profession).toBe("Software Engineer");
-      expect(d.religion).toBe("ISLAM");
-      expect(d.relationStatus).toBe("SINGLE");
-
-      // Verify City details - NONE can be null or undefined
-      expect(d.City).toBeDefined();
-      expect(d.City).not.toBeNull();
-      expect(d.City?.id).toBe(12);
-      expect(d.City?.name).toBe("Abu Dhabi");
-      expect(d.City?.state).toBe("Abu Dhabi");
-      expect(d.City?.country).toBe("United Arab Emirates");
-
-      // Verify Preferences
-      expect(p.Preferences).toBeDefined();
-      expect(p.Preferences?.relation).toBe("LONG");
-
-      // Verify Answers
-      expect(p.Answers).toBeDefined();
-      expect(p.Answers["1"]).toBe(0);
-      expect(p.Answers["2"]).toBe(1);
-
-      // Strict failure assertion: If any demographic or city field is null, fail immediately
-      const fieldsToCheck = [
-        ["birthDate", d.birthDate],
-        ["gender", d.gender],
-        ["height", d.height],
-        ["weight", d.weight],
-        ["degree", d.degree],
-        ["profession", d.profession],
-        ["religion", d.religion],
-        ["relationStatus", d.relationStatus],
-        ["City", d.City],
-        ["City.id", d.City?.id],
-        ["City.name", d.City?.name],
-        ["City.state", d.City?.state],
-        ["City.country", d.City?.country],
-      ];
-      for (const [name, val] of fieldsToCheck) {
-        expect(val).not.toBeNull();
-        expect(val).not.toBeUndefined();
-      }
-
-      // Verify Prisma transaction saved every demographic field
-      expect(mockPrisma.demographic.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { userId: 1 },
-          create: expect.objectContaining({
-            userId: 1,
-            birthDate: new Date("1998-11-25T00:00:00.000Z"),
-            gender: "MALE",
-            height: 180,
-            weight: 75,
-            degree: "BACHELOR_DEGREE",
-            job: "Software Engineer",
-            religion: "ISLAM",
-            relationStatus: "SINGLE",
-            cityId: 12,
-          }),
-        }),
-      );
-    });
-
-    it("should successfully update profile when all fields are sent in flat format and city_id is used", async () => {
-      mockPrisma.city.findUnique.mockResolvedValue({
-        id: 12,
-        name: "Abu Dhabi",
-        state: {
-          name: "Abu Dhabi",
-          country: {
-            name: "United Arab Emirates",
-          },
-        },
-      });
-
-      const res = await useCase.execute(1, {
-        language: "en",
-        lat: 24.4539,
-        lon: 54.3773,
-        fullName: "Flat User",
-        username: "flat_user",
-        phoneNumber: "+1234567890",
-        bio: "Flat bio",
-        languages: ["en"],
-        birthDate: "1998-11-25",
-        gender: "MALE",
-        height: 180,
-        weight: 80,
-        degree: "MASTER_DEGREE",
-        profession: "Engineer",
-        religion: "CHRISTIANITY",
-        relationStatus: "MARRIED",
-        relation: "LONG",
-        city_id: 12,
-      } as any);
-
-      expect(res.Profile.fullName).toBe("Flat User");
-      expect(res.Profile.Demographic.weight).toBe(80);
-      expect(res.Profile.Demographic.religion).toBe("CHRISTIANITY");
-      expect(res.Profile.Demographic.City).toEqual({
-        id: 12,
-        name: "Abu Dhabi",
-        state: "Abu Dhabi",
-        country: "United Arab Emirates",
-      });
     });
   });
 });

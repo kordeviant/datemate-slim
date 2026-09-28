@@ -71,10 +71,8 @@ describe('GetProfileUseCase', () => {
           birthDate: null,
           gender: null,
           height: null,
-          weight: null,
           degree: null,
           profession: null,
-          religion: null,
           relationStatus: null,
           City: null,
         },
@@ -109,10 +107,8 @@ describe('GetProfileUseCase', () => {
         birthDate,
         gender: 'MALE',
         height: 180,
-        weight: 75,
         degree: 'BACHELOR_DEGREE',
         job: 'Developer',
-        religion: 'ISLAM',
         relationStatus: 'SINGLE',
         cityId: 5,
         city: {
@@ -142,8 +138,6 @@ describe('GetProfileUseCase', () => {
     expect(res.Profile.fullName).toBe('Ali Ahmadi');
     expect(res.Profile.Demographic.birthDate).toBe('2000-01-15');
     expect(res.Profile.Demographic.gender).toBe('MALE');
-    expect(res.Profile.Demographic.weight).toBe(75);
-    expect(res.Profile.Demographic.religion).toBe('ISLAM');
     expect(res.language).toBe('FA');
     expect(res.lat).toBe(35.6892);
     expect(res.lon).toBe(51.389);

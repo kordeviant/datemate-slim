@@ -6,7 +6,7 @@ import { ProfileResponseDto } from '../dtos/profile-response.dto';
 export class GetProfileUseCase {
   private readonly logger = new Logger(GetProfileUseCase.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async execute(userId: number): Promise<ProfileResponseDto> {
     const user = await this.prisma.user.findUnique({
@@ -78,11 +78,11 @@ export class GetProfileUseCase {
     const cityObj =
       demographic?.cityId !== undefined && demographic?.cityId !== null
         ? {
-            id: demographic.cityId,
-            name: cityName,
-            state: stateName,
-            country: countryName,
-          }
+          id: demographic.cityId,
+          name: cityName,
+          state: stateName,
+          country: countryName,
+        }
         : null;
 
     // Profile is complete when all required onboarding steps are completed:
@@ -140,9 +140,9 @@ export class GetProfileUseCase {
       const allDbQuestions =
         typeof (this.prisma as any).question?.findMany === 'function'
           ? await this.prisma.question.findMany({
-              include: { answers: { orderBy: { id: 'asc' } } },
-              orderBy: { id: 'asc' },
-            })
+            include: { answers: { orderBy: { id: 'asc' } } },
+            orderBy: { id: 'asc' },
+          })
           : [];
       for (const q of allDbQuestions) {
         questionEntityMap.set(q.id, q);
@@ -203,10 +203,8 @@ export class GetProfileUseCase {
           birthDate: formattedBirthDate,
           gender: formattedGender,
           height: demographic?.height ?? null,
-          weight: demographic?.weight ?? null,
           degree: demographic?.degree || null,
           profession: demographic?.job || null,
-          religion: demographic?.religion || null,
           relationStatus: demographic?.relationStatus || null,
           City: cityObj,
         },

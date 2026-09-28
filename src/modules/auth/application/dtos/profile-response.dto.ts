@@ -32,9 +32,6 @@ export class DemographicResponseDto {
   @ApiPropertyOptional({ example: 180, description: 'Height in cm', nullable: true })
   height?: number | null;
 
-  @ApiPropertyOptional({ example: 75, description: 'Weight in kg', nullable: true })
-  weight?: number | null;
-
   @ApiPropertyOptional({
     example: 'DOCTORATE',
     description: 'Education degree status enum',
@@ -48,13 +45,6 @@ export class DemographicResponseDto {
     nullable: true,
   })
   profession?: string | null;
-
-  @ApiPropertyOptional({
-    example: 'ISLAM',
-    description: 'Religion status enum',
-    nullable: true,
-  })
-  religion?: string | null;
 
   @ApiPropertyOptional({
     example: 'SINGLE',

@@ -18,10 +18,8 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
         birthDate: "1998-11-25",
         gender: "Female",
         height: 180,
-        weight: 75,
         degree: "PhD",
         profession: "Software Engineer",
-        religion: "Islam",
         relationStatus: "Single",
         City: { id: 12 },
       },
@@ -38,8 +36,6 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
     expect(dto.Profile?.fullName).toBe("Sara Connor");
     expect(dto.language).toBe("en");
     expect(dto.Profile?.Demographic?.height).toBe(180);
-    expect(dto.Profile?.Demographic?.weight).toBe(75);
-    expect(dto.Profile?.Demographic?.religion).toBe("Islam");
     expect(dto.Profile?.Demographic?.City?.id).toBe(12);
     expect(dto.Profile?.Preferences?.relation).toBe("Long term");
     expect(dto.Profile?.username).toBe("sara_connor");
@@ -197,10 +193,8 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
             birthDate: "1998-11-25",
             gender: "MALE",
             height: 180,
-            weight: 75,
             degree: "DOCTORATE",
             profession: "Software Engineer",
-            religion: "ISLAM",
             relationStatus: "SINGLE",
             City: { id: 12 },
           },
@@ -227,10 +221,8 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
       expect(result.Profile?.Demographic?.birthDate).toBe("1998-11-25");
       expect(result.Profile?.Demographic?.gender).toBe("MALE");
       expect(result.Profile?.Demographic?.height).toBe(180);
-      expect(result.Profile?.Demographic?.weight).toBe(75);
       expect(result.Profile?.Demographic?.degree).toBe("DOCTORATE");
       expect(result.Profile?.Demographic?.profession).toBe("Software Engineer");
-      expect(result.Profile?.Demographic?.religion).toBe("ISLAM");
       expect(result.Profile?.Demographic?.relationStatus).toBe("SINGLE");
       expect(result.Profile?.Demographic?.City?.id).toBe(12);
       expect(result.Profile?.Preferences?.relation).toBe("LONG");
@@ -248,13 +240,11 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
         birthDate: "1998-11-25",
         gender: "MALE",
         height: 180,
-        weight: 75,
         degree: "DOCTORATE",
         profession: "Software Engineer",
-        religion: "ISLAM",
         relationStatus: "SINGLE",
         relation: "LONG",
-        city_id: 12,
+        cityId: 12,
         languages: ["fa"],
       };
 
@@ -271,13 +261,11 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
       expect(result.birthDate).toBe("1998-11-25");
       expect(result.gender).toBe("MALE");
       expect(result.height).toBe(180);
-      expect(result.weight).toBe(75);
       expect(result.degree).toBe("DOCTORATE");
       expect(result.profession).toBe("Software Engineer");
-      expect(result.religion).toBe("ISLAM");
       expect(result.relationStatus).toBe("SINGLE");
       expect(result.relation).toBe("LONG");
-      expect(result.city_id).toBe(12);
+      expect(result.cityId).toBe(12);
       expect(result.languages).toEqual(["fa"]);
     });
 

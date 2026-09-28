@@ -4,35 +4,44 @@ import * as path from 'path';
 
 const prisma = new PrismaClient();
 
+function resolveDataDir(): string | null {
+  const candidateDirs = [
+    process.env.GEO_DATA_DIR,
+    path.join(__dirname, '..', '..', 'downloads'),
+    path.join(__dirname, '..', '..', 'assets'),
+    path.join(process.cwd(), '..', 'downloads'),
+    path.join(process.cwd(), '..', 'assets'),
+    process.env.HOME ? path.join(process.env.HOME, 'downloads') : null,
+    process.env.HOME ? path.join(process.env.HOME, 'assets') : null,
+  ].filter(Boolean) as string[];
+
+  for (const dir of candidateDirs) {
+    if (
+      fs.existsSync(path.join(dir, 'countries.json')) &&
+      fs.existsSync(path.join(dir, 'states.json')) &&
+      fs.existsSync(path.join(dir, 'cities.json'))
+    ) {
+      return dir;
+    }
+  }
+
+  return null;
+}
+
 async function main() {
   console.log('Starting geographic database seeding...');
 
-  const countriesPath = path.join(
-    __dirname,
-    '..',
-    '..',
-    'downloads',
-    'countries.json',
-  );
-  const statesPath = path.join(
-    __dirname,
-    '..',
-    '..',
-    'downloads',
-    'states.json',
-  );
-  const citiesPath = path.join(
-    __dirname,
-    '..',
-    '..',
-    'downloads',
-    'cities.json',
-  );
-
-  if (!fs.existsSync(countriesPath)) {
-    console.error('countries.json not found in downloads folder!');
-    return;
+  const dataDir = resolveDataDir();
+  if (!dataDir) {
+    console.error('Geo dataset files (countries.json, states.json, cities.json) not found in candidate directories!');
+    process.exit(1);
   }
+
+  console.log(`Using geo dataset directory: ${dataDir}`);
+
+  const countriesPath = path.join(dataDir, 'countries.json');
+  const statesPath = path.join(dataDir, 'states.json');
+  const citiesPath = path.join(dataDir, 'cities.json');
 
   const rawCountries = JSON.parse(fs.readFileSync(countriesPath, 'utf8'));
   const rawStates = JSON.parse(fs.readFileSync(statesPath, 'utf8'));
@@ -89,8 +98,25 @@ async function main() {
     });
   }
 
+  // Update PostgreSQL sequence counters
+  try {
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('countries', 'id'), COALESCE(MAX(id), 1)) FROM countries;`
+    );
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('states', 'id'), COALESCE(MAX(id), 1)) FROM states;`
+    );
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('cities', 'id'), COALESCE(MAX(id), 1)) FROM cities;`
+    );
+  } catch (seqErr) {
+    console.warn('Could not reset sequence values (non-critical):', seqErr);
+  }
+
+  const countryCount = await prisma.country.count();
+  const stateCount = await prisma.state.count();
   const cityCount = await prisma.city.count();
-  console.log(`Seeding finished successfully! Total cities in DB: ${cityCount}`);
+  console.log(`Seeding finished successfully! DB counts: ${countryCount} countries, ${stateCount} states, ${cityCount} cities.`);
 }
 
 main()

@@ -90,10 +90,19 @@ docker compose up -d nginx
 ```
 
 Nginx will listen on:
-- **Port 80 (HTTP)**: Automatically redirects to `https://$host$request_uri` (301 Permanent Redirect) and handles ACME challenge renewals (`/.well-known/acme-challenge/`).
-- **Port 443 (HTTPS)**: Proxies all API and WebSocket traffic with HTTP/2 and modern TLS protocols (`TLSv1.2 TLSv1.3`).
+- **Port 80 (HTTP)**: Handles ACME challenges (`/.well-known/acme-challenge/`) and domain routing.
+- **Port 443 (HTTPS)**: Proxies traffic with HTTP/2 and modern TLS protocols:
+  - `api-datemate.testdevvvv.site`: Reverse proxies to DateMate Backend (NestJS, port 2020).
+  - `dl-datemate.testdevvvv.site`: Reverse proxies to DateMate Downloads Server (Docker container, port 5454) with streaming buffering disabled for high-throughput geographic file downloads.
 
-### 4.3 Production SSL with Let's Encrypt / Certbot
+### 4.3 Geographic Database Seeding
+To populate `countries`, `states`, and `cities` for location validation matching the download service:
+```bash
+npx ts-node prisma/seed-geo.ts
+```
+This reads `countries.json`, `states.json`, and `cities.json` and seeds 250 countries, 5,308 states, and 152,970 cities into PostgreSQL.
+
+### 4.4 Production SSL with Let's Encrypt / Certbot
 In production, obtain certificates for your domain:
 ```bash
 certbot certonly --webroot -w /var/www/certbot \

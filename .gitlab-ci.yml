@@ -40,7 +40,7 @@ deploy:
   script:
     - |
       TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
-      ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
         cd $TARGET_DIR
         echo '===> Pulling latest code...'

@@ -1,4 +1,4 @@
-import { ArgumentsHost, HttpException, HttpStatus, UnauthorizedException } from "@nestjs/common";
+import { ArgumentsHost, HttpException, HttpStatus, Logger, UnauthorizedException } from "@nestjs/common";
 import {
   TokenExpiredError,
   JsonWebTokenError,
@@ -14,6 +14,9 @@ describe("AllExceptionsFilter", () => {
   let mockArgumentsHost: ArgumentsHost;
 
   beforeEach(() => {
+    jest.spyOn(Logger.prototype, "error").mockImplementation(() => {});
+    jest.spyOn(Logger.prototype, "warn").mockImplementation(() => {});
+
     filter = new AllExceptionsFilter();
 
     mockResponse = {
@@ -32,6 +35,10 @@ describe("AllExceptionsFilter", () => {
         getRequest: () => mockRequest,
       }),
     } as unknown as ArgumentsHost;
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it("should catch TokenExpiredError and return 401 with Access token has expired", () => {

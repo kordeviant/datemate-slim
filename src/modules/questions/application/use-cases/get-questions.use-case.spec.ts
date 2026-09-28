@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { GetQuestionsUseCase } from './get-questions.use-case';
 import { IQuestionRepository } from '../../domain/repositories/question.repository.interface';
 import { QuestionEntity } from '../../domain/question.entity';
@@ -32,6 +33,8 @@ describe('GetQuestionsUseCase', () => {
   ];
 
   beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+
     mockRepo = {
       findAll: jest.fn().mockResolvedValue(sampleQuestions),
       findByType: jest.fn().mockResolvedValue(sampleQuestions),

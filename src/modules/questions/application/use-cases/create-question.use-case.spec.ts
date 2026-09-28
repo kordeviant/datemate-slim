@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { CreateQuestionUseCase } from './create-question.use-case';
 import { IQuestionRepository } from '../../domain/repositories/question.repository.interface';
 import { CreateQuestionDto } from '../dtos/create-question.dto';
@@ -8,6 +8,8 @@ describe('CreateQuestionUseCase', () => {
   let mockRepo: jest.Mocked<IQuestionRepository>;
 
   beforeEach(() => {
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+
     mockRepo = {
       findAll: jest.fn(),
       findByType: jest.fn(),

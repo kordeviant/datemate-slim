@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
 import { AppleAuthService } from './apple-auth.service';
 import appleSignin from 'apple-signin-auth';
 
@@ -21,6 +21,9 @@ describe('AppleAuthService', () => {
   let mockConfigService: any;
 
   beforeEach(async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
     mockConfigService = {
       get: jest.fn(),
     };

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { NodemailerService } from './nodemailer.service';
 import * as nodemailer from 'nodemailer';
 
@@ -10,6 +11,9 @@ describe('NodemailerService', () => {
   let mockTransporter: { sendMail: jest.Mock };
 
   beforeEach(async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+
     mockTransporter = {
       sendMail: jest.fn().mockResolvedValue({ messageId: 'test-id' }),
     };

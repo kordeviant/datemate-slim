@@ -76,6 +76,9 @@ deploy:
         echo '===> Running database migrations...'
         npx prisma migrate deploy
 
+        echo '===> Seeding questions...'
+        npx ts-node prisma/seed-questions.ts
+
         echo '===> Building project...'
         npm run build
 

@@ -62,7 +62,6 @@ export class UpdateProfileUseCase {
       );
       avatarUrl = processedAvatar.relativeUrl;
     } else {
-      const initialProfileNested = dto.Profile ?? (dto as any)?.profile;
       const initialDataObj =
         dto.data && typeof dto.data === 'object'
           ? dto.data
@@ -75,10 +74,17 @@ export class UpdateProfileUseCase {
               }
             })()
             : {};
+      const initialProfileNested =
+        dto.Profile ??
+        (dto as any)?.profile ??
+        initialDataObj?.Profile ??
+        initialDataObj?.profile;
       const candidateAvatar =
         initialProfileNested?.avatar ??
         dto.avatar ??
-        initialDataObj?.avatar;
+        initialDataObj?.avatar ??
+        initialDataObj?.Profile?.avatar ??
+        initialDataObj?.profile?.avatar;
       if (typeof candidateAvatar === 'string' && candidateAvatar.trim().length > 0) {
         avatarUrl = candidateAvatar.trim();
       }
@@ -95,17 +101,6 @@ export class UpdateProfileUseCase {
     }
 
     // Extract fields from the new Android-matching DTO schema, flat fallbacks, and data payload
-    const profileNested = dto.Profile ?? (dto as any)?.profile;
-    const demographic =
-      profileNested?.Demographic ??
-      (profileNested as any)?.demographic ??
-      dto.Demographic ??
-      (dto as any)?.demographic;
-    const preferences =
-      profileNested?.Preferences ??
-      (profileNested as any)?.preferences ??
-      dto.Preferences ??
-      (dto as any)?.preferences;
     const dataObj =
       dto.data && typeof dto.data === 'object'
         ? dto.data
@@ -119,6 +114,36 @@ export class UpdateProfileUseCase {
           })()
           : {};
 
+    const profileNested =
+      dto.Profile ??
+      (dto as any)?.profile ??
+      dataObj?.Profile ??
+      dataObj?.profile;
+
+    const demographic =
+      profileNested?.Demographic ??
+      (profileNested as any)?.demographic ??
+      dto.Demographic ??
+      (dto as any)?.demographic ??
+      dataObj?.Demographic ??
+      dataObj?.demographic ??
+      dataObj?.Profile?.Demographic ??
+      dataObj?.Profile?.demographic ??
+      dataObj?.profile?.Demographic ??
+      dataObj?.profile?.demographic;
+
+    const preferences =
+      profileNested?.Preferences ??
+      (profileNested as any)?.preferences ??
+      dto.Preferences ??
+      (dto as any)?.preferences ??
+      dataObj?.Preferences ??
+      dataObj?.preferences ??
+      dataObj?.Profile?.Preferences ??
+      dataObj?.Profile?.preferences ??
+      dataObj?.profile?.Preferences ??
+      dataObj?.profile?.preferences;
+
     const candidateFullNameInput =
       profileNested?.fullName !== undefined
         ? profileNested.fullName
@@ -130,12 +155,22 @@ export class UpdateProfileUseCase {
               ? (dto as any).firstName
               : dataObj?.fullName !== undefined
                 ? dataObj.fullName
-                : dataObj?.firstName;
+                : dataObj?.firstName !== undefined
+                  ? dataObj.firstName
+                  : dataObj?.Profile?.fullName !== undefined
+                    ? dataObj.Profile.fullName
+                    : dataObj?.profile?.fullName !== undefined
+                      ? dataObj.profile.fullName
+                      : dataObj?.Profile?.firstName !== undefined
+                        ? dataObj.Profile.firstName
+                        : dataObj?.profile?.firstName;
 
     const candidateUsernameInput =
       profileNested?.username ??
       dto.username ??
-      dataObj?.username;
+      dataObj?.username ??
+      dataObj?.Profile?.username ??
+      dataObj?.profile?.username;
 
     const candidateBirthDateInput =
       demographic?.birthDate ??
@@ -153,35 +188,54 @@ export class UpdateProfileUseCase {
       dataObj?.Demographic?.birth_date ??
       dataObj?.demographic?.birthDate ??
       dataObj?.demographic?.date ??
-      dataObj?.demographic?.birth_date;
+      dataObj?.demographic?.birth_date ??
+      dataObj?.Profile?.Demographic?.birthDate ??
+      dataObj?.Profile?.demographic?.birthDate ??
+      dataObj?.profile?.Demographic?.birthDate ??
+      dataObj?.profile?.demographic?.birthDate;
 
     const candidateGenderInput =
       demographic?.gender ??
       dto.gender ??
       dataObj?.gender ??
       dataObj?.Demographic?.gender ??
-      dataObj?.demographic?.gender;
+      dataObj?.demographic?.gender ??
+      dataObj?.Profile?.Demographic?.gender ??
+      dataObj?.Profile?.demographic?.gender ??
+      dataObj?.profile?.Demographic?.gender ??
+      dataObj?.profile?.demographic?.gender;
 
     const candidatePhoneNumberInput =
       profileNested?.phoneNumber ??
       dto.phoneNumber ??
-      dataObj?.phoneNumber;
+      dataObj?.phoneNumber ??
+      dataObj?.Profile?.phoneNumber ??
+      dataObj?.profile?.phoneNumber;
 
     const candidateLanguageInput =
       dto.language ??
-      dataObj?.language;
+      profileNested?.language ??
+      dataObj?.language ??
+      dataObj?.Profile?.language ??
+      dataObj?.profile?.language;
 
     const candidateBioInput =
       profileNested?.bio ??
       dto.bio ??
-      dataObj?.bio;
+      dataObj?.bio ??
+      dataObj?.Profile?.bio ??
+      dataObj?.profile?.bio;
 
     const candidateHeightInput =
       demographic?.height ??
       dto.height ??
       dataObj?.height ??
       dataObj?.Demographic?.height ??
-      dataObj?.demographic?.height;
+      dataObj?.demographic?.height ??
+      dataObj?.Profile?.Demographic?.height ??
+      dataObj?.Profile?.demographic?.height ??
+      dataObj?.profile?.Demographic?.height ??
+      dataObj?.profile?.demographic?.height;
 
     const candidateEducationInput =
       demographic?.degree ??
@@ -191,7 +245,11 @@ export class UpdateProfileUseCase {
       dataObj?.degree ??
       dataObj?.education ??
       dataObj?.Demographic?.degree ??
-      dataObj?.demographic?.degree;
+      dataObj?.demographic?.degree ??
+      dataObj?.Profile?.Demographic?.degree ??
+      dataObj?.Profile?.demographic?.degree ??
+      dataObj?.profile?.Demographic?.degree ??
+      dataObj?.profile?.demographic?.degree;
 
     const candidateJobInput =
       demographic?.profession ??
@@ -201,12 +259,18 @@ export class UpdateProfileUseCase {
       dataObj?.profession ??
       dataObj?.job ??
       dataObj?.Demographic?.profession ??
-      dataObj?.demographic?.profession;
+      dataObj?.demographic?.profession ??
+      dataObj?.Profile?.Demographic?.profession ??
+      dataObj?.Profile?.demographic?.profession ??
+      dataObj?.profile?.Demographic?.profession ??
+      dataObj?.profile?.demographic?.profession;
 
     const candidateLanguagesInput =
       profileNested?.languages ??
       dto.languages ??
-      dataObj?.languages;
+      dataObj?.languages ??
+      dataObj?.Profile?.languages ??
+      dataObj?.profile?.languages;
 
     const candidateCityIdInput =
       demographic?.City?.id ??
@@ -220,26 +284,42 @@ export class UpdateProfileUseCase {
       dataObj?.Demographic?.City?.id ??
       dataObj?.Demographic?.cityId ??
       dataObj?.demographic?.City?.id ??
-      dataObj?.demographic?.cityId;
+      dataObj?.demographic?.cityId ??
+      dataObj?.Profile?.Demographic?.City?.id ??
+      dataObj?.Profile?.Demographic?.cityId ??
+      dataObj?.profile?.Demographic?.City?.id ??
+      dataObj?.profile?.Demographic?.cityId;
 
     const candidateLatitudeInput =
       dto.lat ??
       (dto as any)?.latitude ??
+      profileNested?.lat ??
+      profileNested?.latitude ??
       dataObj?.lat ??
-      dataObj?.latitude;
+      dataObj?.latitude ??
+      dataObj?.Profile?.lat ??
+      dataObj?.Profile?.latitude;
 
     const candidateLongitudeInput =
       dto.lon ??
       (dto as any)?.longitude ??
+      profileNested?.lon ??
+      profileNested?.longitude ??
       dataObj?.lon ??
-      dataObj?.longitude;
+      dataObj?.longitude ??
+      dataObj?.Profile?.lon ??
+      dataObj?.Profile?.longitude;
 
     const candidateRelationStatusInput =
       demographic?.relationStatus ??
       dto.relationStatus ??
       dataObj?.relationStatus ??
       dataObj?.Demographic?.relationStatus ??
-      dataObj?.demographic?.relationStatus;
+      dataObj?.demographic?.relationStatus ??
+      dataObj?.Profile?.Demographic?.relationStatus ??
+      dataObj?.Profile?.demographic?.relationStatus ??
+      dataObj?.profile?.Demographic?.relationStatus ??
+      dataObj?.profile?.demographic?.relationStatus;
 
     const candidateRelationInput =
       profileNested?.RelationType ??
@@ -256,7 +336,11 @@ export class UpdateProfileUseCase {
       dataObj?.Preferences?.relation ??
       dataObj?.Preferences?.RelationType ??
       dataObj?.preferences?.relation ??
-      dataObj?.preferences?.relationType;
+      dataObj?.preferences?.relationType ??
+      dataObj?.Profile?.RelationType ??
+      dataObj?.Profile?.relationType ??
+      dataObj?.Profile?.Preferences?.relation ??
+      dataObj?.profile?.RelationType;
 
     let candidateFavoritesInput: any =
       (profileNested as any)?.LikedActivities ??
@@ -276,12 +360,18 @@ export class UpdateProfileUseCase {
       dataObj?.interest ??
       dataObj?.interests ??
       dataObj?.Interest ??
-      dataObj?.favorites;
+      dataObj?.favorites ??
+      dataObj?.Profile?.LikedActivities ??
+      dataObj?.Profile?.likedActivities ??
+      dataObj?.Profile?.interests ??
+      dataObj?.Profile?.interest ??
+      dataObj?.profile?.LikedActivities ??
+      dataObj?.profile?.interests;
 
     if (typeof candidateFavoritesInput === 'string') {
       try {
         candidateFavoritesInput = JSON.parse(candidateFavoritesInput);
-      } catch {}
+      } catch { }
     }
 
     // Extract interest IDs from key-value map (like questions: { "1": [1, 2], "9": 72 } or { "1": 1 })
@@ -696,7 +786,11 @@ export class UpdateProfileUseCase {
         (profileNested as any)?.Answers ??
         (profileNested as any)?.answers ??
         dataObj?.Answers ??
-        dataObj?.answers;
+        dataObj?.answers ??
+        dataObj?.Profile?.Answers ??
+        dataObj?.Profile?.answers ??
+        dataObj?.profile?.Answers ??
+        dataObj?.profile?.answers;
 
       if (typeof rawAnswers === 'string') {
         try {

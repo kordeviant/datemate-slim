@@ -914,6 +914,61 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         '9': 72,
       });
     });
+
+    it("should update profile fullName, username, and Demographic when passed inside data.Profile (Android payload)", async () => {
+      mockPrisma.demographic.findUnique.mockResolvedValueOnce(null);
+      const res = await useCase.execute(1, {
+        data: {
+          Profile: {
+            fullName: "name4",
+            username: "user4",
+            Demographic: {
+              birthDate: "1998-11-25",
+              gender: "MALE",
+              height: 180,
+              degree: "BACHELOR",
+              profession: "Software Engineer",
+              relationStatus: "SINGLE",
+            },
+          },
+          language: "EN",
+          tempId: "2425d398-8cb3-4ac9-bf81-370b051c7c0c",
+        },
+      } as any);
+
+      expect(res.Profile.fullName).toBe("name4");
+      expect(res.Profile.username).toBe("user4");
+      expect(res.Profile.Demographic.gender).toBe("MALE");
+      expect(res.Profile.Demographic.birthDate).toBe("1998-11-25");
+      expect(res.Profile.Demographic.height).toBe(180);
+      expect(res.Profile.Demographic.degree).toBe("BACHELOR_DEGREE");
+      expect(res.Profile.Demographic.profession).toBe("Software Engineer");
+      expect(res.language).toBe("EN");
+    });
+
+    it("should update profile when passed as lowercase profile at root or inside data", async () => {
+      const res1 = await useCase.execute(1, {
+        profile: {
+          bio: "Direct lowercase profile bio",
+          fullName: "parsa",
+          username: "parsa_0",
+        },
+      } as any);
+      expect(res1.Profile.bio).toBe("Direct lowercase profile bio");
+      expect(res1.Profile.fullName).toBe("parsa");
+      expect(res1.Profile.username).toBe("parsa_0");
+
+      const res2 = await useCase.execute(1, {
+        data: {
+          profile: {
+            bio: "Nested lowercase profile bio",
+            fullName: "Nested Name",
+          },
+        },
+      } as any);
+      expect(res2.Profile.bio).toBe("Nested lowercase profile bio");
+      expect(res2.Profile.fullName).toBe("Nested Name");
+    });
   });
 });
 

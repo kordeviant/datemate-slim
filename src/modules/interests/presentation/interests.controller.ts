@@ -31,7 +31,10 @@ import {
 import { TokenService } from '../../auth/application/services/token.service';
 
 @ApiTags('Interests')
-@Controller({ path: ['interests', 'interest'], version: ['1', VERSION_NEUTRAL] })
+@Controller({
+  path: ['interests', 'interest', 'interst', 'intersts'],
+  version: ['1', VERSION_NEUTRAL],
+})
 export class InterestsController {
   constructor(
     private readonly getInterestsUseCase: GetInterestsUseCase,

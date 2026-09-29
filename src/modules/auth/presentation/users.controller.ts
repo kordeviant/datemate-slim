@@ -173,6 +173,8 @@ export class UsersController {
       }
     }
 
+    console.log("User with ID:", decoded.sub, "with data:", dto);
+
     return this.updateProfileUseCase.execute(
       decoded.sub,
       dto,

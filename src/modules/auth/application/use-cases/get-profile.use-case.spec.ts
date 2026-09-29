@@ -76,13 +76,15 @@ describe('GetProfileUseCase', () => {
           relationStatus: null,
           City: null,
         },
-        Preferences: {
-          relation: null,
-        },
+        RelationType: null,
         Answers: {},
+        interest: [],
+        interests: [],
+        LikedActivities: [],
       },
     });
   });
+
 
   it('should return birthDate as YYYY-MM-DD string, uppercase gender, and City with name/state/country', async () => {
     const birthDate = new Date('2000-01-15');

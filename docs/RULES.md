@@ -53,22 +53,37 @@ DateMate strictly verifies image files at the binary level using magic bytes to 
 
 | Rule | Requirement | Backend Enforcement |
 | :--- | :--- | :--- |
-| **Supported File Formats** | JPEG (`.jpg`, `.jpeg`), PNG (`.png`), WebP (`.webp`) | Magic bytes validated (`0xFFD8FF`, `0x89504E47`, `RIFF/WEBP`) |
-| **Prohibited Formats** | GIF, SVG, BMP, TIFF, HEIC, APK, EXE, ZIP, PDF | Strictly rejected with `400 Bad Request` |
-| **File Size Limits** | **Min**: 50 KB (51,200 bytes)<br>**Max**: 5 MB (5,242,880 bytes) | Files `< 50 KB` (too low quality) or `> 5 MB` rejected with `400 Bad Request` |
-| **Image Resolution** | **Min**: 300 × 300 px<br>**Max**: 4096 × 4096 px | Verified via image metadata; dimensions outside bounds rejected |
-| **Server Processing** | Auto-oriented via EXIF, resized to 1080 × 1080 px, converted to `.webp` at 85% quality | Sharp library strips GPS and device metadata |
-| **Multipart Field Names** | `avatar` for public profile picture<br>`selfie` for identity verification photo | Uploaded via `multipart/form-data` |
-| **User Gallery Limit** | Maximum 6 photos per user profile | Managed under UserGallery endpoints |
+| **Supported Formats by Asset Type** | **Icons**: SVG, PNG, WebP<br>**Images**: JPEG, PNG, WebP, GIF<br>**Avatars**: JPEG, PNG, WebP<br>**Audio**: MP3, OGG, WAV, WebM, AAC | Binary magic bytes validated per asset type rules |
+| **Prohibited Formats** | Scripts, Executables (APK, EXE, ZIP), Malicious SVG with scripts | Strictly rejected with `400 Bad Request` |
+| **File Size Limits by Type** | **Icons**: Max 2 MB<br>**Images**: Max 15 MB<br>**Avatars**: Min 10 KB, Max 10 MB<br>**Audio**: Max 20 MB | Files exceeding type bounds rejected with `400 Bad Request` |
+| **Server Processing** | Auto-oriented via EXIF, resized, WebP conversion, GPS metadata stripped | Sharp library cleans image metadata |
+| **Scalable Public Routes** | `/assets/icons/{filename}`<br>`/assets/images/{filename}`<br>`/assets/avatars/{filename}`<br>`/assets/{type}/{filename}` | Dynamic asset controller with ETag and immutable caching |
+| **Storage Independence** | Files stored on disk or S3/object storage by asset type; public URL generated dynamically via `baseUrl` | DB stores relative key; domain changes require zero DB migrations |
+| **Unique Safe Filenames** | `<assetType>_<uuidHex>_<timestamp>.<ext>` | URL-safe, collision-proof, path-traversal protected |
+
+### Scalable Media Upload & Public Asset System
+- **Public URL Resolution (`baseUrl`)**:
+  - The public asset URL is never hardcoded in the database.
+  - The server reads `ASSET_BASE_URL` (or fallback `MEDIA_BASE_URL` / `APP_BASE_URL`) from environment configuration.
+  - Changing domains or switching to a CDN (e.g. `https://cdn.datemate.com`) is achieved simply by updating `ASSET_BASE_URL` in `.env` without modifying stored database records.
+- **Upload Endpoints**:
+  - `POST /media/upload/:type` (and `/assets/upload/:type`): Upload by asset type parameter (`icons`, `images`, `avatars`).
+  - Specialized endpoints: `POST /media/upload/icons`, `POST /media/upload/images`, `POST /media/upload/avatars`.
+  - Returns `MediaUploadResponseDto` containing `filename`, `assetType`, full `publicUrl` (resolved with `baseUrl`), `relativePath`, and `sizeBytes`.
+- **Public Asset Serving**:
+  - `GET /assets/icons/{filename}`
+  - `GET /assets/images/{filename}`
+  - `GET /assets/avatars/{filename}`
+  - `GET /assets/{type}/{filename}` (extensible to any future asset types like `banners`, `audio`, `documents`).
+  - High-performance caching: `Cache-Control: public, max-age=31536000, immutable`, `ETag` conditional `304 Not Modified`.
 
 ### Avatar vs. Selfie Distinction
 - **`avatar` (Public Profile Picture)**:
   - Displayed publicly to other users in match feeds and profile cards.
-  - Stored in `/uploads/avatars/avatar_<userId>_<timestamp>.webp`.
-  - Returned in profile responses as `Profile.avatar: string`.
+  - Returned in profile responses as full public URL: `Profile.avatar: string` (e.g. `http://localhost:3000/assets/avatars/avatar_1.webp`).
 - **`selfie` (Private Verification Photo)**:
   - Used **strictly by human administrators** to verify the user identity against the avatar photo.
-  - Stored in `/uploads/selfies/selfie_<userId>_<timestamp>.webp`.
+  - Stored privately in `/uploads/selfies/selfie_<userId>_<timestamp>.webp` or S3 bucket.
   - **CRITICAL CLIENT INVARIANT**: The server **never returns the selfie URL** in any profile response (`Profile.selfie` is not returned: *this will not use still, only client should send*). The client sends the selfie photo during onboarding/edit, but does not receive or render it back.
 
 ---
@@ -412,3 +427,38 @@ interface ResponseResult<T> {
 | **`404 Not Found`** | Resource missing | Requested entity does not exist |
 | **`409 Conflict`** | Resource already exists | Username or email already registered |
 | **`500 Server Error`** | Internal error | Unhandled server exception |
+
+---
+
+## 13. Interests & Activities (`/interests`, `Profile.interest`)
+
+### 13.1 Client Category Model
+Each category in `GET /interests` (and `GET /interest`) matches the Android client schema:
+```json
+{
+  "id": 1,
+  "en": "Food",
+  "fa": "غذا",
+  "icon": {
+    "type": "IMAGE",
+    "url": "http://localhost:3000/assets/icons/Beach%20With%20Umbrella.svg",
+    "alt": ""
+  },
+  "Interest": [
+    {
+      "id": 1,
+      "en": "Gaming",
+      "fa": "بازی",
+      "icon": null
+    }
+  ]
+}
+```
+
+### 13.2 Updating User Interests
+Clients can submit selected interests in `PUT /users/me` or `POST /users/profile` using any of:
+- `interest`: array of category objects (`[ { "id": 1, "Interest": [ { "id": 1 } ] } ]`), array of interest objects (`[ { "id": 1 } ]`), or array of IDs (`[1, 2]`)
+- `interests`: alias for `interest`
+- `LikedActivities`: backwards-compatible alias
+- `favorites`: backwards-compatible alias
+

@@ -5,6 +5,8 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { MailModule } from './infrastructure/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { QuestionsModule } from './modules/questions/questions.module';
+import { MediaModule } from './modules/media/media.module';
+import { InterestsModule } from './modules/interests/interests.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -19,6 +21,8 @@ import { AppService } from './app.service';
     MailModule,
     AuthModule,
     QuestionsModule,
+    MediaModule,
+    InterestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

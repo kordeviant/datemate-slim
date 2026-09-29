@@ -35,8 +35,8 @@ export class CreateQuestionUseCase {
       }
     }
 
-    const enName = (dto.enName || dto.nameEn)?.trim();
-    const faName = (dto.faName || dto.nameFa)?.trim();
+    const enName = dto.enName?.trim();
+    const faName = dto.faName?.trim();
     if (!enName || !faName) {
       throw new BadRequestException(
         'Question must have both English (enName) and Farsi (faName) text',
@@ -46,8 +46,10 @@ export class CreateQuestionUseCase {
     const question = await this.questionRepo.create({
       type: dto.type,
       answerType: dto.answerType || 'SINGLE',
-      nameEn: enName,
-      nameFa: faName,
+      enName,
+      faName,
+      icon: dto.icon,
+      iconAlt: dto.iconAlt || dto.alt || undefined,
       answers: dto.answers.map((a) => ({
         answerEn: (a.enAnswer || a.answerEn)!.trim(),
         answerFa: (a.faAnswer || a.answerFa)!.trim(),
@@ -55,7 +57,7 @@ export class CreateQuestionUseCase {
     });
 
     this.logger.log(
-      `[Create Question] Created question #${question.id} (type=${question.type}, en="${question.nameEn}")`,
+      `[Create Question] Created question #${question.id} (type=${question.type}, en="${question.enName}")`,
     );
 
     return question;

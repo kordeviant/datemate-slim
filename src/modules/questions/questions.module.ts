@@ -5,9 +5,10 @@ import { CreateQuestionUseCase } from './application/use-cases/create-question.u
 import { QUESTION_REPOSITORY } from './domain/repositories/question.repository.interface';
 import { PrismaQuestionRepository } from './infrastructure/repositories/prisma-question.repository';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from '../media/media.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, MediaModule],
   controllers: [QuestionsController],
   providers: [
     // Repository (DIP)

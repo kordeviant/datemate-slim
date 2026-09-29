@@ -23,8 +23,8 @@ describe('QuestionsController', () => {
       execute: jest.fn().mockResolvedValue({
         id: 1,
         type: 'PERSONALITY',
-        nameEn: 'Test?',
-        nameFa: 'تست؟',
+        enName: 'Test?',
+        faName: 'تست؟',
         answers: [],
       }),
     } as any;
@@ -47,89 +47,58 @@ describe('QuestionsController', () => {
   describe('GET /questions', () => {
     it('should return questions with id, type, and language filters', async () => {
       const result = await controller.getQuestions(
-        'Bearer valid-token',
         '1',
         'PERSONALITY',
         'en',
       );
 
-      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
       expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PERSONALITY', 'en', 1);
       expect(result.questions).toHaveLength(1);
     });
 
     it('should call execute without filters when not provided', async () => {
-      await controller.getQuestions('Bearer valid-token');
+      await controller.getQuestions();
 
       expect(getQuestionsUseCase.execute).toHaveBeenCalledWith(undefined, undefined, undefined);
     });
 
     it('should throw BadRequestException when id query is not a valid number', async () => {
       await expect(
-        controller.getQuestions('Bearer valid-token', 'invalid-id'),
+        controller.getQuestions('invalid-id'),
       ).rejects.toThrow('Query parameter "id" must be a valid number');
-    });
-
-    it('should throw UnauthorizedException when no auth header', async () => {
-      await expect(
-        controller.getQuestions(''),
-      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('GET /questions/:id', () => {
     it('should return question by id', async () => {
-      const result = await controller.getQuestionById('Bearer valid-token', 1, 'fa');
+      const result = await controller.getQuestionById(1, 'fa');
 
-      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
       expect(getQuestionsUseCase.execute).toHaveBeenCalledWith(undefined, 'fa', 1);
       expect(result.questions).toHaveLength(1);
-    });
-
-    it('should throw UnauthorizedException when no auth header', async () => {
-      await expect(
-        controller.getQuestionById('', 1),
-      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('GET /questions/search', () => {
     it('should search questions by type and language', async () => {
       const result = await controller.searchQuestionsByType(
-        'Bearer valid-token',
         'PREFERENCES',
         'fa',
       );
 
-      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
       expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PREFERENCES', 'fa');
       expect(result.questions).toHaveLength(1);
-    });
-
-    it('should throw UnauthorizedException when no auth header', async () => {
-      await expect(
-        controller.searchQuestionsByType('', 'PREFERENCES'),
-      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('GET /questions/type/:type', () => {
     it('should get questions by type param', async () => {
       const result = await controller.getQuestionsByType(
-        'Bearer valid-token',
         'PREFERENCES',
         'en',
       );
 
-      expect(tokenService.verifyAccessToken).toHaveBeenCalledWith('valid-token');
       expect(getQuestionsUseCase.execute).toHaveBeenCalledWith('PREFERENCES', 'en');
       expect(result.questions).toHaveLength(1);
-    });
-
-    it('should throw UnauthorizedException when no auth header', async () => {
-      await expect(
-        controller.getQuestionsByType('', 'PREFERENCES'),
-      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -137,8 +106,8 @@ describe('QuestionsController', () => {
     it('should create a question when user is admin', async () => {
       const dto = {
         type: 'PERSONALITY',
-        nameEn: 'Test?',
-        nameFa: 'تست؟',
+        enName: 'Test?',
+        faName: 'تست؟',
         answers: [{ answerEn: 'Yes', answerFa: 'بله' }],
       };
 
@@ -158,8 +127,8 @@ describe('QuestionsController', () => {
       await expect(
         controller.createQuestion('Bearer valid-token', {
           type: 'PERSONALITY',
-          nameEn: 'Test?',
-          nameFa: 'تست؟',
+          enName: 'Test?',
+          faName: 'تست؟',
           answers: [{ answerEn: 'Yes', answerFa: 'بله' }],
         }),
       ).rejects.toThrow(UnauthorizedException);
@@ -169,8 +138,8 @@ describe('QuestionsController', () => {
       await expect(
         controller.createQuestion('', {
           type: 'PERSONALITY',
-          nameEn: 'Test?',
-          nameFa: 'تست؟',
+          enName: 'Test?',
+          faName: 'تست؟',
           answers: [{ answerEn: 'Yes', answerFa: 'بله' }],
         }),
       ).rejects.toThrow(UnauthorizedException);

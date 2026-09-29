@@ -242,21 +242,40 @@ export class UpdateProfileUseCase {
       dataObj?.demographic?.relationStatus;
 
     const candidateRelationInput =
+      profileNested?.RelationType ??
+      (profileNested as any)?.relationType ??
+      dto.RelationType ??
+      (dto as any)?.relationType ??
       preferences?.relation ??
+      (preferences as any)?.RelationType ??
+      (preferences as any)?.relationType ??
       dto.relation ??
+      dataObj?.RelationType ??
+      dataObj?.relationType ??
       dataObj?.relation ??
       dataObj?.Preferences?.relation ??
-      dataObj?.preferences?.relation;
+      dataObj?.Preferences?.RelationType ??
+      dataObj?.preferences?.relation ??
+      dataObj?.preferences?.relationType;
 
     let candidateFavoritesInput: any[] | undefined =
+      (profileNested as any)?.interest ??
+      (profileNested as any)?.interests ??
+      (profileNested as any)?.Interest ??
       (profileNested as any)?.LikedActivities ??
       (profileNested as any)?.favorites ??
+      dto.interest ??
+      dto.interests ??
+      (dto as any)?.Interest ??
       dto.LikedActivities ??
       dto.favorites ??
+      dataObj?.interest ??
+      dataObj?.interests ??
+      dataObj?.Interest ??
       dataObj?.LikedActivities ??
       dataObj?.favorites;
 
-    // Extract interest IDs from LikedActivities category structure
+    // Extract interest IDs from category structure or interest lists
     if (
       candidateFavoritesInput &&
       Array.isArray(candidateFavoritesInput) &&
@@ -265,13 +284,14 @@ export class UpdateProfileUseCase {
       candidateFavoritesInput[0] !== null
     ) {
       const hasInterestArrays = candidateFavoritesInput.some(
-        (cat: any) => Array.isArray(cat?.Interest),
+        (cat: any) => Array.isArray(cat?.Interest) || Array.isArray(cat?.interests),
       );
       if (hasInterestArrays) {
         const extractedIds: number[] = [];
         for (const cat of candidateFavoritesInput) {
-          if (Array.isArray(cat?.Interest)) {
-            for (const item of cat.Interest) {
+          const list = cat?.Interest || cat?.interests;
+          if (Array.isArray(list)) {
+            for (const item of list) {
               if (typeof item?.id === 'number') extractedIds.push(item.id);
             }
           } else if (typeof cat?.id === 'number') {
@@ -279,8 +299,11 @@ export class UpdateProfileUseCase {
           }
         }
         candidateFavoritesInput = extractedIds;
+      } else if (candidateFavoritesInput.every((item: any) => typeof item?.id === 'number')) {
+        candidateFavoritesInput = candidateFavoritesInput.map((item: any) => item.id);
       }
     }
+
 
     // 5. Full name (preserves existing if omitted or sent as empty string)
     let cleanFullName: string =
@@ -437,7 +460,9 @@ export class UpdateProfileUseCase {
 
     // 16. Kind of Relationship (Preferences)
     let cleanRelationType: RelationType | null =
-      existingPreferences?.relation ?? null;
+      (existingProfile as any)?.relationType ??
+      existingPreferences?.relation ??
+      null;
     if (candidateRelationInput !== undefined && candidateRelationInput !== null) {
       const normalized = normalizeRelationType(candidateRelationInput);
       if (normalized) {
@@ -516,6 +541,7 @@ export class UpdateProfileUseCase {
           selfieUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
+          ...(cleanRelationType !== undefined ? { relationType: cleanRelationType } : {}),
         } as any,
         update: {
           fullName: cleanFullName,
@@ -527,6 +553,7 @@ export class UpdateProfileUseCase {
           selfieUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
+          ...(cleanRelationType !== undefined ? { relationType: cleanRelationType } : {}),
         } as any,
       });
 
@@ -911,9 +938,7 @@ export class UpdateProfileUseCase {
           relationStatus: cleanRelationStatus,
           City: cityObj,
         },
-        Preferences: {
-          relation: cleanRelationType,
-        },
+        RelationType: cleanRelationType,
         Answers: answersMap,
       },
     };

@@ -18,8 +18,8 @@ describe('CreateQuestionUseCase', () => {
         id: 1,
         type: data.type,
         answerType: data.answerType || 'SINGLE',
-        nameEn: data.nameEn,
-        nameFa: data.nameFa,
+        enName: data.enName || data.nameEn,
+        faName: data.faName || data.nameFa,
         answers: data.answers.map((a: any, i: number) => ({
           id: i + 1,
           questionId: 1,
@@ -37,8 +37,8 @@ describe('CreateQuestionUseCase', () => {
   it('should create a question with bilingual content', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: 'What makes you happy?',
-      nameFa: 'چه چیزی شما را خوشحال می‌کند؟',
+      enName: 'What makes you happy?',
+      faName: 'چه چیزی شما را خوشحال می‌کند؟',
       answers: [
         { answerEn: 'Spending time outdoors', answerFa: 'گذراندن وقت در فضای باز' },
         { answerEn: 'Reading books', answerFa: 'خواندن کتاب' },
@@ -50,8 +50,8 @@ describe('CreateQuestionUseCase', () => {
     expect(mockRepo.create).toHaveBeenCalledWith({
       type: 'PERSONALITY',
       answerType: 'SINGLE',
-      nameEn: 'What makes you happy?',
-      nameFa: 'چه چیزی شما را خوشحال می‌کند؟',
+      enName: 'What makes you happy?',
+      faName: 'چه چیزی شما را خوشحال می‌کند؟',
       answers: [
         { answerEn: 'Spending time outdoors', answerFa: 'گذراندن وقت در فضای باز' },
         { answerEn: 'Reading books', answerFa: 'خواندن کتاب' },
@@ -78,8 +78,8 @@ describe('CreateQuestionUseCase', () => {
     expect(mockRepo.create).toHaveBeenCalledWith({
       type: 'PREFERENCES',
       answerType: 'SINGLE',
-      nameEn: 'What is your communication style?',
-      nameFa: 'سبک ارتباطی شما چگونه است؟',
+      enName: 'What is your communication style?',
+      faName: 'سبک ارتباطی شما چگونه است؟',
       answers: [
         { answerEn: 'Direct and honest', answerFa: 'مستقیم و صادقانه' },
         { answerEn: 'Thoughtful and gentle', answerFa: 'سنجیده و ملایم' },
@@ -92,8 +92,8 @@ describe('CreateQuestionUseCase', () => {
   it('should throw BadRequestException when answers array is empty', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: 'Test?',
-      nameFa: 'تست؟',
+      enName: 'Test?',
+      faName: 'تست؟',
       answers: [],
     };
 
@@ -104,8 +104,8 @@ describe('CreateQuestionUseCase', () => {
   it('should throw BadRequestException when answer is missing English text', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: 'Test?',
-      nameFa: 'تست؟',
+      enName: 'Test?',
+      faName: 'تست؟',
       answers: [
         { answerEn: '', answerFa: 'پاسخ فارسی' },
       ],
@@ -120,8 +120,8 @@ describe('CreateQuestionUseCase', () => {
   it('should throw BadRequestException when answer is missing Farsi text', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: 'Test?',
-      nameFa: 'تست؟',
+      enName: 'Test?',
+      faName: 'تست؟',
       answers: [
         { enAnswer: 'English answer', faAnswer: '' },
       ],
@@ -146,11 +146,11 @@ describe('CreateQuestionUseCase', () => {
     );
   });
 
-  it('should throw BadRequestException when question nameFa is missing', async () => {
+  it('should throw BadRequestException when question faName is missing', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: 'Test?',
-      nameFa: '',
+      enName: 'Test?',
+      faName: '',
       answers: [
         { answerEn: 'Answer', answerFa: 'پاسخ' },
       ],
@@ -162,8 +162,8 @@ describe('CreateQuestionUseCase', () => {
   it('should trim whitespace from question and answer texts', async () => {
     const dto: CreateQuestionDto = {
       type: 'PERSONALITY',
-      nameEn: '  Spaced question?  ',
-      nameFa: '  سوال با فاصله؟  ',
+      enName: '  Spaced question?  ',
+      faName: '  سوال با فاصله؟  ',
       answers: [
         { answerEn: '  Spaced answer  ', answerFa: '  پاسخ با فاصله  ' },
       ],
@@ -173,8 +173,8 @@ describe('CreateQuestionUseCase', () => {
 
     expect(mockRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        nameEn: 'Spaced question?',
-        nameFa: 'سوال با فاصله؟',
+        enName: 'Spaced question?',
+        faName: 'سوال با فاصله؟',
         answers: [{ answerEn: 'Spaced answer', answerFa: 'پاسخ با فاصله' }],
       }),
     );

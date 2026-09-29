@@ -464,4 +464,139 @@ interface ResponseResult<T> {
   - `download`: Pass `1` to download `DateMate-RULES.md`.
 - **Success Response (200 OK)**: Formatted HTML, raw Markdown, or JSON wrapped in standard envelope.
 
+---
+
+## 5. Media & Asset Management API (`/media` & `/assets`)
+
+### 5.1 Upload Media Asset
+- **Method**: `POST`
+- **Path**: `/v1/media/upload/:type` or `/assets/upload/:type`
+- **Asset Types**: `icons`, `images`, `avatars`, `banners`, `audio`, `documents`
+- **Consumes**: `multipart/form-data` (`file`)
+- **Dedicated Shortcuts**:
+  - `POST /v1/media/upload/icons`
+  - `POST /v1/media/upload/images`
+  - `POST /v1/media/upload/avatars`
+- **Success Response (201 Created)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Operation successful",
+    "data": {
+      "filename": "icons_c74384e0323b417187274a6c6c7b9ec3_1727599000000.svg",
+      "assetType": "icons",
+      "publicUrl": "http://localhost:3000/assets/icons/icons_c74384e0323b417187274a6c6c7b9ec3_1727599000000.svg",
+      "relativePath": "icons/icons_c74384e0323b417187274a6c6c7b9ec3_1727599000000.svg",
+      "mimeType": "image/svg+xml",
+      "sizeBytes": 2458,
+      "createdAt": "2026-09-29T11:45:00.000Z"
+    },
+    "error": null
+  }
+  ```
+
+### 5.2 Retrieve Public Assets
+- **Method**: `GET`
+- **Paths**:
+  - `/assets/icons/:filename`
+  - `/assets/images/:filename`
+  - `/assets/avatars/:filename`
+  - `/assets/:type/:filename`
+- **Description**: Streams the binary asset with high-performance caching headers (`Cache-Control: public, max-age=31536000, immutable`), ETag validation, and `304 Not Modified` conditional support.
+- **Success Response (200 OK)**: Binary media content with appropriate `Content-Type`.
+
+### 5.3 Get Supported Asset Types & Rules
+- **Method**: `GET`
+- **Path**: `/v1/media/types` or `/media/types`
+- **Description**: Returns all currently registered asset types, supported MIME types, and file size limits.
+
+---
+
+## 6. Interests Endpoints (`/v1/interests`, `/interests`, `/v1/interest`, `/interest`)
+
+### 6.1 Get All Interest Categories & Interests
+- **Method**: `GET`
+- **Path**: `/v1/interests` (or `/interests`, `/v1/interest`, `/interest`)
+- **Query Parameters**:
+  - `language` *(optional)*: `'en'` or `'fa'`.
+  - `id` *(optional)*: Category ID filter.
+- **Headers**: None (Public)
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Operation successful",
+    "data": [
+      {
+        "id": 1,
+        "en": "Food",
+        "fa": "غذا",
+        "icon": {
+          "type": "IMAGE",
+          "url": "http://localhost:3000/assets/icons/Beach%20With%20Umbrella.svg",
+          "alt": ""
+        },
+        "Interest": [
+          {
+            "id": 1,
+            "en": "Gaming",
+            "fa": "بازی",
+            "icon": null
+          },
+          {
+            "id": 2,
+            "en": "Camping",
+            "fa": "کمپینگ",
+            "icon": null
+          },
+          {
+            "id": 3,
+            "en": "Movies",
+            "fa": "فیلم",
+            "icon": null
+          },
+          {
+            "id": 4,
+            "en": "Nature",
+            "fa": "طبیعت",
+            "icon": null
+          },
+          {
+            "id": 5,
+            "en": "Studying",
+            "fa": "مطالعه",
+            "icon": null
+          }
+        ]
+      }
+    ],
+    "error": null
+  }
+  ```
+
+### 6.2 Get Single Interest Category by ID
+- **Method**: `GET`
+- **Path**: `/v1/interests/:id` (or `/interests/:id`)
+- **Path Parameter**: `id` (integer)
+- **Headers**: None (Public)
+
+### 6.3 Create Interest Category (Admin Only)
+- **Method**: `POST`
+- **Path**: `/v1/interests` (or `/interests`)
+- **Headers**: `Authorization: Bearer <adminAccessToken>`
+- **Request Body**:
+  ```json
+  {
+    "en": "Food",
+    "fa": "غذا",
+    "icon": "icons/Beach With Umbrella.svg",
+    "Interest": [
+      { "en": "Gaming", "fa": "بازی" },
+      { "en": "Camping", "fa": "کمپینگ" }
+    ]
+  }
+  ```
+
+
+
 

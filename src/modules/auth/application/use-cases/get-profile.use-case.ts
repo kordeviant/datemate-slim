@@ -1,12 +1,16 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { ProfileResponseDto } from '../dtos/profile-response.dto';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 
 @Injectable()
 export class GetProfileUseCase {
   private readonly logger = new Logger(GetProfileUseCase.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly mediaUrlResolver?: MediaUrlResolverService,
+  ) { }
 
   async execute(userId: number): Promise<ProfileResponseDto> {
     const user = await this.prisma.user.findUnique({
@@ -110,7 +114,9 @@ export class GetProfileUseCase {
       demographic?.relationStatus
     );
 
-    const hasPreferences = !!preferences?.relation;
+    const relationType =
+      (profile as any)?.relationType || preferences?.relation || null;
+    const hasPreferences = !!relationType;
 
     const answeredQuestionIds = new Set(
       user.questionAnswers?.map((uqa) => uqa.questionAnswer.questionId) || [],
@@ -183,6 +189,23 @@ export class GetProfileUseCase {
       `[Profile Retrieved] User ${userId} profile retrieved. Completed status: ${profileCompleted}`,
     );
 
+    const userInterests =
+      (user as any).interests?.map((ui: any) => ({
+        id: ui.interest?.id ?? ui.interestId,
+        en: ui.interest?.nameEn ?? '',
+        fa: ui.interest?.nameFa ?? '',
+        categoryId: ui.interest?.categoryId ?? null,
+        icon: ui.interest?.media
+          ? {
+              type: 'IMAGE',
+              url: this.mediaUrlResolver
+                ? this.mediaUrlResolver.resolveUrl(ui.interest.media)
+                : ui.interest.media,
+              alt: ui.interest?.nameEn ?? '',
+            }
+          : null,
+      })) || [];
+
     return {
       id: user.id,
       email: user.email,
@@ -196,7 +219,9 @@ export class GetProfileUseCase {
         phoneNumber: cleanPhoneNumber,
         bio: cleanBio,
         languages: cleanLanguages,
-        avatar: avatarUrl,
+        avatar: this.mediaUrlResolver
+          ? this.mediaUrlResolver.resolveUrl(avatarUrl)
+          : avatarUrl,
         // selfie url: this will not use still, only client should send
         profileCompleted,
         Demographic: {
@@ -208,11 +233,13 @@ export class GetProfileUseCase {
           relationStatus: demographic?.relationStatus || null,
           City: cityObj,
         },
-        Preferences: {
-          relation: preferences?.relation || null,
-        },
+        RelationType: relationType,
         Answers: answersMap,
+        interest: userInterests,
+        interests: userInterests,
+        LikedActivities: userInterests,
       },
     };
   }
 }
+

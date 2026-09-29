@@ -11,9 +11,11 @@ export interface QuestionEntity {
   id: number;
   type: string;
   answerType: string;
-  nameEn: string;
-  nameFa: string;
-  enName?: string;
-  faName?: string;
+  enName: string;
+  faName: string;
+  nameEn?: string;
+  nameFa?: string;
+  icon?: string | null;
+  iconAlt?: string | null;
   answers: QuestionAnswerEntity[];
 }

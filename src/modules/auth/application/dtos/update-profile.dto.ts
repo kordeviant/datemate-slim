@@ -260,6 +260,22 @@ export class ProfileNestedDto {
   demographic?: DemographicDto;
 
   @ApiPropertyOptional({
+    example: 'LONG',
+    description: 'Kind of relationship looking for (RelationType: FUN, OPEN, LONG)',
+  })
+  @IsOptional()
+  @IsString()
+  RelationType?: string;
+
+  @ApiPropertyOptional({
+    example: 'LONG',
+    description: 'Kind of relationship lowercase alias',
+  })
+  @IsOptional()
+  @IsString()
+  relationType?: string;
+
+  @ApiPropertyOptional({
     type: PreferencesDto,
     description: 'Preferences (relation type)',
   })
@@ -375,6 +391,22 @@ export class UpdateProfileDto {
   @ValidateNested()
   @Type(() => DemographicDto)
   demographic?: DemographicDto;
+
+  @ApiPropertyOptional({
+    example: 'LONG',
+    description: 'Kind of relationship at root level (RelationType: FUN, OPEN, LONG)',
+  })
+  @IsOptional()
+  @IsString()
+  RelationType?: string;
+
+  @ApiPropertyOptional({
+    example: 'LONG',
+    description: 'Kind of relationship lowercase alias at root level',
+  })
+  @IsOptional()
+  @IsString()
+  relationType?: string;
 
   @ApiPropertyOptional({
     type: PreferencesDto,
@@ -558,6 +590,21 @@ export class UpdateProfileDto {
   @IsOptional()
   @Transform(parseIfJsonString)
   favorites?: any;
+
+  @ApiPropertyOptional({
+    description: 'User interests list or category list',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  interest?: any;
+
+  @ApiPropertyOptional({
+    description: 'User interests list or category list (alias)',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  interests?: any;
+
 
   @ApiPropertyOptional({
     description:

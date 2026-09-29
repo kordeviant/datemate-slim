@@ -216,8 +216,9 @@ model Profile {
   bio         String?   @db.Text
   avatarUrl   String    @map("avatar_url") @db.VarChar(512)
   selfieUrl   String?   @map("selfie_url") @db.VarChar(512)
-  isPrivate   Boolean   @default(false) @map("is_private")
-  latitude    Decimal   @db.Decimal(10, 8)
+  isPrivate    Boolean       @default(false) @map("is_private")
+  relationType RelationType? @map("relation_type")
+  latitude     Decimal       @db.Decimal(10, 8)
   longitude   Decimal   @db.Decimal(11, 8)
   geohash     String?   @db.VarChar(12)
   isOnline    Boolean   @default(false) @map("is_online")
@@ -348,6 +349,8 @@ model Question {
   answerType AnswerType       @default(SINGLE) @map("answer_type")
   nameEn     String           @map("name_en") @db.VarChar(255)
   nameFa     String           @map("name_fa") @db.VarChar(255)
+  icon       String?          @db.VarChar(512)
+  iconAlt    String?          @map("icon_alt") @db.VarChar(255)
   answers    QuestionAnswer[]
 
   @@map("questions")

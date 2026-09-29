@@ -38,7 +38,7 @@ export class QuestionsController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
+  // @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get questions with optional filters or by ID',
     description:
@@ -73,28 +73,28 @@ export class QuestionsController {
     status: 400,
     description: 'Invalid query parameters',
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid access token',
-  })
+  // @ApiResponse({
+  //   status: 401,
+  //   description: 'Missing or invalid access token',
+  // })
   @ApiResponse({
     status: 404,
     description: 'Question with specified ID not found',
   })
   async getQuestions(
-    @Headers('authorization') authHeader: string,
+    // @Headers('authorization') authHeader: string,
     @Query('id') id?: string,
     @Query('type') type?: string,
     @Query('language') language?: string,
   ): Promise<QuestionListResponseDto> {
-    if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
-    }
-    const token = authHeader
-      .replace(/^(Bearer\s*)+/i, '')
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    this.tokenService.verifyAccessToken(token);
+    // if (!authHeader) {
+    //   throw new UnauthorizedException('Missing Authorization header');
+    // }
+    // const token = authHeader
+    //   .replace(/^(Bearer\s*)+/i, '')
+    //   .trim()
+    //   .replace(/^["']|["']$/g, '');
+    // this.tokenService.verifyAccessToken(token);
 
     let numericId: number | undefined;
     if (id !== undefined && id !== '') {
@@ -109,7 +109,7 @@ export class QuestionsController {
 
   @Get('search')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
+  // @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Search questions by type query parameter',
     description: 'Searches questions by type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).',
@@ -131,30 +131,30 @@ export class QuestionsController {
     description: 'Questions retrieved successfully',
     type: QuestionListResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid access token',
-  })
+  // @ApiResponse({
+  //   status: 401,
+  //   description: 'Missing or invalid access token',
+  // })
   async searchQuestionsByType(
-    @Headers('authorization') authHeader: string,
+    // @Headers('authorization') authHeader: string,
     @Query('type') type: string,
     @Query('language') language?: string,
   ): Promise<QuestionListResponseDto> {
-    if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
-    }
-    const token = authHeader
-      .replace(/^(Bearer\s*)+/i, '')
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    this.tokenService.verifyAccessToken(token);
+    // if (!authHeader) {
+    //   throw new UnauthorizedException('Missing Authorization header');
+    // }
+    // const token = authHeader
+    //   .replace(/^(Bearer\s*)+/i, '')
+    //   .trim()
+    //   .replace(/^["']|["']$/g, '');
+    // this.tokenService.verifyAccessToken(token);
 
     return this.getQuestionsUseCase.execute(type, language);
   }
 
   @Get('type/:type')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
+  // @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Search/Get questions by type route parameter',
     description: 'Retrieves all questions of a specific type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).',
@@ -175,30 +175,30 @@ export class QuestionsController {
     description: 'Questions of the specified type retrieved successfully',
     type: QuestionListResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid access token',
-  })
+  // @ApiResponse({
+  //   status: 401,
+  //   description: 'Missing or invalid access token',
+  // })
   async getQuestionsByType(
-    @Headers('authorization') authHeader: string,
+    // @Headers('authorization') authHeader: string,
     @Param('type') type: string,
     @Query('language') language?: string,
   ): Promise<QuestionListResponseDto> {
-    if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
-    }
-    const token = authHeader
-      .replace(/^(Bearer\s*)+/i, '')
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    this.tokenService.verifyAccessToken(token);
+    // if (!authHeader) {
+    //   throw new UnauthorizedException('Missing Authorization header');
+    // }
+    // const token = authHeader
+    //   .replace(/^(Bearer\s*)+/i, '')
+    //   .trim()
+    //   .replace(/^["']|["']$/g, '');
+    // this.tokenService.verifyAccessToken(token);
 
     return this.getQuestionsUseCase.execute(type, language);
   }
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
+  // @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get single question by route parameter ID',
     description: 'Retrieves a single question by its numeric ID path parameter.',
@@ -219,27 +219,27 @@ export class QuestionsController {
     description: 'Question retrieved successfully',
     type: QuestionListResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid access token',
-  })
+  // @ApiResponse({
+  //   status: 401,
+  //   description: 'Missing or invalid access token',
+  // })
   @ApiResponse({
     status: 404,
     description: 'Question not found',
   })
   async getQuestionById(
-    @Headers('authorization') authHeader: string,
+    // @Headers('authorization') authHeader: string,
     @Param('id', ParseIntPipe) id: number,
     @Query('language') language?: string,
   ): Promise<QuestionListResponseDto> {
-    if (!authHeader) {
-      throw new UnauthorizedException('Missing Authorization header');
-    }
-    const token = authHeader
-      .replace(/^(Bearer\s*)+/i, '')
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    this.tokenService.verifyAccessToken(token);
+    // if (!authHeader) {
+    //   throw new UnauthorizedException('Missing Authorization header');
+    // }
+    // const token = authHeader
+    //   .replace(/^(Bearer\s*)+/i, '')
+    //   .trim()
+    //   .replace(/^["']|["']$/g, '');
+    // this.tokenService.verifyAccessToken(token);
 
     return this.getQuestionsUseCase.execute(undefined, language, id);
   }

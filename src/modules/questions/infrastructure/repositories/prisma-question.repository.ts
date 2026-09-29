@@ -24,6 +24,8 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       nameFa: q.nameFa,
       enName: q.nameEn,
       faName: q.nameFa,
+      icon: q.icon,
+      iconAlt: q.iconAlt,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
@@ -55,6 +57,8 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       nameFa: q.nameFa,
       enName: q.nameEn,
       faName: q.nameFa,
+      icon: q.icon,
+      iconAlt: q.iconAlt,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
@@ -80,6 +84,8 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       nameFa: q.nameFa,
       enName: q.nameEn,
       faName: q.nameFa,
+      icon: q.icon,
+      iconAlt: q.iconAlt,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,
@@ -96,8 +102,10 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       data: {
         type: data.type as any,
         answerType: (data.answerType as any) || 'SINGLE',
-        nameEn: data.nameEn,
-        nameFa: data.nameFa,
+        nameEn: data.enName || data.nameEn || '',
+        nameFa: data.faName || data.nameFa || '',
+        icon: data.icon,
+        iconAlt: data.iconAlt,
         answers: {
           create: data.answers.map((a) => ({
             answerEn: a.answerEn,
@@ -115,6 +123,8 @@ export class PrismaQuestionRepository implements IQuestionRepository {
       nameFa: q.nameFa,
       enName: q.nameEn,
       faName: q.nameFa,
+      icon: q.icon,
+      iconAlt: q.iconAlt,
       answers: q.answers.map((a) => ({
         id: a.id,
         questionId: a.questionId,

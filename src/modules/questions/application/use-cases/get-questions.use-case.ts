@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import {
   QUESTION_REPOSITORY,
   IQuestionRepository,
@@ -8,6 +8,7 @@ import {
   QuestionListResponseDto,
   QuestionResponseDto,
 } from '../dtos/question-response.dto';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 
 @Injectable()
 export class GetQuestionsUseCase {
@@ -16,6 +17,7 @@ export class GetQuestionsUseCase {
   constructor(
     @Inject(QUESTION_REPOSITORY)
     private readonly questionRepo: IQuestionRepository,
+    @Optional() private readonly mediaUrlResolver?: MediaUrlResolverService,
   ) {}
 
   /**
@@ -81,6 +83,21 @@ export class GetQuestionsUseCase {
     const faName = q.faName || q.nameFa;
     const primaryName = isFa ? faName : enName;
 
+    const rawIcon = q.icon || null;
+    const resolvedIcon = rawIcon
+      ? this.mediaUrlResolver
+        ? this.mediaUrlResolver.resolveUrl(rawIcon)
+        : rawIcon
+      : null;
+
+    const iconObj = resolvedIcon
+      ? {
+          type: 'IMAGE',
+          url: resolvedIcon,
+          alt: q.iconAlt ?? '',
+        }
+      : null;
+
     return {
       id: q.id,
       type: q.type,
@@ -88,8 +105,7 @@ export class GetQuestionsUseCase {
       name: primaryName,
       enName,
       faName,
-      nameEn: enName,
-      nameFa: faName,
+      icon: iconObj,
       answers: (q.answers || []).map((a, index) => {
         const enAnswer = a.enAnswer || a.answerEn;
         const faAnswer = a.faAnswer || a.answerFa;

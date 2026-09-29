@@ -3,10 +3,12 @@ import { QuestionEntity } from '../question.entity';
 export interface CreateQuestionData {
   type: string;
   answerType?: string;
-  nameEn: string;
-  nameFa: string;
   enName?: string;
   faName?: string;
+  nameEn?: string;
+  nameFa?: string;
+  icon?: string;
+  iconAlt?: string;
   answers: Array<{
     answerEn: string;
     answerFa: string;

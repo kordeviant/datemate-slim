@@ -286,6 +286,24 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
       expect(result.profile?.fullName).toBe("Parsa Moloody");
       expect(result.profile?.username).toBe("parsam");
     });
+
+    it("should accept RelationType directly in Profile and at root level", async () => {
+      const payload = {
+        Profile: {
+          fullName: "Parsa Moloody",
+          RelationType: "LONG",
+        },
+        RelationType: "LONG",
+      };
+
+      const result: UpdateProfileDto = await pipe.transform(payload, {
+        type: "body",
+        metatype: UpdateProfileDto,
+      });
+
+      expect(result.Profile?.RelationType).toBe("LONG");
+      expect(result.RelationType).toBe("LONG");
+    });
   });
 });
 

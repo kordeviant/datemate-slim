@@ -370,7 +370,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect(result.Profile.Demographic.degree).toBe("DOCTORATE");
     expect(result.Profile.Demographic.profession).toBe("Software Engineer");
     expect(result.Profile.Demographic.relationStatus).toBe("SINGLE");
-    expect(result.Profile.Preferences.relation).toBe("FUN");
+    expect(result.Profile.RelationType).toBe("FUN");
     expect(result.Profile.languages).toEqual(["en", "fa"]);
   });
 
@@ -531,7 +531,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect(result.Profile.Demographic.profession).toBe("Senior Architect");
     expect(result.Profile.Demographic.degree).toBe("DOCTORATE");
     expect(result.Profile.Demographic.relationStatus).toBe("SINGLE");
-    expect(result.Profile.Preferences.relation).toBe("FUN");
+    expect(result.Profile.RelationType).toBe("FUN");
     expect(result.Profile.profileCompleted).toBe(true);
   });
 
@@ -699,9 +699,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
             country: "Iran",
           },
         },
-        Preferences: {
-          relation: "LONG",
-        },
+        RelationType: "LONG",
         Answers: {},
       },
     });
@@ -766,7 +764,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect(res.Profile.Demographic.City).toMatchObject({ id: 12, name: "Tehran" });
 
     expect(res.Profile.Demographic.relationStatus).toBe("SINGLE");
-    expect(res.Profile.Preferences.relation).toBe("LONG");
+    expect(res.Profile.RelationType).toBe("LONG");
 
     expect(res.Profile.username).toBe("parsa_mobile");
   });
@@ -849,7 +847,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       expect(res.Profile.Demographic.profession).toBe("Software Engineer");
       expect(res.Profile.Demographic.relationStatus).toBe("SINGLE");
       expect(res.Profile.Demographic.City).toMatchObject({ id: 12, name: "Tehran" });
-      expect(res.Profile.Preferences.relation).toBe("LONG");
+      expect(res.Profile.RelationType).toBe("LONG");
     });
 
     it("should update birthDate when existingDemographic already exists", async () => {

@@ -20,9 +20,10 @@ import { USER_REPOSITORY } from "./domain/repositories/user.repository.interface
 import { USER_SESSION_REPOSITORY } from "./domain/repositories/user-session.repository.interface";
 import { PrismaUserRepository } from "./infrastructure/repositories/prisma-user.repository";
 import { PrismaUserSessionRepository } from "./infrastructure/repositories/prisma-user-session.repository";
+import { MediaModule } from "../media/media.module";
 
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [JwtModule.register({}), MediaModule],
   controllers: [AuthController, UsersController],
   providers: [
     // Repositories (DIP)

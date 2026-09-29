@@ -23,6 +23,26 @@ export class QuestionAnswerResponseDto {
   answerFa?: string;
 }
 
+export class QuestionIconResponseDto {
+  @ApiProperty({
+    example: 'IMAGE',
+    description: 'Icon asset type (e.g. IMAGE, SVG)',
+  })
+  type: string;
+
+  @ApiProperty({
+    example: 'https://cdn.example.com/icons/self-care.png',
+    description: 'Full public URL of the question icon',
+  })
+  url: string;
+
+  @ApiProperty({
+    example: 'Self care',
+    description: 'Alt text for the icon (empty string if not set)',
+  })
+  alt: string;
+}
+
 export class QuestionResponseDto {
   @ApiProperty({ example: 1, description: 'Question ID' })
   id: number;
@@ -46,11 +66,12 @@ export class QuestionResponseDto {
   @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Farsi question text' })
   faName?: string;
 
-  @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'English question text (legacy alias)' })
-  nameEn?: string;
-
-  @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Farsi question text (legacy alias)' })
-  nameFa?: string;
+  @ApiPropertyOptional({
+    type: QuestionIconResponseDto,
+    description: 'Question icon object containing type, url, and alt (empty string if alt not set)',
+    nullable: true,
+  })
+  icon?: QuestionIconResponseDto | null;
 
   @ApiProperty({ type: [QuestionAnswerResponseDto], description: 'Answer options' })
   answers: QuestionAnswerResponseDto[];

@@ -734,20 +734,397 @@
         ]
       }
     },
+    "/assets/icons/{filename}": {
+      "get": {
+        "operationId": "AssetsController_getIcon",
+        "summary": "Public asset route: icons",
+        "description": "Serves UI icons and badge vector/raster assets with high-performance caching headers.",
+        "parameters": [
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "description": "Safe asset filename",
+            "schema": {
+              "example": "icon_star_123.svg",
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-none-match",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Icon binary stream"
+          },
+          "304": {
+            "description": "Not Modified (cached)"
+          },
+          "404": {
+            "description": "Icon asset not found"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/assets/images/{filename}": {
+      "get": {
+        "operationId": "AssetsController_getImage",
+        "summary": "Public asset route: images",
+        "description": "Serves standard platform images, gallery photos, and content visuals.",
+        "parameters": [
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "description": "Safe asset filename",
+            "schema": {
+              "example": "image_banner_123.webp",
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-none-match",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image binary stream"
+          },
+          "304": {
+            "description": "Not Modified (cached)"
+          },
+          "404": {
+            "description": "Image asset not found"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/assets/avatars/{filename}": {
+      "get": {
+        "operationId": "AssetsController_getAvatar",
+        "summary": "Public asset route: avatars",
+        "description": "Serves user profile pictures and avatar photos.",
+        "parameters": [
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "description": "Safe asset filename",
+            "schema": {
+              "example": "avatar_user_123.webp",
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-none-match",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Avatar binary stream"
+          },
+          "304": {
+            "description": "Not Modified (cached)"
+          },
+          "404": {
+            "description": "Avatar asset not found"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/assets/{type}/{filename}": {
+      "get": {
+        "operationId": "AssetsController_getAsset",
+        "summary": "Scalable public asset route for any asset type",
+        "description": "Dynamically serves assets for any registered asset type (e.g. /assets/icons/{filename}, /assets/images/{filename}, /assets/avatars/{filename}, banners, etc.).",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "description": "Asset type category",
+            "schema": {
+              "example": "icons",
+              "type": "string"
+            }
+          },
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "description": "Safe asset filename",
+            "schema": {
+              "example": "icon_star_123.svg",
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-none-match",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset binary stream"
+          },
+          "304": {
+            "description": "Not Modified (cached)"
+          },
+          "404": {
+            "description": "Asset not found"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/media/types": {
+      "get": {
+        "operationId": "MediaUploadController_getSupportedTypes",
+        "summary": "Get supported asset types and validation limits",
+        "description": "Returns the list of all supported asset categories (icons, images, avatars, etc.) along with their allowed formats and size limits.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of supported asset type definitions"
+          }
+        },
+        "tags": [
+          "Media & Uploads"
+        ]
+      }
+    },
+    "/media/upload/{type}": {
+      "post": {
+        "operationId": "MediaUploadController_uploadAssetByType",
+        "summary": "Upload media asset by asset type",
+        "description": "Uploads a media file (icon, image, avatar, etc.) into its dedicated asset category. Generates a collision-proof safe filename, stores the asset decoupled from public domain, and returns the full public URL resolved with configured baseUrl.",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "description": "Target asset type (e.g. icons, images, avatars)",
+            "schema": {
+              "example": "icons",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Multipart file upload payload",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Media successfully uploaded with full public URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (invalid format, magic bytes mismatch, or size exceeded)"
+          }
+        },
+        "tags": [
+          "Media & Uploads"
+        ]
+      }
+    },
+    "/assets/upload/{type}": {
+      "post": {
+        "operationId": "MediaUploadController_uploadAssetByType",
+        "summary": "Upload media asset by asset type",
+        "description": "Uploads a media file (icon, image, avatar, etc.) into its dedicated asset category. Generates a collision-proof safe filename, stores the asset decoupled from public domain, and returns the full public URL resolved with configured baseUrl.",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "description": "Target asset type (e.g. icons, images, avatars)",
+            "schema": {
+              "example": "icons",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Multipart file upload payload",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Media successfully uploaded with full public URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (invalid format, magic bytes mismatch, or size exceeded)"
+          }
+        },
+        "tags": [
+          "Media & Uploads"
+        ]
+      }
+    },
+    "/media/upload/icons": {
+      "post": {
+        "operationId": "MediaUploadController_uploadIcon",
+        "summary": "Upload UI icon asset",
+        "description": "Convenience endpoint to upload icon vector or raster images (SVG, PNG, WebP).",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Media & Uploads"
+        ]
+      }
+    },
+    "/media/upload/images": {
+      "post": {
+        "operationId": "MediaUploadController_uploadImage",
+        "summary": "Upload image asset",
+        "description": "Convenience endpoint to upload standard images and photos (JPEG, PNG, WebP, GIF).",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Media & Uploads"
+        ]
+      }
+    },
+    "/media/upload/avatars": {
+      "post": {
+        "operationId": "MediaUploadController_uploadAvatar",
+        "summary": "Upload avatar asset",
+        "description": "Convenience endpoint to upload user profile avatar images (JPEG, PNG, WebP).",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Media & Uploads"
+        ]
+      }
+    },
     "/questions": {
       "get": {
         "operationId": "QuestionsController_getQuestions",
         "summary": "Get questions with optional filters or by ID",
         "description": "Retrieves all questions with their IDs, or filters by id, type (PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES) and language (en, fa). If no query params are provided, returns all questions with English and Farsi text. If id query param is provided, returns that specific question.",
         "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "id",
             "required": false,
@@ -801,20 +1178,12 @@
           "400": {
             "description": "Invalid query parameters"
           },
-          "401": {
-            "description": "Missing or invalid access token"
-          },
           "404": {
             "description": "Question with specified ID not found"
           }
         },
         "tags": [
           "Questions"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
         ]
       },
       "post": {
@@ -869,14 +1238,6 @@
         "description": "Searches questions by type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).",
         "parameters": [
           {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "type",
             "required": true,
             "in": "query",
@@ -916,18 +1277,10 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
           }
         },
         "tags": [
           "Questions"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
         ]
       }
     },
@@ -937,14 +1290,6 @@
         "summary": "Search/Get questions by type route parameter",
         "description": "Retrieves all questions of a specific type (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES).",
         "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "type",
             "required": true,
@@ -985,18 +1330,10 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
           }
         },
         "tags": [
           "Questions"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
         ]
       }
     },
@@ -1006,14 +1343,6 @@
         "summary": "Get single question by route parameter ID",
         "description": "Retrieves a single question by its numeric ID path parameter.",
         "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "name": "id",
             "required": true,
@@ -1048,20 +1377,316 @@
               }
             }
           },
-          "401": {
-            "description": "Missing or invalid access token"
-          },
           "404": {
             "description": "Question not found"
           }
         },
         "tags": [
           "Questions"
+        ]
+      }
+    },
+    "/interests": {
+      "get": {
+        "operationId": "InterestsController_getInterests",
+        "summary": "Get all interest categories with their interests",
+        "description": "Retrieves all interest categories, each containing a list of child interests. Matches client format: id, en, fa, icon: object, Interest: List<Interest>. Supports optional language filter (en, fa) and category ID filter.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by category ID",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both English and Farsi texts.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interest categories retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterestCategoryResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Interest category with specified ID not found"
+          }
+        },
+        "tags": [
+          "Interests"
+        ]
+      },
+      "post": {
+        "operationId": "InterestsController_createInterest",
+        "summary": "Create a new interest category with interests (admin only)",
+        "description": "Creates a new interest category with bilingual names and child interests. Matches client format: id, en, fa, icon, Interest: List<Interest>. Requires admin role.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInterestCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Interest category created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient permissions"
+          }
+        },
+        "tags": [
+          "Interests"
         ],
         "security": [
           {
             "JWT-auth": []
           }
+        ]
+      }
+    },
+    "/interest": {
+      "get": {
+        "operationId": "InterestsController_getInterests",
+        "summary": "Get all interest categories with their interests",
+        "description": "Retrieves all interest categories, each containing a list of child interests. Matches client format: id, en, fa, icon: object, Interest: List<Interest>. Supports optional language filter (en, fa) and category ID filter.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": false,
+            "in": "query",
+            "description": "Filter by category ID",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both English and Farsi texts.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interest categories retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InterestCategoryResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Interest category with specified ID not found"
+          }
+        },
+        "tags": [
+          "Interests"
+        ]
+      },
+      "post": {
+        "operationId": "InterestsController_createInterest",
+        "summary": "Create a new interest category with interests (admin only)",
+        "description": "Creates a new interest category with bilingual names and child interests. Matches client format: id, en, fa, icon, Interest: List<Interest>. Requires admin role.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInterestCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Interest category created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient permissions"
+          }
+        },
+        "tags": [
+          "Interests"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/interests/{id}": {
+      "get": {
+        "operationId": "InterestsController_getInterestById",
+        "summary": "Get a single interest category by ID",
+        "description": "Retrieves a single interest category with its child interests by numeric ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Interest category ID",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both languages.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interest category retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Interest category not found"
+          }
+        },
+        "tags": [
+          "Interests"
+        ]
+      }
+    },
+    "/interest/{id}": {
+      "get": {
+        "operationId": "InterestsController_getInterestById",
+        "summary": "Get a single interest category by ID",
+        "description": "Retrieves a single interest category with its child interests by numeric ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Interest category ID",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "description": "Language filter (en or fa). If omitted, returns both languages.",
+            "schema": {
+              "enum": [
+                "en",
+                "fa"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Interest category retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Interest category not found"
+          }
+        },
+        "tags": [
+          "Interests"
         ]
       }
     }
@@ -1489,9 +2114,16 @@
               }
             ]
           },
+          "RelationType": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship looking for (RelationType: FUN, OPEN, LONG)",
+            "nullable": true
+          },
           "Preferences": {
-            "description": "Relationship preferences",
+            "description": "Relationship preferences (deprecated: use RelationType directly)",
             "nullable": true,
+            "deprecated": true,
             "allOf": [
               {
                 "$ref": "#/components/schemas/PreferencesResponseDto"
@@ -1506,6 +2138,21 @@
               "3": 0
             },
             "description": "User answers formatted as { [questionid]: answerId } where answerId starts from 0 for each question",
+            "nullable": true
+          },
+          "interest": {
+            "type": "object",
+            "description": "User selected interests list",
+            "nullable": true
+          },
+          "interests": {
+            "type": "object",
+            "description": "User selected interests list (alias)",
+            "nullable": true
+          },
+          "LikedActivities": {
+            "type": "object",
+            "description": "User selected interests list (Android LikedActivities compatibility)",
             "nullable": true
           }
         },
@@ -1712,6 +2359,16 @@
               }
             ]
           },
+          "RelationType": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship looking for (RelationType: FUN, OPEN, LONG)"
+          },
+          "relationType": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship lowercase alias"
+          },
           "Preferences": {
             "description": "Preferences (relation type)",
             "allOf": [
@@ -1808,6 +2465,16 @@
                 "$ref": "#/components/schemas/DemographicDto"
               }
             ]
+          },
+          "RelationType": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship at root level (RelationType: FUN, OPEN, LONG)"
+          },
+          "relationType": {
+            "type": "string",
+            "example": "LONG",
+            "description": "Kind of relationship lowercase alias at root level"
           },
           "Preferences": {
             "description": "Preferences if provided at root level",
@@ -1927,6 +2594,14 @@
             "type": "object",
             "description": "Favorites / interests alias"
           },
+          "interest": {
+            "type": "object",
+            "description": "User interests list or category list"
+          },
+          "interests": {
+            "type": "object",
+            "description": "User interests list or category list (alias)"
+          },
           "Answers": {
             "type": "object",
             "description": "Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { \"1\": 0, \"2\": 1 }), or array of IDs",
@@ -1946,6 +2621,98 @@
             }
           }
         }
+      },
+      "UploadMediaDto": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "File binary to upload"
+          },
+          "originalName": {
+            "type": "string",
+            "description": "Optional custom display or original filename",
+            "example": "my-badge.svg"
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
+      "MediaUploadResponseDto": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "example": "icons_c74384e0323b417187274a6c6c7b9ec3_1727599000000.svg",
+            "description": "Unique, safe generated filename"
+          },
+          "assetType": {
+            "type": "string",
+            "example": "icons",
+            "description": "Category/type of the asset (icons, images, avatars, etc.)"
+          },
+          "publicUrl": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/icons/icons_c74384e0323b417187274a6c6c7b9ec3_1727599000000.svg",
+            "description": "Full public URL resolved using the configured baseUrl (domain independent)"
+          },
+          "relativePath": {
+            "type": "string",
+            "example": "icons/icons_c74384e0323b417187274a6c6c7b9ec3_1727599000000.svg",
+            "description": "Relative storage path / asset key stored in database"
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "image/svg+xml",
+            "description": "Verified MIME type of the uploaded file"
+          },
+          "sizeBytes": {
+            "type": "number",
+            "example": 2458,
+            "description": "File size in bytes"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-29T11:45:00.000Z",
+            "description": "Upload timestamp in ISO format"
+          }
+        },
+        "required": [
+          "filename",
+          "assetType",
+          "publicUrl",
+          "relativePath",
+          "mimeType",
+          "sizeBytes",
+          "createdAt"
+        ]
+      },
+      "QuestionIconResponseDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "IMAGE",
+            "description": "Icon asset type (e.g. IMAGE, SVG)"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://cdn.example.com/icons/self-care.png",
+            "description": "Full public URL of the question icon"
+          },
+          "alt": {
+            "type": "string",
+            "example": "Self care",
+            "description": "Alt text for the icon (empty string if not set)"
+          }
+        },
+        "required": [
+          "type",
+          "url",
+          "alt"
+        ]
       },
       "QuestionAnswerResponseDto": {
         "type": "object",
@@ -2028,15 +2795,14 @@
             "example": "چگونه از خود مراقبت می‌کنید؟",
             "description": "Farsi question text"
           },
-          "nameEn": {
-            "type": "string",
-            "example": "How do you practice self-care?",
-            "description": "English question text (legacy alias)"
-          },
-          "nameFa": {
-            "type": "string",
-            "example": "چگونه از خود مراقبت می‌کنید؟",
-            "description": "Farsi question text (legacy alias)"
+          "icon": {
+            "description": "Question icon object containing type, url, and alt (empty string if alt not set)",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QuestionIconResponseDto"
+              }
+            ]
           },
           "answers": {
             "description": "Answer options",
@@ -2158,15 +2924,20 @@
             "example": "چگونه از خود مراقبت می‌کنید؟",
             "description": "Question text in Farsi"
           },
-          "nameEn": {
+          "icon": {
             "type": "string",
-            "example": "How do you practice self-care?",
-            "description": "Legacy alias"
+            "example": "icons/drink.png",
+            "description": "Icon asset relative path or filename"
           },
-          "nameFa": {
+          "iconAlt": {
             "type": "string",
-            "example": "چگونه از خود مراقبت می‌کنید؟",
-            "description": "Legacy alias"
+            "example": "Self care",
+            "description": "Alt text for the icon"
+          },
+          "alt": {
+            "type": "string",
+            "example": "Self care",
+            "description": "Alt text for the icon (alias)"
           },
           "answers": {
             "description": "Answer options for the question (must include both en and fa)",
@@ -2178,8 +2949,247 @@
         },
         "required": [
           "type",
+          "enName",
+          "faName",
           "answers"
         ]
+      },
+      "InterestIconResponseDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "IMAGE",
+            "description": "Icon asset type (e.g. IMAGE, SVG)"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://cdn.example.com/icons/Beach%20With%20Umbrella.svg",
+            "description": "Full public URL of the interest icon"
+          },
+          "alt": {
+            "type": "string",
+            "example": "",
+            "description": "Alt text for the icon (empty string if not set)"
+          }
+        },
+        "required": [
+          "type",
+          "url",
+          "alt"
+        ]
+      },
+      "InterestItemResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "Interest ID"
+          },
+          "en": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "English name of interest"
+          },
+          "fa": {
+            "type": "string",
+            "example": "بازی",
+            "description": "Farsi name of interest"
+          },
+          "categoryId": {
+            "type": "number",
+            "example": 1,
+            "description": "Parent category ID"
+          },
+          "name": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "Localized interest name"
+          },
+          "enName": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "English interest name (alias)"
+          },
+          "faName": {
+            "type": "string",
+            "example": "بازی",
+            "description": "Farsi interest name (alias)"
+          },
+          "icon": {
+            "description": "Interest icon object (null if no icon)",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InterestIconResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "en",
+          "fa"
+        ]
+      },
+      "InterestCategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "Interest category ID"
+          },
+          "en": {
+            "type": "string",
+            "example": "Food",
+            "description": "English category name"
+          },
+          "fa": {
+            "type": "string",
+            "example": "غذا",
+            "description": "Farsi category name"
+          },
+          "icon": {
+            "description": "Category icon object (null if no icon)",
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InterestIconResponseDto"
+              }
+            ]
+          },
+          "Interest": {
+            "description": "List of interests within this category",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterestItemResponseDto"
+            }
+          },
+          "interests": {
+            "description": "List of interests within this category (alias)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterestItemResponseDto"
+            }
+          },
+          "name": {
+            "type": "string",
+            "example": "Food",
+            "description": "Localized category name"
+          },
+          "enName": {
+            "type": "string",
+            "example": "Food",
+            "description": "English category name (alias)"
+          },
+          "faName": {
+            "type": "string",
+            "example": "غذا",
+            "description": "Farsi category name (alias)"
+          }
+        },
+        "required": [
+          "id",
+          "en",
+          "fa",
+          "Interest"
+        ]
+      },
+      "CreateInterestItemDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "Interest name in English"
+          },
+          "fa": {
+            "type": "string",
+            "example": "بازی",
+            "description": "Interest name in Farsi"
+          },
+          "enName": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "Interest name in English (alias)"
+          },
+          "faName": {
+            "type": "string",
+            "example": "بازی",
+            "description": "Interest name in Farsi (alias)"
+          },
+          "icon": {
+            "type": "string",
+            "example": "icons/gaming.svg",
+            "description": "Icon asset relative path or filename"
+          },
+          "iconAlt": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "Alt text for the icon"
+          },
+          "alt": {
+            "type": "string",
+            "example": "Gaming",
+            "description": "Alt text for the icon (alias)"
+          }
+        }
+      },
+      "CreateInterestCategoryDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string",
+            "example": "Food",
+            "description": "Category name in English"
+          },
+          "fa": {
+            "type": "string",
+            "example": "غذا",
+            "description": "Category name in Farsi"
+          },
+          "enName": {
+            "type": "string",
+            "example": "Food",
+            "description": "Category name in English (alias)"
+          },
+          "faName": {
+            "type": "string",
+            "example": "غذا",
+            "description": "Category name in Farsi (alias)"
+          },
+          "icon": {
+            "type": "string",
+            "example": "icons/Beach With Umbrella.svg",
+            "description": "Category icon asset relative path or filename"
+          },
+          "iconAlt": {
+            "type": "string",
+            "example": "Food",
+            "description": "Alt text for the category icon"
+          },
+          "alt": {
+            "type": "string",
+            "example": "Food",
+            "description": "Alt text for the category icon (alias)"
+          },
+          "Interest": {
+            "description": "Interests within this category",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateInterestItemDto"
+            }
+          },
+          "interests": {
+            "description": "Interests within this category (alias)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateInterestItemDto"
+            }
+          }
+        }
       }
     }
   }

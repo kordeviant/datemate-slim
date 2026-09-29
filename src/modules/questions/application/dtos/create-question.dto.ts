@@ -59,25 +59,39 @@ export class CreateQuestionDto {
   })
   answerType?: string;
 
-  @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'Question text in English' })
-  @IsOptional()
+  @ApiProperty({ example: 'How do you practice self-care?', description: 'Question text in English' })
+  @IsNotEmpty({ message: 'enName is required' })
   @IsString()
-  enName?: string;
+  enName: string;
 
-  @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Question text in Farsi' })
-  @IsOptional()
+  @ApiProperty({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Question text in Farsi' })
+  @IsNotEmpty({ message: 'faName is required' })
   @IsString()
-  faName?: string;
+  faName: string;
 
-  @ApiPropertyOptional({ example: 'How do you practice self-care?', description: 'Legacy alias' })
+  @ApiPropertyOptional({
+    example: 'icons/drink.png',
+    description: 'Icon asset relative path or filename',
+  })
   @IsOptional()
   @IsString()
-  nameEn?: string;
+  icon?: string;
 
-  @ApiPropertyOptional({ example: 'چگونه از خود مراقبت می‌کنید؟', description: 'Legacy alias' })
+  @ApiPropertyOptional({
+    example: 'Self care',
+    description: 'Alt text for the icon',
+  })
   @IsOptional()
   @IsString()
-  nameFa?: string;
+  iconAlt?: string;
+
+  @ApiPropertyOptional({
+    example: 'Self care',
+    description: 'Alt text for the icon (alias)',
+  })
+  @IsOptional()
+  @IsString()
+  alt?: string;
 
   @ApiProperty({
     type: [CreateQuestionAnswerDto],

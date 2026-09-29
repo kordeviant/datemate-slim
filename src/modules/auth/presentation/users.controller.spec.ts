@@ -65,7 +65,7 @@ describe("UsersController", () => {
           username: "john_doe",
           profileCompleted: true,
           Demographic: {},
-          Preferences: {},
+          RelationType: null,
         },
       };
       mockGetProfileUseCase.execute.mockResolvedValue(mockProfile);
@@ -132,7 +132,7 @@ describe("UsersController", () => {
             birthDate: "1998-11-25",
             gender: "MALE",
           },
-          Preferences: {},
+          RelationType: null,
         },
       };
 
@@ -177,7 +177,7 @@ describe("UsersController", () => {
           avatar: "/uploads/avatars/avatar_1.webp",
           profileCompleted: false,
           Demographic: { height: 180 },
-          Preferences: {},
+          RelationType: null,
         },
       };
 
@@ -214,9 +214,7 @@ describe("UsersController", () => {
             relationStatus: "SINGLE",
             City: { id: 150293 },
           },
-          Preferences: {
-            relation: "LONG",
-          },
+          RelationType: "LONG",
         },
       };
 

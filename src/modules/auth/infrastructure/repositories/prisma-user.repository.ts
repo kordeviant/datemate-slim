@@ -61,6 +61,7 @@ export class PrismaUserRepository implements IUserRepository {
         avatarUrl: true,
         username: true,
         languages: true,
+        relationType: true,
       },
     });
     if (
@@ -99,12 +100,15 @@ export class PrismaUserRepository implements IUserRepository {
       return false;
     }
 
-    const preferences = await this.prisma.preferences.findUnique({
-      where: { userId },
-      select: { id: true, relation: true },
-    });
-    if (!preferences || !preferences.relation) {
-      return false;
+    const hasRelation = !!(profile as any)?.relationType;
+    if (!hasRelation) {
+      const preferences = await this.prisma.preferences.findUnique({
+        where: { userId },
+        select: { id: true, relation: true },
+      });
+      if (!preferences || !preferences.relation) {
+        return false;
+      }
     }
 
     const questionsCount = await this.prisma.question.count();

@@ -117,9 +117,17 @@ export class ProfileNestedResponseDto {
   Demographic?: DemographicResponseDto | null;
 
   @ApiPropertyOptional({
-    type: PreferencesResponseDto,
-    description: 'Relationship preferences',
+    example: 'LONG',
+    description: 'Kind of relationship looking for (RelationType: FUN, OPEN, LONG)',
     nullable: true,
+  })
+  RelationType?: string | null;
+
+  @ApiPropertyOptional({
+    type: PreferencesResponseDto,
+    description: 'Relationship preferences (deprecated: use RelationType directly)',
+    nullable: true,
+    deprecated: true,
   })
   Preferences?: PreferencesResponseDto | null;
 
@@ -130,7 +138,26 @@ export class ProfileNestedResponseDto {
     nullable: true,
   })
   Answers?: Record<string, number> | any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests list',
+    nullable: true,
+  })
+  interest?: any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests list (alias)',
+    nullable: true,
+  })
+  interests?: any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests list (Android LikedActivities compatibility)',
+    nullable: true,
+  })
+  LikedActivities?: any;
 }
+
 
 export class ProfileResponseDto {
   @ApiProperty({ example: 1, description: 'User ID' })

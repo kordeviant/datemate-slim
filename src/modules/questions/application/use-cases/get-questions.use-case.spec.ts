@@ -12,8 +12,8 @@ describe('GetQuestionsUseCase', () => {
       id: 1,
       type: 'PERSONALITY',
       answerType: 'SINGLE',
-      nameEn: 'How do you take care of yourself?',
-      nameFa: 'چگونه از خود مراقبت می‌کنید؟',
+      enName: 'How do you take care of yourself?',
+      faName: 'چگونه از خود مراقبت می‌کنید؟',
       answers: [
         { id: 1, questionId: 1, answerEn: 'Meditation', answerFa: 'مراقبه' },
         { id: 2, questionId: 1, answerEn: 'Spending time with loved ones', answerFa: 'وقت گذراندن با عزیزان' },
@@ -23,8 +23,8 @@ describe('GetQuestionsUseCase', () => {
       id: 2,
       type: 'PERSONALITY',
       answerType: 'MULTI',
-      nameEn: 'What are you seeking?',
-      nameFa: 'به دنبال چه چیزی هستید؟',
+      enName: 'What are you seeking?',
+      faName: 'به دنبال چه چیزی هستید؟',
       answers: [
         { id: 3, questionId: 2, answerEn: 'New adventures', answerFa: 'ماجراجویی‌های جدید' },
         { id: 4, questionId: 2, answerEn: 'Meaningful connections', answerFa: 'ارتباطات معنادار' },
@@ -76,8 +76,8 @@ describe('GetQuestionsUseCase', () => {
     expect(result.questions[0].id).toBe(1);
     expect(result.questions[0].enName).toBe('How do you take care of yourself?');
     expect(result.questions[0].faName).toBe('چگونه از خود مراقبت می‌کنید؟');
-    expect(result.questions[0].nameEn).toBe('How do you take care of yourself?');
-    expect(result.questions[0].nameFa).toBe('چگونه از خود مراقبت می‌کنید؟');
+    expect((result.questions[0] as any).nameEn).toBeUndefined();
+    expect((result.questions[0] as any).nameFa).toBeUndefined();
     expect(result.questions[0].answers[0].id).toBe(0);
     expect(result.questions[0].answers[0].questionId).toBe(1);
     expect(result.questions[0].answers[0].enAnswer).toBe('Meditation');
@@ -99,7 +99,10 @@ describe('GetQuestionsUseCase', () => {
     expect(result.questions).toHaveLength(1);
     expect(result.questions[0].id).toBe(1);
     expect(result.question?.id).toBe(1);
-    expect(result.question?.nameEn).toBe('How do you take care of yourself?');
+    expect(result.question?.enName).toBe('How do you take care of yourself?');
+    expect(result.question?.faName).toBe('چگونه از خود مراقبت می‌کنید؟');
+    expect((result.question as any)?.nameEn).toBeUndefined();
+    expect((result.question as any)?.nameFa).toBeUndefined();
   });
 
   it('should throw NotFoundException when question by id does not exist', async () => {
@@ -143,5 +146,64 @@ describe('GetQuestionsUseCase', () => {
     const result = await useCase.execute(undefined, 'en');
 
     expect(result.questions).toHaveLength(0);
+  });
+
+  it('should resolve question icon object using MediaUrlResolverService and not send iconUrl', async () => {
+    const questionWithIcon: QuestionEntity = {
+      ...sampleQuestions[0],
+      icon: 'icons/drink.png',
+    };
+    mockRepo.findAll.mockResolvedValue([questionWithIcon]);
+
+    const mockResolver: any = {
+      resolveUrl: jest.fn().mockReturnValue('http://localhost:3000/assets/icons/drink.png'),
+    };
+    const useCaseWithResolver = new GetQuestionsUseCase(mockRepo, mockResolver);
+
+    const result = await useCaseWithResolver.execute();
+
+    expect(mockResolver.resolveUrl).toHaveBeenCalledWith('icons/drink.png');
+    expect(result.questions[0].icon).toEqual({
+      type: 'IMAGE',
+      url: 'http://localhost:3000/assets/icons/drink.png',
+      alt: '',
+    });
+    expect((result.questions[0] as any).iconUrl).toBeUndefined();
+  });
+
+  it('should return icon: null and no iconUrl when question has no icon', async () => {
+    const questionWithoutIcon: QuestionEntity = {
+      ...sampleQuestions[0],
+      icon: null,
+    };
+    mockRepo.findAll.mockResolvedValue([questionWithoutIcon]);
+
+    const useCaseNoIcon = new GetQuestionsUseCase(mockRepo);
+    const result = await useCaseNoIcon.execute();
+
+    expect(result.questions[0].icon).toBeNull();
+    expect((result.questions[0] as any).iconUrl).toBeUndefined();
+  });
+
+  it('should return alt text in icon object when iconAlt is set', async () => {
+    const questionWithAlt: QuestionEntity = {
+      ...sampleQuestions[0],
+      icon: 'icons/self-care.png',
+      iconAlt: 'Self care',
+    };
+    mockRepo.findAll.mockResolvedValue([questionWithAlt]);
+
+    const mockResolver: any = {
+      resolveUrl: jest.fn().mockReturnValue('https://cdn.example.com/icons/self-care.png'),
+    };
+    const useCaseWithResolver = new GetQuestionsUseCase(mockRepo, mockResolver);
+
+    const result = await useCaseWithResolver.execute();
+
+    expect(result.questions[0].icon).toEqual({
+      type: 'IMAGE',
+      url: 'https://cdn.example.com/icons/self-care.png',
+      alt: 'Self care',
+    });
   });
 });

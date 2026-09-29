@@ -97,8 +97,6 @@ export class GetInterestsUseCase {
     const isFa = lang === 'fa';
     const primaryName = isFa ? i.faName : i.enName;
 
-    const interestIcon = this.resolveIcon(i.icon, i.iconAlt);
-
     return {
       id: i.id,
       en: i.enName,
@@ -107,7 +105,6 @@ export class GetInterestsUseCase {
       name: primaryName,
       enName: i.enName,
       faName: i.faName,
-      icon: interestIcon,
     };
   }
 

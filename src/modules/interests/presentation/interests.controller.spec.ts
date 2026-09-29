@@ -19,8 +19,8 @@ describe('InterestsController', () => {
       enName: 'Food',
       faName: 'غذا',
       icon: null,
-      Interest: [{ id: 1, en: 'Gaming', fa: 'بازی', icon: null }],
-      interests: [{ id: 1, name: 'Gaming', enName: 'Gaming', faName: 'بازی', icon: null }],
+      Interest: [{ id: 1, en: 'Gaming', fa: 'بازی' }],
+      interests: [{ id: 1, name: 'Gaming', enName: 'Gaming', faName: 'بازی' }],
     };
     const mockList: any = [mockCategory];
     mockList.total = 1;

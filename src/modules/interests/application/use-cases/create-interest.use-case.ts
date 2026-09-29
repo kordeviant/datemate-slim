@@ -71,7 +71,6 @@ export class CreateInterestUseCase {
     const categoryIcon = this.resolveIcon(c.icon, c.iconAlt);
 
     const childInterests = (c.interests || []).map((i) => {
-      const interestIcon = this.resolveIcon(i.icon, i.iconAlt);
       return {
         id: i.id,
         en: i.enName,
@@ -80,7 +79,6 @@ export class CreateInterestUseCase {
         name: i.enName,
         enName: i.enName,
         faName: i.faName,
-        icon: interestIcon,
       };
     });
 

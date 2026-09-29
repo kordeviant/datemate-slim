@@ -540,32 +540,27 @@ interface ResponseResult<T> {
           {
             "id": 1,
             "en": "Gaming",
-            "fa": "بازی",
-            "icon": null
+            "fa": "بازی"
           },
           {
             "id": 2,
             "en": "Camping",
-            "fa": "کمپینگ",
-            "icon": null
+            "fa": "کمپینگ"
           },
           {
             "id": 3,
             "en": "Movies",
-            "fa": "فیلم",
-            "icon": null
+            "fa": "فیلم"
           },
           {
             "id": 4,
             "en": "Nature",
-            "fa": "طبیعت",
-            "icon": null
+            "fa": "طبیعت"
           },
           {
             "id": 5,
             "en": "Studying",
-            "fa": "مطالعه",
-            "icon": null
+            "fa": "مطالعه"
           }
         ]
       }

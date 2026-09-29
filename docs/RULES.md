@@ -448,8 +448,7 @@ Each category in `GET /interests` (and `GET /interest`) matches the Android clie
     {
       "id": 1,
       "en": "Gaming",
-      "fa": "بازی",
-      "icon": null
+      "fa": "بازی"
     }
   ]
 }

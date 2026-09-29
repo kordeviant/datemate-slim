@@ -3016,15 +3016,6 @@
             "type": "string",
             "example": "بازی",
             "description": "Farsi interest name (alias)"
-          },
-          "icon": {
-            "description": "Interest icon object (null if no icon)",
-            "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/InterestIconResponseDto"
-              }
-            ]
           }
         },
         "required": [

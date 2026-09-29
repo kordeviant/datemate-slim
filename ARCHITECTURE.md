@@ -117,8 +117,7 @@ The Interests module provides category-based discovery of user hobbies and activ
         {
           "id": 1,
           "en": "Gaming",
-          "fa": "بازی",
-          "icon": null
+          "fa": "بازی"
         }
       ]
     }

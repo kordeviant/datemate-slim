@@ -41,13 +41,6 @@ export class InterestItemResponseDto {
 
   @ApiPropertyOptional({ example: 'بازی', description: 'Farsi interest name (alias)' })
   faName?: string;
-
-  @ApiPropertyOptional({
-    type: InterestIconResponseDto,
-    description: 'Interest icon object (null if no icon)',
-    nullable: true,
-  })
-  icon?: InterestIconResponseDto | null;
 }
 
 export class InterestCategoryResponseDto {

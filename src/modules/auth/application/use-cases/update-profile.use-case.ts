@@ -258,25 +258,53 @@ export class UpdateProfileUseCase {
       dataObj?.preferences?.relation ??
       dataObj?.preferences?.relationType;
 
-    let candidateFavoritesInput: any[] | undefined =
+    let candidateFavoritesInput: any =
+      (profileNested as any)?.LikedActivities ??
       (profileNested as any)?.interest ??
       (profileNested as any)?.interests ??
       (profileNested as any)?.Interest ??
-      (profileNested as any)?.LikedActivities ??
       (profileNested as any)?.favorites ??
+      dto.LikedActivities ??
       dto.interest ??
       dto.interests ??
       (dto as any)?.Interest ??
-      dto.LikedActivities ??
       dto.favorites ??
+      dataObj?.LikedActivities ??
       dataObj?.interest ??
       dataObj?.interests ??
       dataObj?.Interest ??
-      dataObj?.LikedActivities ??
       dataObj?.favorites;
 
-    // Extract interest IDs from category structure or interest lists
+    if (typeof candidateFavoritesInput === 'string') {
+      try {
+        candidateFavoritesInput = JSON.parse(candidateFavoritesInput);
+      } catch {}
+    }
+
+    // Extract interest IDs from key-value map (like questions: { "1": [1, 2], "9": 72 } or { "1": 1 })
     if (
+      candidateFavoritesInput &&
+      typeof candidateFavoritesInput === 'object' &&
+      !Array.isArray(candidateFavoritesInput)
+    ) {
+      const extractedIds: number[] = [];
+      for (const [_, val] of Object.entries(candidateFavoritesInput)) {
+        if (Array.isArray(val)) {
+          for (const item of val) {
+            if (typeof item === 'number') extractedIds.push(item);
+            else if (typeof item === 'string' && !isNaN(Number(item))) extractedIds.push(Number(item));
+            else if (item && typeof item === 'object' && typeof item.id === 'number') extractedIds.push(item.id);
+          }
+        } else if (typeof val === 'number') {
+          extractedIds.push(val);
+        } else if (typeof val === 'string' && !isNaN(Number(val))) {
+          extractedIds.push(Number(val));
+        } else if (val && typeof val === 'object' && typeof (val as any).id === 'number') {
+          extractedIds.push((val as any).id);
+        }
+      }
+      candidateFavoritesInput = extractedIds;
+    } else if (
       candidateFavoritesInput &&
       Array.isArray(candidateFavoritesInput) &&
       candidateFavoritesInput.length > 0 &&
@@ -913,6 +941,30 @@ export class UpdateProfileUseCase {
         }
         : null;
 
+    const userInterests = await (this.prisma as any).userInterest?.findMany?.({
+      where: { userId },
+      include: { interest: true },
+    });
+    const likedActivitiesMap: Record<string, number | number[]> = {};
+    if (userInterests && Array.isArray(userInterests)) {
+      const interestsByCatId = new Map<number, number[]>();
+      for (const ui of userInterests) {
+        const catId = ui.interest?.categoryId;
+        const interestId = ui.interest?.id ?? ui.interestId;
+        if (catId !== undefined && catId !== null && interestId !== undefined && interestId !== null) {
+          if (!interestsByCatId.has(catId)) {
+            interestsByCatId.set(catId, []);
+          }
+          interestsByCatId.get(catId)!.push(interestId);
+        }
+      }
+
+      for (const [catId, ids] of interestsByCatId.entries()) {
+        const sorted = ids.sort((a, b) => a - b);
+        likedActivitiesMap[String(catId)] = sorted.length > 1 ? sorted : sorted[0];
+      }
+    }
+
     return {
       id: userId,
       email: user.email,
@@ -940,6 +992,7 @@ export class UpdateProfileUseCase {
         },
         RelationType: cleanRelationType,
         Answers: answersMap,
+        LikedActivities: likedActivitiesMap,
       },
     };
   }

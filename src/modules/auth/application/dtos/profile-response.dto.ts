@@ -140,22 +140,12 @@ export class ProfileNestedResponseDto {
   Answers?: Record<string, number> | any;
 
   @ApiPropertyOptional({
-    description: 'User selected interests list',
+    example: { '1': [1, 2], '9': 72 },
+    description:
+      'User selected interests map by category ID, formatted like Answers: { [categoryId]: interestId | interestId[] }',
     nullable: true,
   })
-  interest?: any;
-
-  @ApiPropertyOptional({
-    description: 'User selected interests list (alias)',
-    nullable: true,
-  })
-  interests?: any;
-
-  @ApiPropertyOptional({
-    description: 'User selected interests list (Android LikedActivities compatibility)',
-    nullable: true,
-  })
-  LikedActivities?: any;
+  LikedActivities?: Record<string, number | number[]> | any;
 }
 
 

@@ -454,10 +454,9 @@ Each category in `GET /interests` (and `GET /interest`) matches the Android clie
 }
 ```
 
-### 13.2 Updating User Interests
-Clients can submit selected interests in `PUT /users/me` or `POST /users/profile` using any of:
-- `interest`: array of category objects (`[ { "id": 1, "Interest": [ { "id": 1 } ] } ]`), array of interest objects (`[ { "id": 1 } ]`), or array of IDs (`[1, 2]`)
-- `interests`: alias for `interest`
-- `LikedActivities`: backwards-compatible alias
-- `favorites`: backwards-compatible alias
+### 13.2 Updating User Interests (`LikedActivities`)
+Clients can submit selected interests in `PUT /users/me` or `POST /users/profile` using:
+- `LikedActivities`: key-value map by category ID like questions Answers: `{ "1": [1, 2], "9": 72 }` (or single `1`)
+- Backward-compatible formats: array of IDs (`[1, 2, 72]`) or category objects (`[ { "id": 1, "Interest": [ { "id": 1 } ] } ]`)
+- In `GET /users/me`, only `Profile.LikedActivities` is returned as `{ [categoryId]: interestId | interestId[] }` (duplicate `interest` and `interests` arrays are omitted).
 

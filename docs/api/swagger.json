@@ -2140,19 +2140,16 @@
             "description": "User answers formatted as { [questionid]: answerId } where answerId starts from 0 for each question",
             "nullable": true
           },
-          "interest": {
-            "type": "object",
-            "description": "User selected interests list",
-            "nullable": true
-          },
-          "interests": {
-            "type": "object",
-            "description": "User selected interests list (alias)",
-            "nullable": true
-          },
           "LikedActivities": {
             "type": "object",
-            "description": "User selected interests list (Android LikedActivities compatibility)",
+            "example": {
+              "1": [
+                1,
+                2
+              ],
+              "9": 72
+            },
+            "description": "User selected interests map by category ID, formatted like Answers: { [categoryId]: interestId | interestId[] }",
             "nullable": true
           }
         },

@@ -189,22 +189,25 @@ export class GetProfileUseCase {
       `[Profile Retrieved] User ${userId} profile retrieved. Completed status: ${profileCompleted}`,
     );
 
-    const userInterests =
-      (user as any).interests?.map((ui: any) => ({
-        id: ui.interest?.id ?? ui.interestId,
-        en: ui.interest?.nameEn ?? '',
-        fa: ui.interest?.nameFa ?? '',
-        categoryId: ui.interest?.categoryId ?? null,
-        icon: ui.interest?.media
-          ? {
-              type: 'IMAGE',
-              url: this.mediaUrlResolver
-                ? this.mediaUrlResolver.resolveUrl(ui.interest.media)
-                : ui.interest.media,
-              alt: ui.interest?.nameEn ?? '',
-            }
-          : null,
-      })) || [];
+    const likedActivitiesMap: Record<string, number | number[]> = {};
+    if ((user as any).interests && Array.isArray((user as any).interests)) {
+      const interestsByCatId = new Map<number, number[]>();
+      for (const ui of (user as any).interests) {
+        const catId = ui.interest?.categoryId;
+        const interestId = ui.interest?.id ?? ui.interestId;
+        if (catId !== undefined && catId !== null && interestId !== undefined && interestId !== null) {
+          if (!interestsByCatId.has(catId)) {
+            interestsByCatId.set(catId, []);
+          }
+          interestsByCatId.get(catId)!.push(interestId);
+        }
+      }
+
+      for (const [catId, ids] of interestsByCatId.entries()) {
+        const sorted = ids.sort((a, b) => a - b);
+        likedActivitiesMap[String(catId)] = sorted.length > 1 ? sorted : sorted[0];
+      }
+    }
 
     return {
       id: user.id,
@@ -235,9 +238,7 @@ export class GetProfileUseCase {
         },
         RelationType: relationType,
         Answers: answersMap,
-        interest: userInterests,
-        interests: userInterests,
-        LikedActivities: userInterests,
+        LikedActivities: likedActivitiesMap,
       },
     };
   }

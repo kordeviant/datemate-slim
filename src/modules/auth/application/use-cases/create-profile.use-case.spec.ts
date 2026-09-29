@@ -701,6 +701,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         },
         RelationType: "LONG",
         Answers: {},
+        LikedActivities: {},
       },
     });
 

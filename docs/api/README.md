@@ -297,7 +297,7 @@ interface ResponseResult<T> {
 - **Method**: `GET`
 - **Path**: `/users/me` or `/v1/users/me`
 - **Headers**: `Authorization: Bearer <JWT_ACCESS_TOKEN>`
-- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, and nested `Profile` object containing `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `profileCompleted`, `Demographic`, `Preferences`, and `Answers`. (Note: `selfie` URL is not returned: this will not use still, only client should send; `LikedActivities` is removed).
+- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, and nested `Profile` object containing `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `profileCompleted`, `Demographic`, `RelationType`, `Answers`, and `LikedActivities`.
 - **Success Response (200 OK)**:
   ```json
   {
@@ -332,11 +332,13 @@ interface ResponseResult<T> {
             "country": "Iran"
           }
         },
-        "Preferences": {
-          "relation": "LONG"
-        },
+        "RelationType": "LONG",
         "Answers": {
           "1": 0
+        },
+        "LikedActivities": {
+          "1": [1, 2],
+          "9": 72
         }
       }
     },

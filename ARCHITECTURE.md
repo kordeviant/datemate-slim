@@ -128,8 +128,8 @@ The Interests module provides category-based discovery of user hobbies and activ
   - `GET /interests/:id`: Retrieves a single category with child interests.
   - `POST /interests` (and `POST /interest`): Admin-only category creation with child interests.
 - **User Profile Integration**:
-  - `GET /users/me`: Returns selected interests in `Profile.interest`, `Profile.interests`, and `Profile.LikedActivities`.
-  - `PUT /users/me`: Updates selected user interests via `interest`, `interests`, `LikedActivities`, or `favorites`.
+  - `GET /users/me`: Returns selected interests in `Profile.LikedActivities` as `{ [categoryId]: interestId | interestId[] }` (omitting duplicate `interest` / `interests`).
+  - `PUT /users/me`: Updates selected user interests via `LikedActivities` key-value map, flat IDs, or category objects.
 - **Seeding**:
   - Seed script: `npm run seed:interests` (`npx ts-node prisma/seed-interests.ts`).
   - Reads SVG icons from `seed-icons/intersets` or `seed-icons/interests` in project root and copies them to `uploads/icons/`.

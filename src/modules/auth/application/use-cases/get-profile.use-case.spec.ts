@@ -78,9 +78,7 @@ describe('GetProfileUseCase', () => {
         },
         RelationType: null,
         Answers: {},
-        interest: [],
-        interests: [],
-        LikedActivities: [],
+        LikedActivities: {},
       },
     });
   });
@@ -353,5 +351,32 @@ describe('GetProfileUseCase', () => {
     expect(res.Profile.Answers).toEqual({ '2': 1 });
     expect((res.Profile as any).answersList).toBeUndefined();
     expect((res.Profile as any).answerIds).toBeUndefined();
+  });
+
+  it('should format LikedActivities as key-value map by category ID like questions', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: true,
+      profile: null,
+      demographic: null,
+      preferences: null,
+      interests: [
+        { interestId: 1, interest: { id: 1, categoryId: 1 } },
+        { interestId: 2, interest: { id: 2, categoryId: 1 } },
+        { interestId: 72, interest: { id: 72, categoryId: 9 } },
+      ],
+      questionAnswers: [],
+    });
+
+    const res = await useCase.execute(1);
+
+    expect(res.Profile.LikedActivities).toEqual({
+      '1': [1, 2],
+      '9': 72,
+    });
+    expect((res.Profile as any).interest).toBeUndefined();
+    expect((res.Profile as any).interests).toBeUndefined();
   });
 });

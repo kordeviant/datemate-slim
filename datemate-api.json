@@ -1592,212 +1592,6 @@
         ]
       }
     },
-    "/interst": {
-      "get": {
-        "operationId": "InterestsController_getInterests",
-        "summary": "Get all interest categories with their interests",
-        "description": "Retrieves all interest categories, each containing a list of child interests. Matches client format: id, en, fa, icon: object, Interest: List<Interest>. Supports optional language filter (en, fa) and category ID filter.",
-        "parameters": [
-          {
-            "name": "id",
-            "required": false,
-            "in": "query",
-            "description": "Filter by category ID",
-            "schema": {
-              "type": "number"
-            }
-          },
-          {
-            "name": "language",
-            "required": false,
-            "in": "query",
-            "description": "Language filter (en or fa). If omitted, returns both English and Farsi texts.",
-            "schema": {
-              "enum": [
-                "en",
-                "fa"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Interest categories retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterestCategoryResponseDto"
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Interest category with specified ID not found"
-          }
-        },
-        "tags": [
-          "Interests"
-        ]
-      },
-      "post": {
-        "operationId": "InterestsController_createInterest",
-        "summary": "Create a new interest category with interests (admin only)",
-        "description": "Creates a new interest category with bilingual names and child interests. Matches client format: id, en, fa, icon, Interest: List<Interest>. Requires admin role.",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateInterestCategoryDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Interest category created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error"
-          },
-          "401": {
-            "description": "Missing/invalid token or insufficient permissions"
-          }
-        },
-        "tags": [
-          "Interests"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
-        ]
-      }
-    },
-    "/intersts": {
-      "get": {
-        "operationId": "InterestsController_getInterests",
-        "summary": "Get all interest categories with their interests",
-        "description": "Retrieves all interest categories, each containing a list of child interests. Matches client format: id, en, fa, icon: object, Interest: List<Interest>. Supports optional language filter (en, fa) and category ID filter.",
-        "parameters": [
-          {
-            "name": "id",
-            "required": false,
-            "in": "query",
-            "description": "Filter by category ID",
-            "schema": {
-              "type": "number"
-            }
-          },
-          {
-            "name": "language",
-            "required": false,
-            "in": "query",
-            "description": "Language filter (en or fa). If omitted, returns both English and Farsi texts.",
-            "schema": {
-              "enum": [
-                "en",
-                "fa"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Interest categories retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterestCategoryResponseDto"
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Interest category with specified ID not found"
-          }
-        },
-        "tags": [
-          "Interests"
-        ]
-      },
-      "post": {
-        "operationId": "InterestsController_createInterest",
-        "summary": "Create a new interest category with interests (admin only)",
-        "description": "Creates a new interest category with bilingual names and child interests. Matches client format: id, en, fa, icon, Interest: List<Interest>. Requires admin role.",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateInterestCategoryDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Interest category created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error"
-          },
-          "401": {
-            "description": "Missing/invalid token or insufficient permissions"
-          }
-        },
-        "tags": [
-          "Interests"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
-        ]
-      }
-    },
     "/interests/{id}": {
       "get": {
         "operationId": "InterestsController_getInterestById",
@@ -1848,104 +1642,6 @@
       }
     },
     "/interest/{id}": {
-      "get": {
-        "operationId": "InterestsController_getInterestById",
-        "summary": "Get a single interest category by ID",
-        "description": "Retrieves a single interest category with its child interests by numeric ID.",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Interest category ID",
-            "schema": {
-              "type": "number"
-            }
-          },
-          {
-            "name": "language",
-            "required": false,
-            "in": "query",
-            "description": "Language filter (en or fa). If omitted, returns both languages.",
-            "schema": {
-              "enum": [
-                "en",
-                "fa"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Interest category retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Interest category not found"
-          }
-        },
-        "tags": [
-          "Interests"
-        ]
-      }
-    },
-    "/interst/{id}": {
-      "get": {
-        "operationId": "InterestsController_getInterestById",
-        "summary": "Get a single interest category by ID",
-        "description": "Retrieves a single interest category with its child interests by numeric ID.",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Interest category ID",
-            "schema": {
-              "type": "number"
-            }
-          },
-          {
-            "name": "language",
-            "required": false,
-            "in": "query",
-            "description": "Language filter (en or fa). If omitted, returns both languages.",
-            "schema": {
-              "enum": [
-                "en",
-                "fa"
-              ],
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Interest category retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InterestCategoryResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Interest category not found"
-          }
-        },
-        "tags": [
-          "Interests"
-        ]
-      }
-    },
-    "/intersts/{id}": {
       "get": {
         "operationId": "InterestsController_getInterestById",
         "summary": "Get a single interest category by ID",
@@ -2708,6 +2404,40 @@
               "2": 1,
               "3": 0
             }
+          },
+          "LikedActivities": {
+            "type": "object",
+            "description": "User selected interests map by category ID, formatted like Answers: { [categoryId]: interestId | interestId[] }",
+            "example": {
+              "1": [
+                1,
+                3
+              ],
+              "9": 72
+            }
+          },
+          "likedActivities": {
+            "type": "object",
+            "description": "User selected interests map or list (lowercase alias)",
+            "example": {
+              "1": [
+                1,
+                3
+              ],
+              "9": 72
+            }
+          },
+          "interest": {
+            "type": "object",
+            "description": "User selected interests map or list (alias)"
+          },
+          "interests": {
+            "type": "object",
+            "description": "User selected interests map or list (alias)"
+          },
+          "favorites": {
+            "type": "object",
+            "description": "User selected interests map or list (alias)"
           }
         }
       },

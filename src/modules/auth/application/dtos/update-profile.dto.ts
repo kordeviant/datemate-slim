@@ -320,6 +320,43 @@ export class ProfileNestedDto {
   @IsOptional()
   @Transform(parseIfJsonString)
   answers?: Record<string, number> | any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests map by category ID, formatted like Answers: { [categoryId]: interestId | interestId[] }',
+    example: { '1': [1, 3], '9': 72 },
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  LikedActivities?: any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests map or list (lowercase alias)',
+    example: { '1': [1, 3], '9': 72 },
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  likedActivities?: any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests map or list (alias)',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  interest?: any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests map or list (alias)',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  interests?: any;
+
+  @ApiPropertyOptional({
+    description: 'User selected interests map or list (alias)',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  favorites?: any;
 }
 
 export class UpdateProfileDto {

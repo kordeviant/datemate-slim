@@ -878,6 +878,42 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         }),
       );
     });
+
+    it("should update LikedActivities when passed inside Profile as key-value map", async () => {
+      mockPrisma.interest = {
+        findMany: jest.fn().mockResolvedValue([{ id: 1 }, { id: 3 }, { id: 72 }]),
+      } as any;
+      mockPrisma.userInterest = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        createMany: jest.fn().mockResolvedValue({ count: 3 }),
+        findMany: jest.fn().mockResolvedValue([
+          { interestId: 1, interest: { id: 1, categoryId: 1 } },
+          { interestId: 3, interest: { id: 3, categoryId: 1 } },
+          { interestId: 72, interest: { id: 72, categoryId: 9 } },
+        ]),
+      } as any;
+
+      const res = await useCase.execute(1, {
+        Profile: {
+          LikedActivities: {
+            '1': [1, 3],
+            '9': 72,
+          },
+        },
+      } as any);
+
+      expect(mockPrisma.userInterest.createMany).toHaveBeenCalledWith({
+        data: [
+          { userId: 1, interestId: 1, isLiked: true },
+          { userId: 1, interestId: 3, isLiked: true },
+          { userId: 1, interestId: 72, isLiked: true },
+        ],
+      });
+      expect(res.Profile.LikedActivities).toEqual({
+        '1': [1, 3],
+        '9': 72,
+      });
+    });
   });
 });
 

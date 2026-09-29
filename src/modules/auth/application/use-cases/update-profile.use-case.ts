@@ -260,16 +260,19 @@ export class UpdateProfileUseCase {
 
     let candidateFavoritesInput: any =
       (profileNested as any)?.LikedActivities ??
+      (profileNested as any)?.likedActivities ??
       (profileNested as any)?.interest ??
       (profileNested as any)?.interests ??
       (profileNested as any)?.Interest ??
       (profileNested as any)?.favorites ??
       dto.LikedActivities ??
+      (dto as any)?.likedActivities ??
       dto.interest ??
       dto.interests ??
       (dto as any)?.Interest ??
       dto.favorites ??
       dataObj?.LikedActivities ??
+      dataObj?.likedActivities ??
       dataObj?.interest ??
       dataObj?.interests ??
       dataObj?.Interest ??

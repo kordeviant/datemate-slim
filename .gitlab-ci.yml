@@ -79,6 +79,9 @@ deploy:
         echo '===> Seeding questions...'
         npx ts-node prisma/seed-questions.ts
 
+        echo '===> Seeding interests...'
+        npx ts-node prisma/seed-interests.ts
+
         echo '===> Building project...'
         npm run build
 

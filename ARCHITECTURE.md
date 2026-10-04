@@ -134,3 +134,74 @@ The Interests module provides category-based discovery of user hobbies and activ
   - Seed script: `npm run seed:interests` (`npx ts-node prisma/seed-interests.ts`).
   - Reads SVG icons from `seed-icons/intersets` or `seed-icons/interests` in project root and copies them to `uploads/icons/`.
 
+---
+
+## 6. Admin Panel Module (`src/modules/admin`)
+
+The Admin Module provides administration, monitoring, user directory search, account moderation, and identity verification capabilities for platform operators.
+
+### 6.1 Architecture & Domain Invariants
+- **Bounded Context**: Dedicated `admin` domain isolated from consumer authentication and mobile profile endpoints.
+- **Role-Based Security**: Secured with `AdminAuthGuard` requiring valid JWT with `role === 'ADMIN'`.
+- **Session Termination on Ban**: Banning a user automatically purges all their active sessions (`user_sessions`) in real-time.
+- **Identity Verification Notification**: Approving or rejecting a verification triggers `NotificationType.PROFILE_VERIFIED` to inform the user.
+
+### 6.2 Administrative Endpoints
+- `GET /v1/admin/dashboard/stats`: Returns KPI metrics (totalUsers, onlineUsers, pendingSelfies, unansweredTickets).
+- `GET /v1/admin/users`: Paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`).
+- `POST /v1/admin/users/:id/ban`: Bans/blocks user account with duration in hours or permanent ban (`null`).
+- `POST /v1/admin/users/:id/unban`: Unbans user account and restores full access.
+- `GET /v1/admin/verifications`: Paginated queue of pending selfie verifications displaying `avatarUrl` alongside private `selfieUrl`.
+- `POST /v1/admin/verifications/:userId/approve`: Validates user profile (`profileValidated = true`) and fires notification.
+- `POST /v1/admin/verifications/:userId/reject`: Clears unverified selfie, sets `profileValidated = false`, and notifies user with reason.
+
+---
+
+## 7. User Gallery & Swipe Profile Picture System (`src/modules/auth`)
+
+The User Gallery system enables users to upload, manage, and curate their photo gallery for profile discovery and matching.
+
+### 7.1 Architecture & Domain Invariants
+- **Profile Picture vs. Avatar**:
+  - `avatar`: Dedicated identity verification photo (stored in `Profile.avatarUrl`, served via `/assets/avatars/...`).
+  - `profilePicture`: The primary public swipe picture used in the matching/discovery deck (stored in `Profile.profilePictureUrl`, served via `/assets/images/...`).
+  - `UserGallery.isProfilePicture`: Boolean flag designating which gallery item is currently active for swiping.
+- **Multipart Upload Fields**:
+  - Only three distinct file fields are accepted on profile update endpoints (`PUT /v1/users/profile` and `POST /v1/users/profile`):
+    - `avatar?: Express.Multer.File[]` (max 1)
+    - `selfie?: Express.Multer.File[]` (max 1)
+    - `gallery?: Express.Multer.File[]` (max 5)
+
+### 7.2 Validation Boundaries & Upload Rules
+- **Minimum Resolution**: `1200×800` (landscape or portrait: min dimension ≥ 800px, max dimension ≥ 1200px).
+- **Recommended Resolutions**: `1600×1200` or `1920×1080`.
+- **Maximum Resolution**: `4096×4096`.
+- **Maximum File Size**: 3MB per photo.
+- **Maximum Photos Per Upload**: 5 photos per request.
+- **Maximum Total Upload Size**: 15MB per request.
+- **Accepted Formats**: WebP (recommended) and JPG/JPEG/PNG. All images are normalized, EXIF-rotated, stripped of metadata, and converted to WebP via Sharp.
+- **Gallery Total Capacity**: Maximum 10 photos stored per user (`projected = current - deleteCount + newUploads <= 10`).
+- **Update API Limit**: Maximum 6 gallery items can be submitted in an update request payload.
+
+### 7.3 Profile Response
+Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
+```json
+{
+  "Profile": {
+    "avatar": "http://localhost:3000/assets/avatars/avatar_1.webp",
+    "profilePicture": "http://localhost:3000/assets/images/gallery_1_123.webp"
+  },
+  "gallery": [
+    {
+      "id": 12,
+      "url": "http://localhost:3000/assets/images/gallery_1_123.webp",
+      "description": "Weekend trip",
+      "likesCount": 10,
+      "isProfilePicture": true,
+      "createdAt": "2026-10-04T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+

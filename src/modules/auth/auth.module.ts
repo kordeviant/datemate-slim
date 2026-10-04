@@ -16,6 +16,7 @@ import { PasswordHasherService } from "./application/services/password-hasher.se
 import { TokenService } from "./application/services/token.service";
 import { AppleAuthService } from "./application/services/apple-auth.service";
 import { AvatarProcessorService } from "./application/services/avatar-processor.service";
+import { GalleryProcessorService } from "./application/services/gallery-processor.service";
 import { USER_REPOSITORY } from "./domain/repositories/user.repository.interface";
 import { USER_SESSION_REPOSITORY } from "./domain/repositories/user-session.repository.interface";
 import { PrismaUserRepository } from "./infrastructure/repositories/prisma-user.repository";
@@ -40,6 +41,7 @@ import { MediaModule } from "../media/media.module";
     TokenService,
     AppleAuthService,
     AvatarProcessorService,
+    GalleryProcessorService,
     // Use Cases
     SignUpUseCase,
     VerifyCodeUseCase,
@@ -56,6 +58,7 @@ import { MediaModule } from "../media/media.module";
     USER_REPOSITORY,
     USER_SESSION_REPOSITORY,
     TokenService,
+    GalleryProcessorService,
     GetProfileUseCase,
     UpdateProfileUseCase,
   ],

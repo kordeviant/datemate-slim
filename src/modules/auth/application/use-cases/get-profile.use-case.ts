@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
-import { ProfileResponseDto } from '../dtos/profile-response.dto';
+import { ProfileResponseDto, GalleryItemResponseDto } from '../dtos/profile-response.dto';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 
 @Injectable()
@@ -17,6 +17,9 @@ export class GetProfileUseCase {
       where: { id: userId },
       include: {
         profile: true,
+        gallery: {
+          orderBy: { createdAt: 'asc' },
+        },
         demographic: {
           include: {
             city: {
@@ -209,6 +212,25 @@ export class GetProfileUseCase {
       }
     }
 
+    const userGalleries = (user as any).gallery || [];
+    const mappedGallery: GalleryItemResponseDto[] = userGalleries.map((g: any) => ({
+      id: g.id,
+      url: this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(g.imageUrl) : g.imageUrl,
+      description: g.description,
+      likesCount: g.likesCount || 0,
+      isProfilePicture: Boolean(g.isProfilePicture),
+      createdAt: g.createdAt
+        ? typeof g.createdAt.toISOString === 'function'
+          ? g.createdAt.toISOString()
+          : String(g.createdAt)
+        : undefined,
+    }));
+
+    const profilePictureUrl = profile?.profilePictureUrl || null;
+    const resolvedProfilePicture = profilePictureUrl
+      ? (this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(profilePictureUrl) : profilePictureUrl)
+      : null;
+
     return {
       id: user.id,
       email: user.email,
@@ -225,6 +247,7 @@ export class GetProfileUseCase {
         avatar: this.mediaUrlResolver
           ? this.mediaUrlResolver.resolveUrl(avatarUrl)
           : avatarUrl,
+        profilePicture: resolvedProfilePicture,
         // selfie url: this will not use still, only client should send
         profileCompleted,
         Demographic: {
@@ -240,6 +263,7 @@ export class GetProfileUseCase {
         Answers: answersMap,
         LikedActivities: likedActivitiesMap,
       },
+      gallery: mappedGallery,
     };
   }
 }

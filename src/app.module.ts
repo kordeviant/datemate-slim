@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { QuestionsModule } from './modules/questions/questions.module';
 import { MediaModule } from './modules/media/media.module';
 import { InterestsModule } from './modules/interests/interests.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -23,6 +24,7 @@ import { AppService } from './app.service';
     QuestionsModule,
     MediaModule,
     InterestsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

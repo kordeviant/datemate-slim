@@ -106,13 +106,14 @@ export class UsersController {
     FileFieldsInterceptor([
       { name: "avatar", maxCount: 1 },
       { name: "selfie", maxCount: 1 },
+      { name: "gallery", maxCount: 5 },
     ]),
   )
   @ApiConsumes("multipart/form-data", "application/json")
   @ApiOperation({
-    summary: "Update user profile (step-by-step onboarding & edit profile)",
+    summary: "Update user profile (step-by-step onboarding, edit profile & gallery)",
     description:
-      "Updates user profile using Android schema (language, lat, lon, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Also supports optional avatar or selfie verification image files.",
+      "Updates user profile using Android schema (language, lat, lon, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences, gallery, profilePicture }). Also supports avatar, selfie, and up to 5 gallery photo uploads (WebP/JPEG, min 1200x800, max 4096x4096, max 3MB per photo, max 15MB total).",
   })
   @ApiBody({
     description:
@@ -127,7 +128,7 @@ export class UsersController {
   @ApiResponse({
     status: 400,
     description:
-      "Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image)",
+      "Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image, resolution below 1200x800)",
   })
   @ApiResponse({
     status: 409,
@@ -145,6 +146,7 @@ export class UsersController {
       | {
           avatar?: Express.Multer.File[];
           selfie?: Express.Multer.File[];
+          gallery?: Express.Multer.File[];
         }
       | Express.Multer.File,
   ): Promise<ProfileResponseDto> {
@@ -159,6 +161,7 @@ export class UsersController {
 
     let avatarFile: Express.Multer.File | undefined;
     let selfieFile: Express.Multer.File | undefined;
+    let galleryFiles: Express.Multer.File[] = [];
 
     if (files) {
       if ((files as any).buffer) {
@@ -167,13 +170,25 @@ export class UsersController {
         const fileMap = files as {
           avatar?: Express.Multer.File[];
           selfie?: Express.Multer.File[];
+          gallery?: Express.Multer.File[];
         };
         avatarFile = fileMap.avatar?.[0];
         selfieFile = fileMap.selfie?.[0];
+        galleryFiles = fileMap.gallery || [];
       }
     }
 
     console.log("User with ID:", decoded.sub, "with data:", dto);
+
+    if (galleryFiles && galleryFiles.length > 0) {
+      return this.updateProfileUseCase.execute(
+        decoded.sub,
+        dto,
+        avatarFile,
+        selfieFile,
+        galleryFiles,
+      );
+    }
 
     return this.updateProfileUseCase.execute(
       decoded.sub,
@@ -190,6 +205,7 @@ export class UsersController {
     FileFieldsInterceptor([
       { name: "avatar", maxCount: 1 },
       { name: "selfie", maxCount: 1 },
+      { name: "gallery", maxCount: 5 },
     ]),
   )
   @ApiConsumes("multipart/form-data", "application/json")
@@ -220,6 +236,7 @@ export class UsersController {
       | {
           avatar?: Express.Multer.File[];
           selfie?: Express.Multer.File[];
+          gallery?: Express.Multer.File[];
         }
       | Express.Multer.File,
   ): Promise<ProfileResponseDto> {

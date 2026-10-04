@@ -1,0 +1,154 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  UseGuards,
+  VERSION_NEUTRAL,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { AdminAuthGuard } from '../application/guards/admin-auth.guard';
+import { GetAdminUsersUseCase } from '../application/use-cases/get-admin-users.use-case';
+import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
+import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
+import { GetAdminUsersDto } from '../application/dtos/get-admin-users.dto';
+import { AdminUsersResponseDto } from '../application/dtos/admin-users-response.dto';
+import { BanUserDto } from '../application/dtos/ban-user.dto';
+import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
+
+@ApiTags('Admin - Users')
+@ApiBearerAuth('JWT-auth')
+@UseGuards(AdminAuthGuard)
+@Controller({ path: 'admin/users', version: ['1', VERSION_NEUTRAL] })
+export class AdminUsersController {
+  constructor(
+    private readonly getAdminUsersUseCase: GetAdminUsersUseCase,
+    private readonly banUserUseCase: BanUserUseCase,
+    private readonly unbanUserUseCase: UnbanUserUseCase,
+  ) {}
+
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Search and paginate platform users directory',
+    description:
+      'Filterable, searchable, and paginated user table with registration status, online status, gender, and sorting.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Users list retrieved successfully',
+    type: AdminUsersResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async getUsers(
+    @Query() query: GetAdminUsersDto,
+  ): Promise<AdminUsersResponseDto> {
+    const result = await this.getAdminUsersUseCase.execute({
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      status: query.status,
+      gender: query.gender,
+      sortBy: query.sortBy,
+      order: query.order,
+    });
+
+    return {
+      status: 'success',
+      message: 'Users list retrieved',
+      data: result,
+    };
+  }
+
+  @Post(':id/ban')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Ban/block a user account with duration or permanent ban',
+    description:
+      'Moderation endpoint allowing admins to ban a user for specific duration (in hours, e.g. 24, 168) or permanently (null). Automatically invalidates active sessions.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID to ban',
+    example: 101,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully banned',
+    type: BanUserResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async banUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: BanUserDto,
+  ): Promise<BanUserResponseDto> {
+    const result = await this.banUserUseCase.execute(
+      id,
+      body.durationHours,
+      body.reason,
+    );
+
+    return {
+      status: 'success',
+      message: 'User banned successfully',
+      data: result,
+    };
+  }
+
+  @Post(':id/unban')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Unban/unblock a previously banned user',
+    description: 'Removes the ban from a user account by setting bannedUntil to null.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID to unban',
+    example: 101,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully unbanned',
+    type: BanUserResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async unbanUser(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<BanUserResponseDto> {
+    const result = await this.unbanUserUseCase.execute(id);
+
+    return {
+      status: 'success',
+      message: 'User unbanned successfully',
+      data: result,
+    };
+  }
+}

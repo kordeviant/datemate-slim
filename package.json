@@ -17,6 +17,7 @@
     "seed:questions": "ts-node prisma/seed-questions.ts",
     "seed:interests": "ts-node prisma/seed-interests.ts",
     "seed:geo": "ts-node prisma/seed-geo.ts",
+    "seed:users": "ts-node prisma/seed-users.ts",
 
     "test": "jest",
     "test:watch": "jest --watch",

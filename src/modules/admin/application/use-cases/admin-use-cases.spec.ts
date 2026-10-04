@@ -1,0 +1,220 @@
+import { GetDashboardStatsUseCase } from './get-dashboard-stats.use-case';
+import { GetAdminUsersUseCase } from './get-admin-users.use-case';
+import { BanUserUseCase } from './ban-user.use-case';
+import { UnbanUserUseCase } from './unban-user.use-case';
+import { GetPendingVerificationsUseCase } from './get-pending-verifications.use-case';
+import { ApproveVerificationUseCase } from './approve-verification.use-case';
+import { RejectVerificationUseCase } from './reject-verification.use-case';
+import { IAdminRepository } from '../../domain/repositories/admin.repository.interface';
+import { AdminUserStatusFilter, AdminGenderFilter } from '../dtos/get-admin-users.dto';
+
+describe('Admin Use Cases', () => {
+  let mockAdminRepository: Partial<IAdminRepository>;
+
+  beforeEach(() => {
+    mockAdminRepository = {
+      getDashboardStats: jest.fn(),
+      getUsers: jest.fn(),
+      banUser: jest.fn(),
+      unbanUser: jest.fn(),
+      getPendingVerifications: jest.fn(),
+      approveVerification: jest.fn(),
+      rejectVerification: jest.fn(),
+    };
+  });
+
+  describe('GetDashboardStatsUseCase', () => {
+    it('should return aggregated platform stats', async () => {
+      const stats = {
+        totalUsers: 6570,
+        onlineUsers: 369,
+        pendingSelfies: 7,
+        unansweredTickets: 0,
+      };
+      (mockAdminRepository.getDashboardStats as jest.Mock).mockResolvedValue(stats);
+
+      const useCase = new GetDashboardStatsUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute();
+
+      expect(result).toEqual(stats);
+      expect(mockAdminRepository.getDashboardStats).toHaveBeenCalled();
+    });
+  });
+
+  describe('GetAdminUsersUseCase', () => {
+    it('should delegate fetching users with pagination and filters', async () => {
+      const paginatedResult = {
+        items: [
+          {
+            id: 101,
+            email: 'sara@example.com',
+            fullName: 'سارا همتی',
+            username: 'sara_h',
+            avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+            isPremium: true,
+            profileValidated: false,
+            isBanned: false,
+            bannedUntil: null,
+            gender: 'FEMALE',
+            age: 23,
+            city: 'اسلامشهر',
+            registrationCompleted: true,
+            isOnline: true,
+            lastSeenAt: '2026-10-04T07:15:00.000Z',
+            createdAt: '2024-11-20T10:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        totalPages: 1,
+      };
+      (mockAdminRepository.getUsers as jest.Mock).mockResolvedValue(paginatedResult);
+
+      const useCase = new GetAdminUsersUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const params = {
+        page: 1,
+        limit: 10,
+        search: 'sara',
+        status: AdminUserStatusFilter.ALL,
+        gender: AdminGenderFilter.FEMALE,
+      };
+
+      const result = await useCase.execute(params);
+
+      expect(result).toEqual(paginatedResult);
+      expect(mockAdminRepository.getUsers).toHaveBeenCalledWith(params);
+    });
+  });
+
+  describe('BanUserUseCase', () => {
+    it('should delegate user ban to repository', async () => {
+      const banResult = {
+        id: 101,
+        email: 'user@example.com',
+        isBanned: true,
+        bannedUntil: '2026-10-11T11:50:00.000Z',
+        reason: 'Violated guidelines',
+      };
+      (mockAdminRepository.banUser as jest.Mock).mockResolvedValue(banResult);
+
+      const useCase = new BanUserUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(101, 168, 'Violated guidelines');
+
+      expect(result).toEqual(banResult);
+      expect(mockAdminRepository.banUser).toHaveBeenCalledWith(
+        101,
+        168,
+        'Violated guidelines',
+      );
+    });
+  });
+
+  describe('UnbanUserUseCase', () => {
+    it('should delegate user unban to repository', async () => {
+      const unbanResult = {
+        id: 101,
+        email: 'user@example.com',
+        isBanned: false,
+        bannedUntil: null,
+      };
+      (mockAdminRepository.unbanUser as jest.Mock).mockResolvedValue(unbanResult);
+
+      const useCase = new UnbanUserUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(101);
+
+      expect(result).toEqual(unbanResult);
+      expect(mockAdminRepository.unbanUser).toHaveBeenCalledWith(101);
+    });
+  });
+
+  describe('GetPendingVerificationsUseCase', () => {
+    it('should delegate fetching pending verifications', async () => {
+      const verificationsResult = {
+        items: [
+          {
+            userId: 101,
+            fullName: 'سارا همتی',
+            username: 'sara_h',
+            email: 'sara@example.com',
+            avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+            selfieUrl: 'http://localhost:3000/assets/selfies/selfie_1.webp',
+            gender: 'FEMALE',
+            age: 23,
+            city: 'اسلامشهر',
+            submittedAt: '2026-10-04T07:15:00.000Z',
+            createdAt: '2024-11-20T10:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        totalPages: 1,
+      };
+      (mockAdminRepository.getPendingVerifications as jest.Mock).mockResolvedValue(
+        verificationsResult,
+      );
+
+      const useCase = new GetPendingVerificationsUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(1, 10);
+
+      expect(result).toEqual(verificationsResult);
+      expect(mockAdminRepository.getPendingVerifications).toHaveBeenCalledWith(
+        1,
+        10,
+      );
+    });
+  });
+
+  describe('ApproveVerificationUseCase', () => {
+    it('should delegate approval to repository', async () => {
+      const approvalResult = {
+        userId: 101,
+        profileValidated: true,
+      };
+      (mockAdminRepository.approveVerification as jest.Mock).mockResolvedValue(
+        approvalResult,
+      );
+
+      const useCase = new ApproveVerificationUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(101);
+
+      expect(result).toEqual(approvalResult);
+      expect(mockAdminRepository.approveVerification).toHaveBeenCalledWith(101);
+    });
+  });
+
+  describe('RejectVerificationUseCase', () => {
+    it('should delegate rejection with reason to repository', async () => {
+      const rejectionResult = {
+        userId: 101,
+        profileValidated: false,
+        reason: 'Blurry face',
+      };
+      (mockAdminRepository.rejectVerification as jest.Mock).mockResolvedValue(
+        rejectionResult,
+      );
+
+      const useCase = new RejectVerificationUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(101, 'Blurry face');
+
+      expect(result).toEqual(rejectionResult);
+      expect(mockAdminRepository.rejectVerification).toHaveBeenCalledWith(
+        101,
+        'Blurry face',
+      );
+    });
+  });
+});

@@ -304,6 +304,23 @@ export class ProfileNestedDto {
   avatar?: string;
 
   @ApiPropertyOptional({
+    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
+    description:
+      'Profile picture URL or path selected from gallery (used for swiping, distinct from avatar)',
+  })
+  @IsOptional()
+  profilePicture?: string;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Gallery image ID to select as primary profile swipe picture',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  profilePictureId?: number;
+
+  @ApiPropertyOptional({
     description:
       'Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { "1": 0, "2": 1 }), or array of IDs',
     example: { '1': 0, '2': 1, '3': 0 },
@@ -660,6 +677,40 @@ export class UpdateProfileDto {
   @IsOptional()
   @Transform(parseIfJsonString)
   answers?: Record<string, number> | any;
+
+  @ApiPropertyOptional({
+    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
+    description:
+      'Profile picture URL or path selected from gallery (flat fallback)',
+  })
+  @IsOptional()
+  profilePicture?: string;
+
+  @ApiPropertyOptional({
+    example: 12,
+    description:
+      'Gallery image ID to select as primary profile swipe picture (flat fallback)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  profilePictureId?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Gallery items to update (max 6 items in update API). Accepts list of items, URLs, or IDs.',
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  gallery?: any[];
+
+  @ApiPropertyOptional({
+    description: 'List of gallery image IDs to delete/remove',
+    example: [1, 2],
+  })
+  @IsOptional()
+  @Transform(parseIfJsonString)
+  deleteGalleryIds?: number[];
 }
 
 export { UpdateProfileDto as CreateProfileDto };

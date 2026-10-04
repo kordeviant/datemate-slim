@@ -46,6 +46,15 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
+      userGallery: {
+        count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 1, imageUrl: 'images/gallery_1.webp' }),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       $transaction: jest.fn().mockImplementation(async (callback) => {
         return callback(mockPrisma);
       }),
@@ -684,6 +693,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         bio: "Software engineer living in Tehran.",
         languages: ["fa", "en"],
         avatar: "",
+        profilePicture: null,
         profileCompleted: false,
         Demographic: {
           birthDate: "1998-11-25",
@@ -703,6 +713,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         Answers: {},
         LikedActivities: {},
       },
+      gallery: [],
     });
 
     // Verify old keys are completely removed from response
@@ -970,5 +981,102 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       expect(res2.Profile.fullName).toBe("Nested Name");
     });
   });
+
+  describe("Gallery rules & profile picture selection", () => {
+    it("should reject update if candidate gallery items in update API exceed 6", async () => {
+      const excessiveGallery = [
+        { id: 1 },
+        { id: 2 },
+        { id: 3 },
+        { id: 4 },
+        { id: 5 },
+        { id: 6 },
+        { id: 7 },
+      ];
+      await expect(
+        useCase.execute(1, {
+          gallery: excessiveGallery,
+        } as any),
+      ).rejects.toThrow(
+        new BadRequestException(
+          "Cannot update or provide more than 6 gallery items in update API request.",
+        ),
+      );
+    });
+
+    it("should reject update if total projected gallery images exceed 10", async () => {
+      mockPrisma.userGallery.count.mockResolvedValue(8);
+      const fakeFiles: any[] = [
+        { buffer: Buffer.alloc(100) },
+        { buffer: Buffer.alloc(100) },
+        { buffer: Buffer.alloc(100) },
+      ];
+      await expect(
+        useCase.execute(
+          1,
+          {} as any,
+          undefined,
+          undefined,
+          fakeFiles,
+        ),
+      ).rejects.toThrow(
+        /User gallery cannot exceed maximum limit of 10 images/,
+      );
+    });
+
+    it("should select one of the gallery images as profilePicture (distinct from avatar)", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue({
+        id: 15,
+        userId: 1,
+        imageUrl: "images/gallery_1_custom.webp",
+        isProfilePicture: false,
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 15,
+          userId: 1,
+          imageUrl: "images/gallery_1_custom.webp",
+          description: "My profile photo",
+          likesCount: 5,
+          isProfilePicture: true,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+      ]);
+
+      const res = await useCase.execute(1, {
+        Profile: {
+          fullName: "Parsa",
+          profilePictureId: 15,
+        },
+      } as any);
+
+      expect(mockPrisma.userGallery.updateMany).toHaveBeenCalledWith({
+        where: { userId: 1 },
+        data: { isProfilePicture: false },
+      });
+      expect(mockPrisma.userGallery.update).toHaveBeenCalledWith({
+        where: { id: 15 },
+        data: { isProfilePicture: true },
+      });
+      expect(res.Profile.profilePicture).toBe("images/gallery_1_custom.webp");
+      expect(res.gallery).toHaveLength(1);
+      expect(res.gallery![0].isProfilePicture).toBe(true);
+      expect(res.gallery![0].id).toBe(15);
+    });
+
+    it("should delete gallery images specified in deleteGalleryIds", async () => {
+      await useCase.execute(1, {
+        deleteGalleryIds: [10, 11],
+      } as any);
+
+      expect(mockPrisma.userGallery.deleteMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: [10, 11] },
+          userId: 1,
+        },
+      });
+    });
+  });
 });
+
 

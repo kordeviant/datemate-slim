@@ -594,6 +594,193 @@ interface ResponseResult<T> {
   }
   ```
 
+---
+
+## 7. Admin Panel Endpoints (`/v1/admin`)
+
+Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
+
+### 7.1 Dashboard Overview Metrics (GAP-1)
+- **Method**: `GET`
+- **Path**: `/v1/admin/dashboard/stats`
+- **Description**: Returns 4 key KPI counters: total users, online users, pending selfie reviews, and unanswered tickets.
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "Dashboard stats retrieved",
+    "data": {
+      "totalUsers": 6570,
+      "onlineUsers": 369,
+      "pendingSelfies": 7,
+      "unansweredTickets": 0
+    }
+  }
+  ```
+
+### 7.2 Users Directory & Search (GAP-2)
+- **Method**: `GET`
+- **Path**: `/v1/admin/users`
+- **Query Parameters**:
+  - `page`: Page number (default: 1)
+  - `limit`: Page limit (default: 10, max: 100)
+  - `search`: Search name, username, or email
+  - `status`: `ALL` | `BLOCKED` | `PENDING_VERIFICATION` | `COMPLETED` (default: `ALL`)
+  - `gender`: `MALE` | `FEMALE` | `ALL` (default: `ALL`)
+  - `sortBy`: `createdAt` | `lastSeenAt` | `wallet` (default: `createdAt`)
+  - `order`: `asc` | `desc` (default: `desc`)
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "Users list retrieved",
+    "data": {
+      "items": [
+        {
+          "id": 101,
+          "email": "Sarahemati@gmail.com",
+          "fullName": "سارا همتی",
+          "username": "sara_h",
+          "avatarUrl": "http://localhost:3000/assets/avatars/avatar_1.webp",
+          "isPremium": true,
+          "profileValidated": false,
+          "isBanned": false,
+          "bannedUntil": null,
+          "gender": "FEMALE",
+          "age": 23,
+          "city": "اسلامشهر",
+          "registrationCompleted": true,
+          "isOnline": true,
+          "lastSeenAt": "2026-10-04T07:15:00.000Z",
+          "createdAt": "2024-11-20T10:00:00.000Z"
+        }
+      ],
+      "total": 245,
+      "page": 1,
+      "totalPages": 25
+    }
+  }
+  ```
+
+### 7.3 Ban User (GAP-3)
+- **Method**: `POST`
+- **Path**: `/v1/admin/users/:id/ban`
+- **Path Parameter**: `id` (integer)
+- **Request Body**:
+  ```json
+  {
+    "durationHours": 168,
+    "reason": "Violation of community rules"
+  }
+  ```
+  *(Note: set `durationHours` to `null` or omit for a permanent ban)*
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "User banned successfully",
+    "data": {
+      "id": 101,
+      "email": "Sarahemati@gmail.com",
+      "isBanned": true,
+      "bannedUntil": "2026-10-11T11:50:00.000Z",
+      "reason": "Violation of community rules"
+    }
+  }
+  ```
+
+### 7.4 Unban User
+- **Method**: `POST`
+- **Path**: `/v1/admin/users/:id/unban`
+- **Path Parameter**: `id` (integer)
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "User unbanned successfully",
+    "data": {
+      "id": 101,
+      "email": "Sarahemati@gmail.com",
+      "isBanned": false,
+      "bannedUntil": null
+    }
+  }
+  ```
+
+### 7.5 Pending Selfie Verification Queue (GAP-4)
+- **Method**: `GET`
+- **Path**: `/v1/admin/verifications`
+- **Query Parameters**:
+  - `page`: Page number (default: 1)
+  - `limit`: Items per page (default: 10)
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "Pending verifications retrieved",
+    "data": {
+      "items": [
+        {
+          "userId": 101,
+          "fullName": "سارا همتی",
+          "username": "sara_h",
+          "email": "Sarahemati@gmail.com",
+          "avatarUrl": "http://localhost:3000/assets/avatars/avatar_1.webp",
+          "selfieUrl": "http://localhost:3000/assets/selfies/selfie_1.webp",
+          "gender": "FEMALE",
+          "age": 23,
+          "city": "اسلامشهر",
+          "submittedAt": "2026-10-04T07:15:00.000Z",
+          "createdAt": "2024-11-20T10:00:00.000Z"
+        }
+      ],
+      "total": 7,
+      "page": 1,
+      "totalPages": 1
+    }
+  }
+  ```
+
+### 7.6 Approve Selfie Verification (GAP-4)
+- **Method**: `POST`
+- **Path**: `/v1/admin/verifications/:userId/approve`
+- **Action**: Sets `User.profileValidated = true` and sends `NotificationType.PROFILE_VERIFIED`.
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "User selfie verification approved",
+    "data": {
+      "userId": 101,
+      "profileValidated": true
+    }
+  }
+  ```
+
+### 7.7 Reject Selfie Verification (GAP-4)
+- **Method**: `POST`
+- **Path**: `/v1/admin/verifications/:userId/reject`
+- **Request Body**:
+  ```json
+  {
+    "reason": "Blurry face or does not match profile picture"
+  }
+  ```
+- **Action**: Clears selfie, sets `profileValidated = false`, and sends `NotificationType.PROFILE_VERIFIED` rejection notification.
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "User selfie verification rejected",
+    "data": {
+      "userId": 101,
+      "profileValidated": false,
+      "reason": "Blurry face or does not match profile picture"
+    }
+  }
+  ```
+
+
 
 
 

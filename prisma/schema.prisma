@@ -214,9 +214,10 @@ model Profile {
   phoneNumber String?   @map("phone_number") @db.VarChar(50)
   languages   Json?     @db.JsonB
   bio         String?   @db.Text
-  avatarUrl   String    @map("avatar_url") @db.VarChar(512)
-  selfieUrl   String?   @map("selfie_url") @db.VarChar(512)
-  isPrivate    Boolean       @default(false) @map("is_private")
+  avatarUrl         String        @map("avatar_url") @db.VarChar(512)
+  selfieUrl         String?       @map("selfie_url") @db.VarChar(512)
+  profilePictureUrl String?       @map("profile_picture_url") @db.VarChar(512)
+  isPrivate         Boolean       @default(false) @map("is_private")
   relationType RelationType? @map("relation_type")
   latitude     Decimal       @db.Decimal(10, 8)
   longitude   Decimal   @db.Decimal(11, 8)
@@ -385,8 +386,9 @@ model UserGallery {
   userId      Int      @map("user_id")
   imageUrl    String   @map("image_url") @db.VarChar(512)
   description String?  @db.Text
-  likesCount  Int      @default(0) @map("likes_count")
-  createdAt   DateTime @default(now()) @map("created_at")
+  likesCount       Int      @default(0) @map("likes_count")
+  isProfilePicture Boolean  @default(false) @map("is_profile_picture")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

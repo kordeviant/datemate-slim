@@ -321,5 +321,37 @@ describe("UsersController", () => {
       );
       expect(res).toEqual(expectedResponse);
     });
+
+    it("should accept gallery files and pass them to updateProfileUseCase", async () => {
+      const dto = {
+        Profile: { fullName: "Gallery User" },
+      };
+      const avatarFile: any = { buffer: Buffer.from("avatar_buf") };
+      const galleryFiles: any[] = [
+        { buffer: Buffer.from("img1") },
+        { buffer: Buffer.from("img2") },
+      ];
+      const expectedResponse: any = {
+        id: 1,
+        Profile: { fullName: "Gallery User" },
+        gallery: [],
+      };
+      mockUpdateProfileUseCase.execute.mockResolvedValue(expectedResponse);
+
+      const res = await controller.updateProfile(
+        "Bearer token123",
+        dto as any,
+        { avatar: [avatarFile], gallery: galleryFiles } as any,
+      );
+
+      expect(mockUpdateProfileUseCase.execute).toHaveBeenCalledWith(
+        1,
+        dto,
+        avatarFile,
+        undefined,
+        galleryFiles,
+      );
+      expect(res).toEqual(expectedResponse);
+    });
   });
 });

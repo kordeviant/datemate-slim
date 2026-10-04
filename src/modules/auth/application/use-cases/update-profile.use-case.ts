@@ -3,12 +3,16 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as path from 'path';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { UpdateProfileDto } from '../dtos/update-profile.dto';
-import { ProfileResponseDto } from '../dtos/profile-response.dto';
+import { ProfileResponseDto, GalleryItemResponseDto } from '../dtos/profile-response.dto';
 import { AvatarProcessorService } from '../services/avatar-processor.service';
+import { GalleryProcessorService, ProcessedGalleryImage } from '../services/gallery-processor.service';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 import { calculateAge, validateDateOfBirth } from '../validators/dob.validator';
 import { validateUsername } from '../validators/username.validator';
 import {
@@ -26,6 +30,8 @@ export class UpdateProfileUseCase {
   constructor(
     private readonly prisma: PrismaService,
     private readonly avatarProcessor: AvatarProcessorService,
+    @Optional() private readonly galleryProcessor?: GalleryProcessorService,
+    @Optional() private readonly mediaUrlResolver?: MediaUrlResolverService,
   ) { }
 
   async execute(
@@ -33,6 +39,7 @@ export class UpdateProfileUseCase {
     dto: UpdateProfileDto,
     avatarFile?: Express.Multer.File,
     selfieFile?: Express.Multer.File,
+    galleryFiles?: Express.Multer.File[],
   ): Promise<ProfileResponseDto> {
     // 1. Verify user exists
     const user = await this.prisma.user.findUnique({
@@ -143,6 +150,74 @@ export class UpdateProfileUseCase {
       dataObj?.Profile?.preferences ??
       dataObj?.profile?.Preferences ??
       dataObj?.profile?.preferences;
+
+    // Gallery inputs extraction and validation
+    const candidateProfilePictureInput =
+      profileNested?.profilePicture ??
+      dto.profilePicture ??
+      dataObj?.Profile?.profilePicture ??
+      dataObj?.profile?.profilePicture ??
+      dataObj?.profilePicture;
+
+    const candidateProfilePictureIdInput =
+      profileNested?.profilePictureId ??
+      dto.profilePictureId ??
+      (profileNested as any)?.profile_picture_id ??
+      dataObj?.Profile?.profilePictureId ??
+      dataObj?.profile?.profilePictureId ??
+      dataObj?.profilePictureId;
+
+    const candidateGalleryInput =
+      dto.gallery ??
+      dataObj?.gallery ??
+      profileNested?.gallery ??
+      dataObj?.Profile?.gallery ??
+      dataObj?.profile?.gallery;
+
+    const candidateDeleteGalleryIdsInput =
+      profileNested?.deleteGalleryIds ??
+      (profileNested as any)?.delete_gallery_ids ??
+      dto.deleteGalleryIds ??
+      (dto as any)?.delete_gallery_ids ??
+      dataObj?.Profile?.deleteGalleryIds ??
+      dataObj?.deleteGalleryIds;
+
+    // Rule: Limit in update in API: 6
+    if (Array.isArray(candidateGalleryInput) && candidateGalleryInput.length > 6) {
+      throw new BadRequestException(
+        'Cannot update or provide more than 6 gallery items in update API request.',
+      );
+    }
+
+    // Parse deleteGalleryIds
+    const deleteGalleryIds: number[] = Array.isArray(candidateDeleteGalleryIdsInput)
+      ? candidateDeleteGalleryIdsInput.map(Number).filter((n) => !isNaN(n) && n > 0)
+      : [];
+
+    // Rule: Limit for total uploaded image gallery: 10
+    const currentGalleryCount =
+      typeof (this.prisma as any).userGallery?.count === 'function'
+        ? await (this.prisma as any).userGallery.count({ where: { userId } })
+        : 0;
+    const newUploadsCount = galleryFiles ? galleryFiles.length : 0;
+    const deleteCount = deleteGalleryIds.length;
+    const projectedGalleryCount = Math.max(0, currentGalleryCount - deleteCount) + newUploadsCount;
+    if (projectedGalleryCount > 10) {
+      throw new BadRequestException(
+        `User gallery cannot exceed maximum limit of 10 images (currently has ${currentGalleryCount}, deleting ${deleteCount}, uploading ${newUploadsCount}, total would be ${projectedGalleryCount}).`,
+      );
+    }
+
+    // Process new gallery uploads via galleryProcessor
+    let processedGalleryImages: ProcessedGalleryImage[] = [];
+    if (galleryFiles && galleryFiles.length > 0) {
+      if (this.galleryProcessor) {
+        processedGalleryImages = await this.galleryProcessor.processBatchGallery(
+          galleryFiles,
+          userId,
+        );
+      }
+    }
 
     const candidateFullNameInput =
       profileNested?.fullName !== undefined
@@ -646,8 +721,142 @@ export class UpdateProfileUseCase {
           ? Number(existingProfile.longitude)
           : 0.0;
 
-    // 19. Database Transaction: atomic updates to Profile, Demographic, Preferences, User
+    let profilePictureUrl: string | null = existingProfile?.profilePictureUrl || null;
+
+    // 19. Database Transaction: atomic updates to Profile, Demographic, Preferences, User, Gallery
     await this.prisma.$transaction(async (tx) => {
+      // Gallery deletions
+      if (deleteGalleryIds.length > 0 && typeof (tx as any).userGallery?.deleteMany === 'function') {
+        await (tx as any).userGallery.deleteMany({
+          where: {
+            id: { in: deleteGalleryIds },
+            userId,
+          },
+        });
+      }
+
+      // Newly uploaded gallery images
+      const createdGalleries: any[] = [];
+      if (processedGalleryImages.length > 0 && typeof (tx as any).userGallery?.create === 'function') {
+        for (const img of processedGalleryImages) {
+          const created = await (tx as any).userGallery.create({
+            data: {
+              userId,
+              imageUrl: img.relativeUrl,
+              likesCount: 0,
+              isProfilePicture: false,
+            },
+          });
+          createdGalleries.push(created);
+        }
+      }
+
+      // Update descriptions of existing gallery items
+      if (Array.isArray(candidateGalleryInput) && typeof (tx as any).userGallery?.updateMany === 'function') {
+        for (const item of candidateGalleryInput) {
+          if (item && typeof item === 'object' && item.id) {
+            const galleryId = Number(item.id);
+            if (!isNaN(galleryId)) {
+              await (tx as any).userGallery.updateMany({
+                where: { id: galleryId, userId },
+                data: {
+                  ...(item.description !== undefined ? { description: item.description } : {}),
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // Profile picture selection logic (swipe profile picture from gallery, not avatar)
+      let selectedGalleryId: number | null = candidateProfilePictureIdInput
+        ? Number(candidateProfilePictureIdInput)
+        : null;
+
+      if (!selectedGalleryId && Array.isArray(candidateGalleryInput)) {
+        const itemWithFlag = candidateGalleryInput.find(
+          (g: any) => g && (g.isProfilePicture === true || g.is_profile_picture === true),
+        );
+        if (itemWithFlag?.id) {
+          selectedGalleryId = Number(itemWithFlag.id);
+        }
+      }
+
+      if (selectedGalleryId && typeof (tx as any).userGallery?.findFirst === 'function') {
+        const chosen = await (tx as any).userGallery.findFirst({
+          where: { id: selectedGalleryId, userId },
+        });
+        if (chosen) {
+          await (tx as any).userGallery.updateMany({
+            where: { userId },
+            data: { isProfilePicture: false },
+          });
+          await (tx as any).userGallery.update({
+            where: { id: chosen.id },
+            data: { isProfilePicture: true },
+          });
+          profilePictureUrl = chosen.imageUrl;
+        }
+      } else if (candidateProfilePictureInput && typeof candidateProfilePictureInput === 'string') {
+        const filename = path.basename(candidateProfilePictureInput.trim());
+        const chosen = typeof (tx as any).userGallery?.findFirst === 'function'
+          ? await (tx as any).userGallery.findFirst({
+              where: {
+                userId,
+                imageUrl: { contains: filename },
+              },
+            })
+          : null;
+        if (chosen) {
+          await (tx as any).userGallery.updateMany({
+            where: { userId },
+            data: { isProfilePicture: false },
+          });
+          await (tx as any).userGallery.update({
+            where: { id: chosen.id },
+            data: { isProfilePicture: true },
+          });
+          profilePictureUrl = chosen.imageUrl;
+        } else {
+          profilePictureUrl = candidateProfilePictureInput.trim();
+        }
+      } else {
+        // Fallback or maintain existing profile picture
+        if (profilePictureUrl && typeof (tx as any).userGallery?.findFirst === 'function') {
+          const stillExists = await (tx as any).userGallery.findFirst({
+            where: { userId, imageUrl: profilePictureUrl },
+          });
+          if (!stillExists) {
+            const fallback = await (tx as any).userGallery.findFirst({
+              where: { userId },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (fallback) {
+              profilePictureUrl = fallback.imageUrl;
+              await (tx as any).userGallery.update({
+                where: { id: fallback.id },
+                data: { isProfilePicture: true },
+              });
+            } else {
+              profilePictureUrl = null;
+            }
+          }
+        } else if (!profilePictureUrl && createdGalleries.length > 0 && typeof (tx as any).userGallery?.findFirst === 'function') {
+          // If user had no profile picture and uploaded gallery images, set first as profile picture
+          const first = await (tx as any).userGallery.findFirst({
+            where: { userId },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (first) {
+            profilePictureUrl = first.imageUrl;
+            await (tx as any).userGallery.update({
+              where: { id: first.id },
+              data: { isProfilePicture: true },
+            });
+          }
+        }
+      }
+
       // 1. Profile upsert
       await tx.profile.upsert({
         where: { userId },
@@ -660,6 +869,7 @@ export class UpdateProfileUseCase {
           languages: cleanLanguages ? cleanLanguages : [cleanLanguage],
           avatarUrl,
           selfieUrl,
+          profilePictureUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
           ...(cleanRelationType !== undefined ? { relationType: cleanRelationType } : {}),
@@ -672,6 +882,7 @@ export class UpdateProfileUseCase {
           languages: cleanLanguages ? cleanLanguages : [cleanLanguage],
           avatarUrl,
           selfieUrl,
+          profilePictureUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
           ...(cleanRelationType !== undefined ? { relationType: cleanRelationType } : {}),
@@ -1062,6 +1273,27 @@ export class UpdateProfileUseCase {
       }
     }
 
+    let userGalleries: any[] = [];
+    if (typeof (this.prisma as any).userGallery?.findMany === 'function') {
+      userGalleries = await (this.prisma as any).userGallery.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    const mappedGallery: GalleryItemResponseDto[] = userGalleries.map((g: any) => ({
+      id: g.id,
+      url: this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(g.imageUrl) : g.imageUrl,
+      description: g.description,
+      likesCount: g.likesCount || 0,
+      isProfilePicture: Boolean(g.isProfilePicture),
+      createdAt: g.createdAt ? g.createdAt.toISOString() : undefined,
+    }));
+
+    const resolvedProfilePicture = profilePictureUrl
+      ? (this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(profilePictureUrl) : profilePictureUrl)
+      : null;
+
     return {
       id: userId,
       email: user.email,
@@ -1075,7 +1307,8 @@ export class UpdateProfileUseCase {
         phoneNumber: cleanPhoneNumber,
         bio: cleanBio,
         languages: cleanLanguages,
-        avatar: avatarUrl,
+        avatar: this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(avatarUrl) : avatarUrl,
+        profilePicture: resolvedProfilePicture,
         // selfie url: this will not use still, only client should send
         profileCompleted,
         Demographic: {
@@ -1091,6 +1324,7 @@ export class UpdateProfileUseCase {
         Answers: answersMap,
         LikedActivities: likedActivitiesMap,
       },
+      gallery: mappedGallery,
     };
   }
 }

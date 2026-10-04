@@ -71,6 +71,39 @@ export class PreferencesResponseDto {
 }
 
 
+export class GalleryItemResponseDto {
+  @ApiProperty({ example: 1, description: 'Gallery photo ID' })
+  id: number;
+
+  @ApiProperty({
+    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
+    description: 'Resolved public image URL',
+  })
+  url: string;
+
+  @ApiPropertyOptional({
+    example: 'Weekend vibes',
+    description: 'Photo caption or description',
+    nullable: true,
+  })
+  description?: string | null;
+
+  @ApiProperty({ example: 0, description: 'Likes count' })
+  likesCount: number;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether this photo is the active profile swipe photo',
+  })
+  isProfilePicture: boolean;
+
+  @ApiPropertyOptional({
+    example: '2026-10-04T12:00:00.000Z',
+    description: 'Upload timestamp',
+  })
+  createdAt?: string;
+}
+
 export class ProfileNestedResponseDto {
   @ApiPropertyOptional({ example: 'Parsa', description: 'User full name', nullable: true })
   fullName?: string | null;
@@ -101,7 +134,13 @@ export class ProfileNestedResponseDto {
   })
   avatar: string;
 
-  // selfie url: this will not use still, only cline shoululs send
+  @ApiPropertyOptional({
+    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
+    description:
+      'Profile picture URL used for swiping (selected from gallery, distinct from avatar)',
+    nullable: true,
+  })
+  profilePicture?: string | null;
 
   @ApiProperty({
     example: true,
@@ -173,4 +212,10 @@ export class ProfileResponseDto {
     description: 'Nested profile details including Demographic and Preferences',
   })
   Profile: ProfileNestedResponseDto;
+
+  @ApiPropertyOptional({
+    type: [GalleryItemResponseDto],
+    description: 'User gallery images with resolved URLs and profile picture indicator',
+  })
+  gallery?: GalleryItemResponseDto[];
 }

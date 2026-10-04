@@ -66,6 +66,7 @@ describe('GetProfileUseCase', () => {
         bio: null,
         languages: null,
         avatar: '',
+        profilePicture: null,
         profileCompleted: false,
         Demographic: {
           birthDate: null,
@@ -80,6 +81,7 @@ describe('GetProfileUseCase', () => {
         Answers: {},
         LikedActivities: {},
       },
+      gallery: [],
     });
   });
 

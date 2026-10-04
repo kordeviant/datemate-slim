@@ -5,6 +5,7 @@ export class UserEntity {
   role: 'USER' | 'ADMIN';
   language: 'EN' | 'FA';
   profileValidated: boolean;
+  isPremium: boolean;
   bannedUntil?: Date | null;
   wallet: number;
   score: number;

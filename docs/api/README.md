@@ -297,7 +297,7 @@ interface ResponseResult<T> {
 - **Method**: `GET`
 - **Path**: `/users/me` or `/v1/users/me`
 - **Headers**: `Authorization: Bearer <JWT_ACCESS_TOKEN>`
-- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, and nested `Profile` object containing `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `profileCompleted`, `Demographic`, `RelationType`, `Answers`, and `LikedActivities`.
+- **Description**: Retrieves the authenticated user's complete profile in Android-matching schema with top-level `id`, `email`, `language`, `lat`, `lon`, `profileValidated`, `isPremium`, and nested `Profile` object containing `fullName`, `username`, `phoneNumber`, `bio`, `languages`, `avatar`, `isPremium`, `profileCompleted`, `Demographic`, `RelationType`, `Answers`, and `LikedActivities`.
 - **Success Response (200 OK)**:
   ```json
   {
@@ -310,6 +310,7 @@ interface ResponseResult<T> {
       "lat": 35.6892,
       "lon": 51.389,
       "profileValidated": false,
+      "isPremium": false,
       "Profile": {
         "fullName": "Parsa",
         "username": "parsa",
@@ -318,6 +319,7 @@ interface ResponseResult<T> {
         "languages": ["fa", "en"],
         "avatar": "/uploads/avatars/avatar_1_1726912345.webp",
         "profileCompleted": true,
+        "isPremium": false,
         "Demographic": {
           "birthDate": "1998-11-25",
           "gender": "MALE",

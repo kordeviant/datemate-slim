@@ -1690,9 +1690,9 @@
         ]
       }
     },
-    "/admin/dashboard/overview": {
+    "/admin/dashboard/stats": {
       "get": {
-        "operationId": "AdminDashboardController_getOverview",
+        "operationId": "AdminDashboardController_getStats",
         "summary": "Get dashboard overview KPI metrics",
         "description": "Retrieves the 4 core summary counters: total platform users, online users, unverified pending selfies, and unanswered support tickets.",
         "parameters": [],
@@ -1721,11 +1721,11 @@
         ]
       }
     },
-    "/admin/dashboard/stats": {
+    "/admin/dashboard/overview": {
       "get": {
-        "operationId": "AdminDashboardController_getStats",
+        "operationId": "AdminDashboardController_getOverview",
         "summary": "Get dashboard overview KPI metrics",
-        "description": "Retrieves the 4 core summary counters: total platform users, online users, unverified pending selfies, and unanswered support tickets.",
+        "description": "Compatibility alias for the dashboard stats endpoint. Returns total platform users, online users, unverified pending selfies, and unanswered support tickets.",
         "parameters": [],
         "responses": {
           "200": {
@@ -2563,6 +2563,11 @@
             "example": true,
             "description": "Profile completion status"
           },
+          "isPremium": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether user has premium status"
+          },
           "Demographic": {
             "description": "Demographic details",
             "nullable": true,
@@ -2613,7 +2618,8 @@
         },
         "required": [
           "avatar",
-          "profileCompleted"
+          "profileCompleted",
+          "isPremium"
         ]
       },
       "GalleryItemResponseDto": {
@@ -2694,6 +2700,11 @@
             "example": false,
             "description": "Whether admin has verified user identity"
           },
+          "isPremium": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether user has premium status"
+          },
           "Profile": {
             "description": "Nested profile details including Demographic and Preferences",
             "allOf": [
@@ -2714,6 +2725,7 @@
           "id",
           "language",
           "profileValidated",
+          "isPremium",
           "Profile"
         ]
       },

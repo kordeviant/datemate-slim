@@ -78,6 +78,7 @@ describe('PrismaAdminRepository', () => {
         id: 101,
         email: 'sara@example.com',
         wallet: 50.0,
+        isPremium: true,
         profileValidated: false,
         bannedUntil: null,
         createdAt: new Date('2024-11-20T10:00:00.000Z'),
@@ -151,6 +152,35 @@ describe('PrismaAdminRepository', () => {
           },
         ],
       });
+    });
+
+    it('should map isPremium as false when user is not premium regardless of wallet balance', async () => {
+      const rawUser = {
+        id: 102,
+        email: 'user2@example.com',
+        wallet: 500.0,
+        isPremium: false,
+        profileValidated: false,
+        bannedUntil: null,
+        createdAt: new Date('2024-11-20T10:00:00.000Z'),
+        profile: null,
+        demographic: null,
+        gallery: [],
+      };
+
+      mockPrisma.user.count.mockResolvedValueOnce(1);
+      mockPrisma.user.findMany.mockResolvedValueOnce([rawUser]);
+
+      const result = await repository.getUsers({
+        page: 1,
+        limit: 10,
+        status: AdminUserStatusFilter.ALL,
+        gender: AdminGenderFilter.ALL,
+        sortBy: AdminUserSortBy.CREATED_AT,
+        order: AdminSortOrder.DESC,
+      });
+
+      expect(result.items[0].isPremium).toBe(false);
     });
 
     it('should correctly handle BLOCKED, PENDING_VERIFICATION, and COMPLETED status filters', async () => {

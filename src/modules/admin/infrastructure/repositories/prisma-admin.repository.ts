@@ -176,7 +176,7 @@ export class PrismaAdminRepository implements IAdminRepository {
         avatarUrl: user.profile?.avatarUrl
           ? this.mediaUrlResolver.resolveUrl(user.profile.avatarUrl)
           : null,
-        isPremium: user.wallet > 0,
+        isPremium: Boolean(user.isPremium),
         profileValidated: user.profileValidated,
         isBanned,
         bannedUntil: user.bannedUntil ? user.bannedUntil.toISOString() : null,

@@ -60,10 +60,12 @@ describe("UsersController", () => {
         lat: null,
         lon: null,
         profileValidated: false,
+        isPremium: true,
         Profile: {
           fullName: "John Doe",
           username: "john_doe",
           profileCompleted: true,
+          isPremium: true,
           Demographic: {},
           RelationType: null,
         },
@@ -77,6 +79,8 @@ describe("UsersController", () => {
       expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(1);
       expect(res).toEqual(mockProfile);
       expect(res.Profile.profileCompleted).toBe(true);
+      expect(res.isPremium).toBe(true);
+      expect(res.Profile.isPremium).toBe(true);
     });
   });
 

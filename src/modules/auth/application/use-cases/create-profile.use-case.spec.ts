@@ -686,6 +686,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       lat: 35.6892,
       lon: 51.389,
       profileValidated: false,
+      isPremium: false,
       Profile: {
         fullName: "Parsa",
         username: "parsa",
@@ -695,6 +696,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         avatar: "",
         profilePicture: null,
         profileCompleted: false,
+        isPremium: false,
         Demographic: {
           birthDate: "1998-11-25",
           gender: "MALE",

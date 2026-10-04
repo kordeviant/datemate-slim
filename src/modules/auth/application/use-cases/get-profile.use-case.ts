@@ -238,6 +238,7 @@ export class GetProfileUseCase {
       lat: cleanLatitude,
       lon: cleanLongitude,
       profileValidated: user.profileValidated ?? false,
+      isPremium: Boolean(user.isPremium),
       Profile: {
         fullName: cleanFullName,
         username: cleanUsername,
@@ -250,6 +251,7 @@ export class GetProfileUseCase {
         profilePicture: resolvedProfilePicture,
         // selfie url: this will not use still, only client should send
         profileCompleted,
+        isPremium: Boolean(user.isPremium),
         Demographic: {
           birthDate: formattedBirthDate,
           gender: formattedGender,

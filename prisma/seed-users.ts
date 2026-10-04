@@ -157,6 +157,7 @@ async function seedUsers() {
       role: 'USER',
       language: 'FA',
       profileValidated: true,
+      isPremium: true,
       wallet: 150.0,
       score: 4.8,
       profile: {
@@ -234,6 +235,7 @@ async function seedUsers() {
       role: 'USER',
       language: 'EN',
       profileValidated: false,
+      isPremium: false,
       wallet: 75.0,
       score: 4.5,
       profile: {
@@ -304,6 +306,7 @@ async function seedUsers() {
       role: 'USER',
       language: 'FA',
       profileValidated: false,
+      isPremium: false,
       wallet: 0.0,
       score: 1.0,
       profile: {
@@ -338,7 +341,7 @@ async function seedUsers() {
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (existingAdmin) {
     await prisma.user.delete({ where: { id: existingAdmin.id } });
-  }
+  } 
 
   const adminUser = await prisma.user.create({
     data: {
@@ -347,6 +350,7 @@ async function seedUsers() {
       role: 'ADMIN',
       language: 'EN',
       profileValidated: true,
+      isPremium: true,
       wallet: 1000.0,
       score: 5.0,
       profile: {

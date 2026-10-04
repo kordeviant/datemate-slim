@@ -165,6 +165,7 @@ model User {
   role             Role           @default(USER)
   language         Language       @default(EN)
   profileValidated Boolean        @default(false) @map("profile_validated")
+  isPremium        Boolean        @default(false) @map("is_premium")
   bannedUntil      DateTime?      @map("banned_until")
   wallet           Float          @default(0.0)
   score            Float          @default(1.0)

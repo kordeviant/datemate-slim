@@ -1301,6 +1301,7 @@ export class UpdateProfileUseCase {
       lat: cleanLatitude !== undefined ? cleanLatitude : null,
       lon: cleanLongitude !== undefined ? cleanLongitude : null,
       profileValidated: user.profileValidated ?? false,
+      isPremium: Boolean(user.isPremium),
       Profile: {
         fullName: cleanFullName ? cleanFullName : null,
         username: cleanUsername ? cleanUsername : null,
@@ -1311,6 +1312,7 @@ export class UpdateProfileUseCase {
         profilePicture: resolvedProfilePicture,
         // selfie url: this will not use still, only client should send
         profileCompleted,
+        isPremium: Boolean(user.isPremium),
         Demographic: {
           birthDate: formattedBirthDate,
           gender: formattedGender,

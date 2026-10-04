@@ -148,6 +148,12 @@ export class ProfileNestedResponseDto {
   })
   profileCompleted: boolean;
 
+  @ApiProperty({
+    example: false,
+    description: 'Whether user has premium status',
+  })
+  isPremium: boolean;
+
   @ApiPropertyOptional({
     type: DemographicResponseDto,
     description: 'Demographic details',
@@ -206,6 +212,9 @@ export class ProfileResponseDto {
 
   @ApiProperty({ example: false, description: 'Whether admin has verified user identity' })
   profileValidated: boolean;
+
+  @ApiProperty({ example: false, description: 'Whether user has premium status' })
+  isPremium: boolean;
 
   @ApiProperty({
     type: ProfileNestedResponseDto,

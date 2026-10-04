@@ -160,3 +160,15 @@ In GitLab (Settings > CI/CD > Variables):
 - `SSH_PRIVATE_KEY`: Private SSH key for server access.
 - `SSH_PORT`: (Optional, defaults to `22`).
 - `DEPLOY_DIR`: Target deployment directory on the server (e.g. `~/backend`).
+
+### 6.3 Applying Pending Database Migrations
+The production release must run `npx prisma migrate deploy` against the same database configured for the backend before restarting the application. For a manual recovery, run the migration from the deployed backend directory, then regenerate the Prisma client, rebuild, and reload the service:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+npm run build
+pm2 reload datemate-backend
+```
+
+This applies the `profiles.profile_picture_url` schema change required by `Profile.profilePictureUrl`; regenerating the client or restarting the process alone does not add the database column.

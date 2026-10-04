@@ -49,4 +49,24 @@ export class AdminDashboardController {
       data: stats,
     };
   }
+
+  @Get('overview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get dashboard overview KPI metrics',
+    description:
+      'Compatibility alias for the dashboard stats endpoint. Returns total platform users, online users, unverified pending selfies, and unanswered support tickets.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dashboard stats retrieved successfully',
+    type: AdminDashboardStatsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async getOverview(): Promise<AdminDashboardStatsResponseDto> {
+    return this.getStats();
+  }
 }

@@ -147,7 +147,7 @@ The Admin Module provides administration, monitoring, user directory search, acc
 - **Identity Verification Notification**: Approving or rejecting a verification triggers `NotificationType.PROFILE_VERIFIED` to inform the user.
 
 ### 6.2 Administrative Endpoints
-- `GET /v1/admin/dashboard/stats`: Returns KPI metrics (totalUsers, onlineUsers, pendingSelfies, unansweredTickets).
+- `GET /v1/admin/dashboard/stats` (also `/v1/admin/dashboard/overview`): Returns KPI metrics (totalUsers, onlineUsers, pendingSelfies, unansweredTickets).
 - `GET /v1/admin/users`: Paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`). Each user item includes demographic info, registration status, avatar, and their photo `gallery` array with resolved public URLs.
 - `POST /v1/admin/users/:id/ban`: Bans/blocks user account with duration in hours or permanent ban (`null`).
 - `POST /v1/admin/users/:id/unban`: Unbans user account and restores full access.
@@ -165,6 +165,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Profile Picture vs. Avatar**:
   - `avatar`: Dedicated identity verification photo (stored in `Profile.avatarUrl`, served via `/assets/avatars/...`).
   - `profilePicture`: The primary public swipe picture used in the matching/discovery deck (stored in `Profile.profilePictureUrl`, served via `/assets/images/...`).
+  - `Profile.profilePictureUrl` is persisted in nullable `profiles.profile_picture_url` (added by the `20261004130000_add_profile_picture_url_to_profiles` migration).
   - `UserGallery.isProfilePicture`: Boolean flag designating which gallery item is currently active for swiping.
 - **Multipart Upload Fields**:
   - Only three distinct file fields are accepted on profile update endpoints (`PUT /v1/users/profile` and `POST /v1/users/profile`):

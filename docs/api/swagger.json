@@ -1690,6 +1690,37 @@
         ]
       }
     },
+    "/admin/dashboard/overview": {
+      "get": {
+        "operationId": "AdminDashboardController_getOverview",
+        "summary": "Get dashboard overview KPI metrics",
+        "description": "Retrieves the 4 core summary counters: total platform users, online users, unverified pending selfies, and unanswered support tickets.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Dashboard stats retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDashboardStatsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          }
+        },
+        "tags": [
+          "Admin - Dashboard"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/admin/dashboard/stats": {
       "get": {
         "operationId": "AdminDashboardController_getStats",

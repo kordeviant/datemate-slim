@@ -602,7 +602,7 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
 
 ### 7.1 Dashboard Overview Metrics (GAP-1)
 - **Method**: `GET`
-- **Path**: `/v1/admin/dashboard/stats`
+- **Path**: `/v1/admin/dashboard/stats` (canonical) or `/v1/admin/dashboard/overview` (compatibility alias)
 - **Description**: Returns 4 key KPI counters: total users, online users, pending selfie reviews, and unanswered tickets.
 - **Response**:
   ```json

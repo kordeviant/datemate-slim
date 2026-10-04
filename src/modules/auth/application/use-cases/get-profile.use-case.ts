@@ -121,12 +121,26 @@ export class GetProfileUseCase {
       (profile as any)?.relationType || preferences?.relation || null;
     const hasPreferences = !!relationType;
 
+    // - Questions: answered all mandatory questions (excluding PREFERENCES and INTERESTS question types)
+    const EXCLUDED_QUESTION_TYPES = ['PREFERENCES', 'INTERESTS'];
+
     const answeredQuestionIds = new Set(
-      user.questionAnswers?.map((uqa) => uqa.questionAnswer.questionId) || [],
+      user.questionAnswers
+        ?.filter((uqa) => {
+          const qType = uqa.questionAnswer?.question?.type;
+          return !qType || !EXCLUDED_QUESTION_TYPES.includes(String(qType).toUpperCase());
+        })
+        .map((uqa) => uqa.questionAnswer?.questionId ?? (uqa as any).questionAnswerId) || [],
     );
     const questionsCount =
       typeof (this.prisma as any).question?.count === 'function'
-        ? await this.prisma.question.count()
+        ? await this.prisma.question.count({
+            where: {
+              type: {
+                notIn: EXCLUDED_QUESTION_TYPES as any,
+              },
+            },
+          })
         : 0;
     let hasAnsweredAllQuestions = true;
     if (questionsCount > 0) {

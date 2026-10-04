@@ -6,7 +6,9 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
   VERSION_NEUTRAL,
@@ -20,10 +22,13 @@ import {
 } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../application/guards/admin-auth.guard';
 import { GetAdminUsersUseCase } from '../application/use-cases/get-admin-users.use-case';
+import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { GetAdminUsersDto } from '../application/dtos/get-admin-users.dto';
 import { AdminUsersResponseDto } from '../application/dtos/admin-users-response.dto';
+import { UpdateAdminUserDto } from '../application/dtos/update-admin-user.dto';
+import { UpdateAdminUserResponseDto } from '../application/dtos/update-admin-user-response.dto';
 import { BanUserDto } from '../application/dtos/ban-user.dto';
 import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
 
@@ -34,6 +39,7 @@ import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
 export class AdminUsersController {
   constructor(
     private readonly getAdminUsersUseCase: GetAdminUsersUseCase,
+    private readonly updateAdminUserUseCase: UpdateAdminUserUseCase,
     private readonly banUserUseCase: BanUserUseCase,
     private readonly unbanUserUseCase: UnbanUserUseCase,
   ) {}
@@ -150,5 +156,74 @@ export class AdminUsersController {
       message: 'User unbanned successfully',
       data: result,
     };
+  }
+
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update user details and/or confirm selfie verification',
+    description:
+      'Allows admin to update user fields including confirming their selfie verification (setting profileValidated = true), bio, fullName, wallet, and premium status.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID to update',
+    example: 101,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User updated successfully',
+    type: UpdateAdminUserResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async updateUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateAdminUserDto,
+  ): Promise<UpdateAdminUserResponseDto> {
+    const result = await this.updateAdminUserUseCase.execute(id, body);
+
+    return {
+      status: 'success',
+      message: 'User updated successfully',
+      data: result,
+    };
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update user details and/or confirm selfie verification (PUT alias)',
+    description: 'Allows admin to update user fields (PUT alias for PATCH :id).',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID to update',
+    example: 101,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User updated successfully',
+    type: UpdateAdminUserResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async updateUserPut(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateAdminUserDto,
+  ): Promise<UpdateAdminUserResponseDto> {
+    return this.updateUser(id, body);
   }
 }

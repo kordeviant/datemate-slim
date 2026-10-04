@@ -406,6 +406,29 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
     expect(result.Profile.profileCompleted).toBe(false);
   });
 
+  it("should return profileCompleted as true when all mandatory questions are answered even if PREFERENCES/INTERESTS questions are unanswered", async () => {
+    mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
+      relativeUrl: "/uploads/avatars/avatar_1.webp",
+    });
+    mockAvatarProcessor.processAndSaveSelfie.mockResolvedValue({
+      relativeUrl: "/uploads/selfies/selfie_1.webp",
+    });
+    // 2 mandatory non-preferences questions in DB
+    mockPrisma.question.count.mockResolvedValue(2);
+    mockPrisma.userQuestionAnswer.findMany.mockResolvedValue([
+      { questionAnswer: { id: 1, questionId: 1, question: { id: 1, type: "PERSONALITY" } } },
+      { questionAnswer: { id: 2, questionId: 2, question: { id: 2, type: "PERSONALITY" } } },
+    ]);
+
+    const result = await useCase.execute(
+      1,
+      completeDto,
+      mockAvatarFile,
+      mockSelfieFile,
+    );
+    expect(result.Profile.profileCompleted).toBe(true);
+  });
+
   it("should return profileCompleted as true even if selfie is missing when all other required steps are completed", async () => {
     mockAvatarProcessor.processAndSaveAvatar.mockResolvedValue({
       relativeUrl: "/uploads/avatars/avatar_1.webp",

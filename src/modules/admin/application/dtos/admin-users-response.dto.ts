@@ -52,11 +52,24 @@ export class AdminUserListItemDto {
   })
   avatarUrl: string | null;
 
+  @ApiPropertyOptional({
+    example: 'علاقه‌مند به سفر و کتاب‌خوانی',
+    nullable: true,
+    description: 'User biography / about me',
+  })
+  bio: string | null;
+
   @ApiProperty({ example: true })
   isPremium: boolean;
 
   @ApiProperty({ example: false })
   profileValidated: boolean;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the user selfie verification is confirmed/approved',
+  })
+  selfieVerified: boolean;
 
   @ApiProperty({ example: false })
   isBanned: boolean;

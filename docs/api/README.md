@@ -604,19 +604,89 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
 
 ### 7.1 Dashboard Overview Metrics (GAP-1)
 - **Method**: `GET`
-- **Path**: `/v1/admin/dashboard/stats` (canonical) or `/v1/admin/dashboard/overview` (compatibility alias)
-- **Description**: Returns 4 key KPI counters: total users, online users, pending selfie reviews, and unanswered tickets.
-- **Response**:
+- **Path**: `/v1/admin/dashboard/overview` (Full overview payload) or `/v1/admin/dashboard/stats` (KPI counters only)
+- **Description**: Returns complete dashboard overview: 4 key KPI counters (`stats`), 7-day weekly activity progression with Persian days & solar dates (`weeklyActivity`), platform gender distribution statistics (`genderStats`), recent user support tickets (`recentTickets`), and pending verification selfies (`recentSelfies`).
+- **Response (`GET /v1/admin/dashboard/overview`)**:
   ```json
   {
     "status": "success",
-    "message": "Dashboard stats retrieved",
+    "message": "Dashboard overview data retrieved successfully",
     "data": {
-      "totalUsers": 6570,
-      "onlineUsers": 369,
-      "pendingSelfies": 7,
-      "unansweredTickets": 0
-    }
+      "stats": {
+        "totalUsers": 6570,
+        "onlineUsers": 369,
+        "pendingSelfies": 7,
+        "unansweredTickets": 7
+      },
+      "weeklyActivity": [
+        { "dayName": "ش", "hours": 210, "dateStr": "۱۰ اسفند", "isPeak": true },
+        { "dayName": "ی", "hours": 175, "dateStr": "۱۱ اسفند", "isPeak": false },
+        { "dayName": "د", "hours": 190, "dateStr": "۱۲ اسفند", "isPeak": false },
+        { "dayName": "س", "hours": 140, "dateStr": "۱۳ اسفند", "isPeak": false },
+        { "dayName": "چ", "hours": 160, "dateStr": "۱۴ اسفند", "isPeak": false },
+        { "dayName": "پ", "hours": 185, "dateStr": "۱۵ اسفند", "isPeak": false },
+        { "dayName": "ج", "hours": 130, "dateStr": "۱۶ اسفند", "isPeak": false }
+      ],
+      "genderStats": {
+        "maleCount": 2694,
+        "femaleCount": 3876,
+        "malePercentage": 41,
+        "femalePercentage": 59
+      },
+      "recentTickets": [
+        {
+          "id": 101,
+          "code": "۲۳۴۶",
+          "userName": "سکینه عالیخانی",
+          "avatar": "/uploads/avatars/user1.webp",
+          "dateTime": "۱۴۰۳/۰۹/۱۲ - ۱۳:۲۳",
+          "time": "۱۴:۲۰",
+          "unreadCount": 3,
+          "status": "PENDING"
+        },
+        {
+          "id": 102,
+          "code": "۲۳۴۷",
+          "userName": "اکبر میثاقی",
+          "avatar": "/uploads/avatars/user2.webp",
+          "dateTime": "۱۴۰۳/۰۹/۱۲ - ۱۳:۲۳",
+          "time": "۱۴:۲۰",
+          "unreadCount": 1,
+          "status": "PENDING"
+        },
+        {
+          "id": 103,
+          "code": "۲۳۴۸",
+          "userName": "دیوید سلیمانی",
+          "avatar": "/uploads/avatars/user3.webp",
+          "dateTime": "۱۴۰۳/۰۹/۱۲ - ۱۳:۲۳",
+          "time": "۱۴:۲۰",
+          "unreadCount": 6,
+          "status": "PENDING"
+        }
+      ],
+      "recentSelfies": [
+        {
+          "id": 1,
+          "userId": 45,
+          "fullName": "چی چانگ",
+          "email": "chichang@gmail.com",
+          "avatar": "/uploads/avatars/avatar45.webp",
+          "selfieUrl": "/uploads/selfies/selfie45.webp",
+          "createdAt": "2026-03-03T11:20:00.000Z"
+        },
+        {
+          "id": 2,
+          "userId": 52,
+          "fullName": "مرتضی هاشمی",
+          "email": "morteza@gmail.com",
+          "avatar": "/uploads/avatars/avatar52.webp",
+          "selfieUrl": "/uploads/selfies/selfie52.webp",
+          "createdAt": "2026-03-03T10:45:00.000Z"
+        }
+      ]
+    },
+    "error": null
   }
   ```
 
@@ -644,8 +714,10 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
           "fullName": "سارا همتی",
           "username": "sara_h",
           "avatarUrl": "http://localhost:3000/assets/avatars/avatar_1.webp",
+          "bio": "علاقه‌مند به سفر، موسیقی و عکاسی",
           "isPremium": true,
           "profileValidated": false,
+          "selfieVerified": false,
           "isBanned": false,
           "bannedUntil": null,
           "gender": "FEMALE",
@@ -664,7 +736,51 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
   }
   ```
 
-### 7.3 Ban User (GAP-3)
+### 7.3 Update User & Confirm Selfie Verification
+- **Method**: `PATCH` / `PUT`
+- **Path**: `/v1/admin/users/:id`
+- **Path Parameter**: `id` (integer)
+- **Request Body**:
+  ```json
+  {
+    "confirmSelfie": true,
+    "bio": "بیوگرافی بروزرسانی‌شده",
+    "fullName": "سارا همتی",
+    "isPremium": true,
+    "wallet": 50.0
+  }
+  ```
+  *(Note: `confirmSelfie: true` validates the user selfie verification, sets `profileValidated = true`, and emits a `PROFILE_VERIFIED` notification)*
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "message": "User updated successfully",
+    "data": {
+      "id": 101,
+      "email": "Sarahemati@gmail.com",
+      "fullName": "سارا همتی",
+      "username": "sara_h",
+      "avatarUrl": "http://localhost:3000/assets/avatars/avatar_1.webp",
+      "bio": "بیوگرافی بروزرسانی‌شده",
+      "isPremium": true,
+      "profileValidated": true,
+      "selfieVerified": true,
+      "isBanned": false,
+      "bannedUntil": null,
+      "gender": "FEMALE",
+      "age": 23,
+      "city": "اسلامشهر",
+      "registrationCompleted": true,
+      "isOnline": true,
+      "lastSeenAt": "2026-10-04T07:15:00.000Z",
+      "createdAt": "2024-11-20T10:00:00.000Z",
+      "gallery": []
+    }
+  }
+  ```
+
+### 7.4 Ban User (GAP-3)
 - **Method**: `POST`
 - **Path**: `/v1/admin/users/:id/ban`
 - **Path Parameter**: `id` (integer)

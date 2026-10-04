@@ -1724,16 +1724,16 @@
     "/admin/dashboard/overview": {
       "get": {
         "operationId": "AdminDashboardController_getOverview",
-        "summary": "Get dashboard overview KPI metrics",
-        "description": "Compatibility alias for the dashboard stats endpoint. Returns total platform users, online users, unverified pending selfies, and unanswered support tickets.",
+        "summary": "Get comprehensive dashboard overview data",
+        "description": "Retrieves complete dashboard overview payload: stats (KPIs), 7-day weeklyActivity with Persian day names and solar dates, genderStats distribution, recentTickets, and recentSelfies awaiting verification.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Dashboard stats retrieved successfully",
+            "description": "Dashboard overview data retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AdminDashboardStatsResponseDto"
+                  "$ref": "#/components/schemas/AdminDashboardOverviewResponseDto"
                 }
               }
             }
@@ -1956,6 +1956,114 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BanUserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/admin/users/{id}": {
+      "patch": {
+        "operationId": "AdminUsersController_updateUser",
+        "summary": "Update user details and/or confirm selfie verification",
+        "description": "Allows admin to update user fields including confirming their selfie verification (setting profileValidated = true), bio, fullName, wallet, and premium status.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID to update",
+            "schema": {
+              "example": 101,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAdminUserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "AdminUsersController_updateUserPut",
+        "summary": "Update user details and/or confirm selfie verification (PUT alias)",
+        "description": "Allows admin to update user fields (PUT alias for PATCH :id).",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID to update",
+            "schema": {
+              "example": 101,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAdminUserResponseDto"
                 }
               }
             }
@@ -3822,6 +3930,247 @@
           "data"
         ]
       },
+      "AdminWeeklyActivityItemDto": {
+        "type": "object",
+        "properties": {
+          "dayName": {
+            "type": "string",
+            "description": "Day abbreviation (e.g. ش, ی, د, س, چ, پ, ج)",
+            "example": "ش"
+          },
+          "hours": {
+            "type": "number",
+            "description": "Activity hours or interactions count",
+            "example": 210
+          },
+          "dateStr": {
+            "type": "string",
+            "description": "Persian solar date string (e.g. ۱۰ اسفند)",
+            "example": "۱۰ اسفند"
+          },
+          "isPeak": {
+            "type": "boolean",
+            "description": "Whether this day represents peak platform activity",
+            "example": true
+          }
+        },
+        "required": [
+          "dayName",
+          "hours",
+          "dateStr",
+          "isPeak"
+        ]
+      },
+      "AdminGenderStatsDto": {
+        "type": "object",
+        "properties": {
+          "maleCount": {
+            "type": "number",
+            "description": "Total male user count",
+            "example": 2694
+          },
+          "femaleCount": {
+            "type": "number",
+            "description": "Total female user count",
+            "example": 3876
+          },
+          "malePercentage": {
+            "type": "number",
+            "description": "Male percentage representation",
+            "example": 41
+          },
+          "femalePercentage": {
+            "type": "number",
+            "description": "Female percentage representation",
+            "example": 59
+          }
+        },
+        "required": [
+          "maleCount",
+          "femaleCount",
+          "malePercentage",
+          "femalePercentage"
+        ]
+      },
+      "AdminRecentTicketDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Ticket ID",
+            "example": 101
+          },
+          "code": {
+            "type": "string",
+            "description": "Ticket tracking code",
+            "example": "۲۳۴۶"
+          },
+          "userName": {
+            "type": "string",
+            "description": "User full name",
+            "example": "سکینه عالیخانی"
+          },
+          "avatar": {
+            "type": "string",
+            "description": "User avatar image URL",
+            "example": "/uploads/avatars/user1.webp"
+          },
+          "dateTime": {
+            "type": "string",
+            "description": "Date and time of ticket creation",
+            "example": "۱۴۰۳/۰۹/۱۲ - ۱۳:۲۳"
+          },
+          "time": {
+            "type": "string",
+            "description": "Time of last activity",
+            "example": "۱۴:۲۰"
+          },
+          "unreadCount": {
+            "type": "number",
+            "description": "Count of unread messages in ticket",
+            "example": 3
+          },
+          "status": {
+            "type": "string",
+            "description": "Ticket resolution status",
+            "example": "PENDING"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "userName",
+          "avatar",
+          "dateTime",
+          "time",
+          "unreadCount",
+          "status"
+        ]
+      },
+      "AdminRecentSelfieDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Sequence index or record ID",
+            "example": 1
+          },
+          "userId": {
+            "type": "number",
+            "description": "User ID awaiting selfie verification",
+            "example": 45
+          },
+          "fullName": {
+            "type": "string",
+            "description": "User full name",
+            "example": "چی چانگ"
+          },
+          "email": {
+            "type": "string",
+            "description": "User email address",
+            "example": "chichang@gmail.com"
+          },
+          "avatar": {
+            "type": "string",
+            "description": "User avatar image URL",
+            "example": "/uploads/avatars/avatar45.webp",
+            "nullable": true
+          },
+          "selfieUrl": {
+            "type": "string",
+            "description": "User verification selfie image URL",
+            "example": "/uploads/selfies/selfie45.webp",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Selfie upload / registration timestamp",
+            "example": "2026-03-03T11:20:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "fullName",
+          "email",
+          "createdAt"
+        ]
+      },
+      "AdminDashboardOverviewDataDto": {
+        "type": "object",
+        "properties": {
+          "stats": {
+            "description": "KPI counters summary",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminDashboardStatsDataDto"
+              }
+            ]
+          },
+          "weeklyActivity": {
+            "description": "7-day weekly activity progression",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminWeeklyActivityItemDto"
+            }
+          },
+          "genderStats": {
+            "description": "Platform gender distribution statistics",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminGenderStatsDto"
+              }
+            ]
+          },
+          "recentTickets": {
+            "description": "Recent user support tickets",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminRecentTicketDto"
+            }
+          },
+          "recentSelfies": {
+            "description": "Recently submitted verification selfies",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminRecentSelfieDto"
+            }
+          }
+        },
+        "required": [
+          "stats",
+          "weeklyActivity",
+          "genderStats",
+          "recentTickets",
+          "recentSelfies"
+        ]
+      },
+      "AdminDashboardOverviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Dashboard overview data retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminDashboardOverviewDataDto"
+          },
+          "error": {
+            "type": "object",
+            "example": null,
+            "nullable": true
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
       "AdminUserGalleryItemDto": {
         "type": "object",
         "properties": {
@@ -3889,6 +4238,12 @@
             "example": "http://localhost:3000/assets/avatars/avatar_1.webp",
             "nullable": true
           },
+          "bio": {
+            "type": "string",
+            "example": "علاقه‌مند به سفر و کتاب‌خوانی",
+            "nullable": true,
+            "description": "User biography / about me"
+          },
           "isPremium": {
             "type": "boolean",
             "example": true
@@ -3896,6 +4251,11 @@
           "profileValidated": {
             "type": "boolean",
             "example": false
+          },
+          "selfieVerified": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether the user selfie verification is confirmed/approved"
           },
           "isBanned": {
             "type": "boolean",
@@ -3954,6 +4314,7 @@
           "avatarUrl",
           "isPremium",
           "profileValidated",
+          "selfieVerified",
           "isBanned",
           "bannedUntil",
           "gender",
@@ -4079,6 +4440,67 @@
           },
           "data": {
             "$ref": "#/components/schemas/BannedUserDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
+      "UpdateAdminUserDto": {
+        "type": "object",
+        "properties": {
+          "confirmSelfie": {
+            "type": "boolean",
+            "example": true,
+            "description": "Confirm/approve the user selfie verification (sets profileValidated to true)"
+          },
+          "selfieVerified": {
+            "type": "boolean",
+            "example": true,
+            "description": "Alternative flag for selfie verification (sets profileValidated to true/false)"
+          },
+          "profileValidated": {
+            "type": "boolean",
+            "example": true,
+            "description": "Direct flag for profile validation (sets profileValidated to true/false)"
+          },
+          "bio": {
+            "type": "string",
+            "example": "علاقه‌مند به طبیعت، موسیقی و مطالعه",
+            "description": "User biography description"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "علی رضایی",
+            "description": "User full display name"
+          },
+          "isPremium": {
+            "type": "boolean",
+            "example": true,
+            "description": "Whether the user has premium subscription status"
+          },
+          "wallet": {
+            "type": "number",
+            "example": 50,
+            "description": "User wallet balance"
+          }
+        }
+      },
+      "UpdateAdminUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "User updated successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminUserListItemDto"
           }
         },
         "required": [

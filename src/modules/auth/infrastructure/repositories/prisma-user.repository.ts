@@ -153,18 +153,34 @@ export class PrismaUserRepository implements IUserRepository {
       }
     }
 
-    const questionsCount = await this.prisma.question.count();
+    const EXCLUDED_QUESTION_TYPES = ['PREFERENCES', 'INTERESTS'];
+
+    const questionsCount = await this.prisma.question.count({
+      where: {
+        type: {
+          notIn: EXCLUDED_QUESTION_TYPES as any,
+        },
+      },
+    });
     if (questionsCount > 0) {
       const userAnswers = await this.prisma.userQuestionAnswer.findMany({
         where: { userId },
         include: {
           questionAnswer: {
-            select: { questionId: true },
+            include: { question: true },
           },
         },
       });
       const distinctQuestionsAnswered = new Set(
-        userAnswers.map((ua) => ua.questionAnswer.questionId),
+        userAnswers
+          .filter((ua: any) => {
+            const qType = ua.questionAnswer?.question?.type;
+            return (
+              !qType ||
+              !EXCLUDED_QUESTION_TYPES.includes(String(qType).toUpperCase())
+            );
+          })
+          .map((ua) => ua.questionAnswer.questionId),
       );
       if (distinctQuestionsAnswered.size < questionsCount) {
         return false;

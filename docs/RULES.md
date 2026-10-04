@@ -278,7 +278,7 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
 1. **Basic Info**: `fullName` (valid), `username` (valid), `avatarUrl` (uploaded), and at least one spoken language in `languages`. (Note: `selfie` upload is an optional identity verification step and is not required for profile onboarding completion).
 2. **Demographics**: `birthDate` (18–80), `gender`, `height` (>0), `degree`, `job`/`profession`, and `relationStatus`.
 3. **Preferences**: `relation` (relationship kind specified).
-4. **Question Answers**: The user has answered **all questions** currently configured in the database.
+4. **Question Answers**: The user has answered all mandatory questions currently configured in the database (questions of type `PREFERENCES` and `INTERESTS` are excluded from the profile completion check).
 
 > **Status Check Endpoints**: Both `GET /users/profile` and `GET /v1/users/profile` return `{ "status": "success", "data": boolean }` for instant splash/onboarding redirection in client apps. Both `GET /users/me` and `GET /v1/users/me` retrieve the full profile with `Answers`.
 

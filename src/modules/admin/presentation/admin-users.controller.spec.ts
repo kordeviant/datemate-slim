@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminUsersController } from './admin-users.controller';
 import { GetAdminUsersUseCase } from '../application/use-cases/get-admin-users.use-case';
+import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { TokenService } from '../../auth/application/services/token.service';
@@ -15,11 +16,15 @@ import {
 describe('AdminUsersController', () => {
   let controller: AdminUsersController;
   let mockGetAdminUsersUseCase: Partial<GetAdminUsersUseCase>;
+  let mockUpdateAdminUserUseCase: Partial<UpdateAdminUserUseCase>;
   let mockBanUserUseCase: Partial<BanUserUseCase>;
   let mockUnbanUserUseCase: Partial<UnbanUserUseCase>;
 
   beforeEach(async () => {
     mockGetAdminUsersUseCase = {
+      execute: jest.fn(),
+    };
+    mockUpdateAdminUserUseCase = {
       execute: jest.fn(),
     };
     mockBanUserUseCase = {
@@ -35,6 +40,10 @@ describe('AdminUsersController', () => {
         {
           provide: GetAdminUsersUseCase,
           useValue: mockGetAdminUsersUseCase,
+        },
+        {
+          provide: UpdateAdminUserUseCase,
+          useValue: mockUpdateAdminUserUseCase,
         },
         {
           provide: BanUserUseCase,
@@ -64,8 +73,10 @@ describe('AdminUsersController', () => {
             fullName: 'سارا همتی',
             username: 'sara_h',
             avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+            bio: 'علاقه‌مند به هنر و عکاسی',
             isPremium: true,
             profileValidated: false,
+            selfieVerified: false,
             isBanned: false,
             bannedUntil: null,
             gender: 'FEMALE',
@@ -163,6 +174,92 @@ describe('AdminUsersController', () => {
         data: unbanResult,
       });
       expect(mockUnbanUserUseCase.execute).toHaveBeenCalledWith(101);
+    });
+  });
+
+  describe('PATCH /v1/admin/users/:id', () => {
+    it('should update user and confirm selfie verification', async () => {
+      const updatedUser = {
+        id: 101,
+        email: 'user@example.com',
+        fullName: 'سارا همتی',
+        username: 'sara_h',
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+        bio: 'بیوگرافی جدید',
+        isPremium: true,
+        profileValidated: true,
+        selfieVerified: true,
+        isBanned: false,
+        bannedUntil: null,
+        gender: 'FEMALE',
+        age: 23,
+        city: 'اسلامشهر',
+        registrationCompleted: true,
+        isOnline: true,
+        lastSeenAt: '2026-10-04T07:15:00.000Z',
+        createdAt: '2024-11-20T10:00:00.000Z',
+        gallery: [],
+      };
+      (mockUpdateAdminUserUseCase.execute as jest.Mock).mockResolvedValue(
+        updatedUser,
+      );
+
+      const res = await controller.updateUser(101, {
+        confirmSelfie: true,
+        bio: 'بیوگرافی جدید',
+      });
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'User updated successfully',
+        data: updatedUser,
+      });
+      expect(mockUpdateAdminUserUseCase.execute).toHaveBeenCalledWith(101, {
+        confirmSelfie: true,
+        bio: 'بیوگرافی جدید',
+      });
+    });
+  });
+
+  describe('PUT /v1/admin/users/:id', () => {
+    it('should alias PATCH and update user', async () => {
+      const updatedUser = {
+        id: 101,
+        email: 'user@example.com',
+        fullName: 'سارا همتی',
+        username: 'sara_h',
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+        bio: 'بیوگرافی',
+        isPremium: true,
+        profileValidated: true,
+        selfieVerified: true,
+        isBanned: false,
+        bannedUntil: null,
+        gender: 'FEMALE',
+        age: 23,
+        city: 'اسلامشهر',
+        registrationCompleted: true,
+        isOnline: true,
+        lastSeenAt: '2026-10-04T07:15:00.000Z',
+        createdAt: '2024-11-20T10:00:00.000Z',
+        gallery: [],
+      };
+      (mockUpdateAdminUserUseCase.execute as jest.Mock).mockResolvedValue(
+        updatedUser,
+      );
+
+      const res = await controller.updateUserPut(101, {
+        confirmSelfie: true,
+      });
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'User updated successfully',
+        data: updatedUser,
+      });
+      expect(mockUpdateAdminUserUseCase.execute).toHaveBeenCalledWith(101, {
+        confirmSelfie: true,
+      });
     });
   });
 });

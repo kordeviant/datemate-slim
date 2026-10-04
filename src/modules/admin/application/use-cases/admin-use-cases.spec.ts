@@ -1,5 +1,7 @@
 import { GetDashboardStatsUseCase } from './get-dashboard-stats.use-case';
+import { GetDashboardOverviewUseCase } from './get-dashboard-overview.use-case';
 import { GetAdminUsersUseCase } from './get-admin-users.use-case';
+import { UpdateAdminUserUseCase } from './update-admin-user.use-case';
 import { BanUserUseCase } from './ban-user.use-case';
 import { UnbanUserUseCase } from './unban-user.use-case';
 import { GetPendingVerificationsUseCase } from './get-pending-verifications.use-case';
@@ -14,7 +16,9 @@ describe('Admin Use Cases', () => {
   beforeEach(() => {
     mockAdminRepository = {
       getDashboardStats: jest.fn(),
+      getDashboardOverview: jest.fn(),
       getUsers: jest.fn(),
+      updateUser: jest.fn(),
       banUser: jest.fn(),
       unbanUser: jest.fn(),
       getPendingVerifications: jest.fn(),
@@ -40,6 +44,37 @@ describe('Admin Use Cases', () => {
 
       expect(result).toEqual(stats);
       expect(mockAdminRepository.getDashboardStats).toHaveBeenCalled();
+    });
+  });
+
+  describe('GetDashboardOverviewUseCase', () => {
+    it('should return comprehensive dashboard overview data', async () => {
+      const overview = {
+        stats: {
+          totalUsers: 6570,
+          onlineUsers: 369,
+          pendingSelfies: 7,
+          unansweredTickets: 7,
+        },
+        weeklyActivity: [],
+        genderStats: {
+          maleCount: 2694,
+          femaleCount: 3876,
+          malePercentage: 41,
+          femalePercentage: 59,
+        },
+        recentTickets: [],
+        recentSelfies: [],
+      };
+      (mockAdminRepository.getDashboardOverview as jest.Mock).mockResolvedValue(overview);
+
+      const useCase = new GetDashboardOverviewUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute();
+
+      expect(result).toEqual(overview);
+      expect(mockAdminRepository.getDashboardOverview).toHaveBeenCalled();
     });
   });
 
@@ -216,6 +251,45 @@ describe('Admin Use Cases', () => {
         101,
         'Blurry face',
       );
+    });
+  });
+
+  describe('UpdateAdminUserUseCase', () => {
+    it('should delegate updating user and confirming selfie to repository', async () => {
+      const updatedUser = {
+        id: 101,
+        email: 'sara@example.com',
+        fullName: 'سارا همتی',
+        username: 'sara_h',
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+        bio: 'علاقه‌مند به هنر و عکاسی',
+        isPremium: true,
+        profileValidated: true,
+        selfieVerified: true,
+        isBanned: false,
+        bannedUntil: null,
+        gender: 'FEMALE',
+        age: 23,
+        city: 'اسلامشهر',
+        registrationCompleted: true,
+        isOnline: true,
+        lastSeenAt: '2026-10-04T07:15:00.000Z',
+        createdAt: '2024-11-20T10:00:00.000Z',
+        gallery: [],
+      };
+      (mockAdminRepository.updateUser as jest.Mock).mockResolvedValue(updatedUser);
+
+      const useCase = new UpdateAdminUserUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const params = {
+        confirmSelfie: true,
+        bio: 'علاقه‌مند به هنر و عکاسی',
+      };
+      const result = await useCase.execute(101, params);
+
+      expect(result).toEqual(updatedUser);
+      expect(mockAdminRepository.updateUser).toHaveBeenCalledWith(101, params);
     });
   });
 });

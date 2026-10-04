@@ -338,6 +338,106 @@ describe('GetProfileUseCase', () => {
     expect(res.Profile.profileCompleted).toBe(false);
   });
 
+  it('should ignore PREFERENCES and INTERESTS question types when checking profileCompleted', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: 175,
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+      },
+      preferences: {
+        relation: 'FUN',
+      },
+      questionAnswers: [
+        {
+          questionAnswerId: 1,
+          questionAnswer: {
+            id: 1,
+            questionId: 10,
+            question: { id: 10, type: 'PERSONALITY' },
+          },
+        },
+        {
+          questionAnswerId: 2,
+          questionAnswer: {
+            id: 2,
+            questionId: 20,
+            question: { id: 20, type: 'PERSONALITY' },
+          },
+        },
+      ],
+    });
+
+    // 2 mandatory questions in DB (non-preferences, non-interests)
+    mockPrisma.question.count.mockResolvedValue(2);
+
+    const res = await useCase.execute(1);
+    expect(res.Profile.profileCompleted).toBe(true);
+  });
+
+  it('should not count PREFERENCES or INTERESTS question answers towards required questions', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'EN',
+      profileValidated: false,
+      profile: {
+        fullName: 'John Doe',
+        username: 'john_doe',
+        avatarUrl: '/uploads/avatars/john.webp',
+        languages: ['en'],
+      },
+      demographic: {
+        birthDate: new Date('1995-05-15'),
+        gender: 'MALE',
+        height: 175,
+        degree: 'MASTER_DEGREE',
+        job: 'Designer',
+        relationStatus: 'SINGLE',
+      },
+      preferences: {
+        relation: 'FUN',
+      },
+      questionAnswers: [
+        {
+          questionAnswerId: 1,
+          questionAnswer: {
+            id: 1,
+            questionId: 10,
+            question: { id: 10, type: 'PREFERENCES' },
+          },
+        },
+        {
+          questionAnswerId: 2,
+          questionAnswer: {
+            id: 2,
+            questionId: 20,
+            question: { id: 20, type: 'INTERESTS' },
+          },
+        },
+      ],
+    });
+
+    // 2 mandatory personality questions exist, but user only answered PREFERENCES & INTERESTS
+    mockPrisma.question.count.mockResolvedValue(2);
+
+    const res = await useCase.execute(1);
+    expect(res.Profile.profileCompleted).toBe(false);
+  });
+
   it('should map user question answers as { [questionId]: answerId } starting from 0', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 1,

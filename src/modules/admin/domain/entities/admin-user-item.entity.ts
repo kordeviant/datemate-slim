@@ -25,8 +25,10 @@ export interface AdminUserItem {
   fullName: string;
   username: string | null;
   avatarUrl: string | null;
+  bio: string | null;
   isPremium: boolean;
   profileValidated: boolean;
+  selfieVerified: boolean;
   isBanned: boolean;
   bannedUntil: string | null;
   gender: string | null;

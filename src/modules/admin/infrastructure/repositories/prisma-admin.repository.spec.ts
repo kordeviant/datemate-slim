@@ -26,6 +26,9 @@ describe('PrismaAdminRepository', () => {
         count: jest.fn(),
         update: jest.fn(),
       },
+      demographic: {
+        count: jest.fn(),
+      },
       userSession: {
         deleteMany: jest.fn(),
       },
@@ -69,6 +72,64 @@ describe('PrismaAdminRepository', () => {
     });
   });
 
+  describe('getDashboardOverview', () => {
+    it('should aggregate full overview data including stats, weeklyActivity, genderStats, tickets, and selfies', async () => {
+      mockPrisma.user.count
+        .mockResolvedValueOnce(6570) // totalUsers
+        .mockResolvedValueOnce(7); // pendingSelfies
+      mockPrisma.profile.count.mockResolvedValueOnce(369); // onlineUsers
+
+      mockPrisma.demographic.count
+        .mockResolvedValueOnce(2694) // maleCount
+        .mockResolvedValueOnce(3876); // femaleCount
+
+      mockPrisma.user.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 45,
+            email: 'chichang@gmail.com',
+            createdAt: new Date('2026-03-03T11:20:00.000Z'),
+            profile: {
+              fullName: 'چی چانگ',
+              avatarUrl: 'avatars/avatar45.webp',
+              selfieUrl: 'selfies/selfie45.webp',
+            },
+          },
+        ])
+        .mockResolvedValueOnce([]);
+
+      const result = await repository.getDashboardOverview();
+
+      expect(result.stats.totalUsers).toBe(6570);
+      expect(result.stats.onlineUsers).toBe(369);
+      expect(result.stats.pendingSelfies).toBe(7);
+      expect(result.stats.unansweredTickets).toBeGreaterThanOrEqual(1);
+
+      expect(result.weeklyActivity).toHaveLength(7);
+      expect(result.weeklyActivity[0].dayName).toBe('ش');
+      expect(result.weeklyActivity[0].isPeak).toBe(true);
+
+      expect(result.genderStats).toEqual({
+        maleCount: 2694,
+        femaleCount: 3876,
+        malePercentage: 41,
+        femalePercentage: 59,
+      });
+
+      expect(result.recentTickets.length).toBeGreaterThan(0);
+      expect(result.recentSelfies).toHaveLength(1);
+      expect(result.recentSelfies[0]).toEqual({
+        id: 1,
+        userId: 45,
+        fullName: 'چی چانگ',
+        email: 'chichang@gmail.com',
+        avatar: 'http://localhost:3000/assets/avatars/avatar45.webp',
+        selfieUrl: 'http://localhost:3000/assets/selfies/selfie45.webp',
+        createdAt: '2026-03-03T11:20:00.000Z',
+      });
+    });
+  });
+
   describe('getUsers', () => {
     it('should query users with search, filters, pagination and map fields correctly', async () => {
       const birthDate = new Date();
@@ -86,6 +147,7 @@ describe('PrismaAdminRepository', () => {
           fullName: 'سارا همتی',
           username: 'sara_h',
           avatarUrl: 'avatars/avatar_1.webp',
+          bio: 'علاقه‌مند به هنر',
           isOnline: true,
           lastSeenAt: new Date('2026-10-04T07:15:00.000Z'),
         },
@@ -130,8 +192,10 @@ describe('PrismaAdminRepository', () => {
         fullName: 'سارا همتی',
         username: 'sara_h',
         avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+        bio: 'علاقه‌مند به هنر',
         isPremium: true,
         profileValidated: false,
+        selfieVerified: false,
         isBanned: false,
         bannedUntil: null,
         gender: 'FEMALE',
@@ -382,6 +446,73 @@ describe('PrismaAdminRepository', () => {
         reason: 'Face does not match',
       });
       expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateUser', () => {
+    it('should throw NotFoundException if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        repository.updateUser(999, { confirmSelfie: true }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should update user, confirm selfie verification, create notification and return mapped AdminUserItem', async () => {
+      const existingUser = {
+        id: 101,
+        email: 'sara@example.com',
+        profileValidated: false,
+        profile: {
+          fullName: 'سارا همتی',
+          bio: 'قدیمی',
+        },
+      };
+
+      const updatedUser = {
+        id: 101,
+        email: 'sara@example.com',
+        wallet: 50.0,
+        isPremium: true,
+        profileValidated: true,
+        bannedUntil: null,
+        createdAt: new Date('2024-11-20T10:00:00.000Z'),
+        profile: {
+          fullName: 'سارا همتی جدید',
+          username: 'sara_h',
+          avatarUrl: 'avatars/avatar_1.webp',
+          bio: 'بیوگرافی جدید',
+          isOnline: true,
+          lastSeenAt: new Date('2026-10-04T07:15:00.000Z'),
+        },
+        demographic: {
+          birthDate: new Date('2000-01-01'),
+          gender: 'FEMALE',
+          city: {
+            name: 'تهران',
+          },
+        },
+        gallery: [],
+      };
+
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce(existingUser) // initial check
+        .mockResolvedValueOnce(updatedUser); // after update
+
+      const result = await repository.updateUser(101, {
+        confirmSelfie: true,
+        bio: 'بیوگرافی جدید',
+        fullName: 'سارا همتی جدید',
+        isPremium: true,
+      });
+
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(result.id).toBe(101);
+      expect(result.profileValidated).toBe(true);
+      expect(result.selfieVerified).toBe(true);
+      expect(result.bio).toBe('بیوگرافی جدید');
+      expect(result.fullName).toBe('سارا همتی جدید');
+      expect(result.isPremium).toBe(true);
     });
   });
 });

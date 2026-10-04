@@ -1,4 +1,5 @@
 import { AdminDashboardStats } from '../entities/admin-dashboard-stats.entity';
+import { AdminDashboardOverviewData } from '../entities/admin-dashboard-overview.entity';
 import {
   AdminGenderFilterType,
   AdminSortOrderType,
@@ -27,9 +28,24 @@ export interface BanUserResult {
   reason?: string | null;
 }
 
+export interface UpdateAdminUserParams {
+  confirmSelfie?: boolean;
+  selfieVerified?: boolean;
+  profileValidated?: boolean;
+  bio?: string | null;
+  fullName?: string;
+  isPremium?: boolean;
+  wallet?: number;
+}
+
 export interface IAdminRepository {
   getDashboardStats(): Promise<AdminDashboardStats>;
+  getDashboardOverview(): Promise<AdminDashboardOverviewData>;
   getUsers(params: GetAdminUsersParams): Promise<AdminUsersPaginatedResult>;
+  updateUser(
+    userId: number,
+    params: UpdateAdminUserParams,
+  ): Promise<AdminUserItem>;
   banUser(
     userId: number,
     durationHours?: number | null,

@@ -1127,9 +1127,17 @@ export class UpdateProfileUseCase {
 
     const hasPreferences = !!cleanRelationType;
 
+    const EXCLUDED_QUESTION_TYPES = ['PREFERENCES', 'INTERESTS'];
+
     const questionsCount =
       typeof (this.prisma as any).question?.count === 'function'
-        ? await this.prisma.question.count()
+        ? await this.prisma.question.count({
+            where: {
+              type: {
+                notIn: EXCLUDED_QUESTION_TYPES as any,
+              },
+            },
+          })
         : 0;
     let hasAnsweredAllQuestions = true;
     let userAnswers: any[] = [];
@@ -1146,7 +1154,12 @@ export class UpdateProfileUseCase {
       });
       if (questionsCount > 0) {
         const distinctAnsweredQuestions = new Set(
-          userAnswers.map((ua: any) => ua.questionAnswer?.questionId),
+          userAnswers
+            .filter((ua: any) => {
+              const qType = ua.questionAnswer?.question?.type;
+              return !qType || !EXCLUDED_QUESTION_TYPES.includes(String(qType).toUpperCase());
+            })
+            .map((ua: any) => ua.questionAnswer?.questionId),
         );
         hasAnsweredAllQuestions = distinctAnsweredQuestions.size >= questionsCount;
       }

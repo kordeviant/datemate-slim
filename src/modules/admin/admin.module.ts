@@ -6,7 +6,9 @@ import { ADMIN_REPOSITORY } from './domain/repositories/admin.repository.interfa
 import { PrismaAdminRepository } from './infrastructure/repositories/prisma-admin.repository';
 import { AdminAuthGuard } from './application/guards/admin-auth.guard';
 import { GetDashboardStatsUseCase } from './application/use-cases/get-dashboard-stats.use-case';
+import { GetDashboardOverviewUseCase } from './application/use-cases/get-dashboard-overview.use-case';
 import { GetAdminUsersUseCase } from './application/use-cases/get-admin-users.use-case';
+import { UpdateAdminUserUseCase } from './application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from './application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from './application/use-cases/unban-user.use-case';
 import { GetPendingVerificationsUseCase } from './application/use-cases/get-pending-verifications.use-case';
@@ -32,7 +34,9 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     },
     // Use Cases
     GetDashboardStatsUseCase,
+    GetDashboardOverviewUseCase,
     GetAdminUsersUseCase,
+    UpdateAdminUserUseCase,
     BanUserUseCase,
     UnbanUserUseCase,
     GetPendingVerificationsUseCase,
@@ -42,7 +46,9 @@ import { AdminVerificationsController } from './presentation/admin-verifications
   exports: [
     ADMIN_REPOSITORY,
     GetDashboardStatsUseCase,
+    GetDashboardOverviewUseCase,
     GetAdminUsersUseCase,
+    UpdateAdminUserUseCase,
     BanUserUseCase,
     UnbanUserUseCase,
     GetPendingVerificationsUseCase,

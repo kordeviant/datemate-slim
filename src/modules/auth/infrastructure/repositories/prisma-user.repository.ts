@@ -28,6 +28,48 @@ export class PrismaUserRepository implements IUserRepository {
     return user ? new UserEntity(user) : null;
   }
 
+  async findByUsername(username: string): Promise<UserEntity | null> {
+    if (!username) return null;
+    const normalized = username.toLowerCase().trim();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        profile: {
+          username: {
+            equals: normalized,
+            mode: 'insensitive',
+          },
+        },
+      },
+    });
+    return user ? new UserEntity(user) : null;
+  }
+
+  async findByEmailOrUsername(identifier: string): Promise<UserEntity | null> {
+    if (!identifier) return null;
+    const normalized = identifier.toLowerCase().trim();
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          {
+            email: {
+              equals: normalized,
+              mode: 'insensitive',
+            },
+          },
+          {
+            profile: {
+              username: {
+                equals: normalized,
+                mode: 'insensitive',
+              },
+            },
+          },
+        ],
+      },
+    });
+    return user ? new UserEntity(user) : null;
+  }
+
   async create(data: {
     email: string;
     passwordHash: string;

@@ -2200,6 +2200,11 @@
             "type": "number",
             "example": 101,
             "description": "User ID in the database"
+          },
+          "role": {
+            "type": "string",
+            "example": "ADMIN",
+            "description": "User authorization role (USER or ADMIN)"
           }
         },
         "required": [
@@ -2213,8 +2218,18 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "user@example.com",
-            "description": "User registered email address"
+            "example": "admin@example.com or admin",
+            "description": "User registered email address or username handle"
+          },
+          "username": {
+            "type": "string",
+            "example": "admin",
+            "description": "User handle or username (alias for identifier)"
+          },
+          "usernameOrEmail": {
+            "type": "string",
+            "example": "admin",
+            "description": "Username or email login identifier alias"
           },
           "password": {
             "type": "string",
@@ -2223,12 +2238,12 @@
           },
           "device": {
             "type": "string",
-            "example": "Google Pixel 8",
+            "example": "Google Pixel 8 or Web Browser",
             "description": "Client device model"
           },
           "userAgent": {
             "type": "string",
-            "example": "DateMate/2.6 (Android 14)",
+            "example": "DateMate/2.6 (Android 14) or Mozilla/5.0...",
             "description": "Client user-agent string"
           },
           "fcmToken": {
@@ -2239,21 +2254,16 @@
           "integrityToken": {
             "type": "string",
             "example": "base64_integrity_token_string",
-            "description": "Google Play Integrity token"
+            "description": "Google Play Integrity token (for Android clients)"
           },
           "packageName": {
             "type": "string",
             "example": "com.dmate.datemate",
-            "description": "Application package name"
+            "description": "Application package name (for Android clients)"
           }
         },
         "required": [
-          "email",
-          "password",
-          "device",
-          "userAgent",
-          "integrityToken",
-          "packageName"
+          "password"
         ]
       },
       "RefreshTokenDto": {

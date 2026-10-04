@@ -1,16 +1,34 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class SignInDto {
-  @ApiProperty({
-    example: 'user@example.com',
-    description: 'User registered email address',
+  @ApiPropertyOptional({
+    example: 'admin@example.com or admin',
+    description: 'User registered email address or username handle',
   })
   @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
-  @IsEmail()
-  @IsNotEmpty()
-  email: string;
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional({
+    example: 'admin',
+    description: 'User handle or username (alias for identifier)',
+  })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
+  @IsString()
+  @IsOptional()
+  username?: string;
+
+  @ApiPropertyOptional({
+    example: 'admin',
+    description: 'Username or email login identifier alias',
+  })
+  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
+  @IsString()
+  @IsOptional()
+  usernameOrEmail?: string;
 
   @ApiProperty({
     example: 'StrongPassword123!',
@@ -20,21 +38,21 @@ export class SignInDto {
   @IsNotEmpty()
   password: string;
 
-  @ApiProperty({
-    example: 'Google Pixel 8',
+  @ApiPropertyOptional({
+    example: 'Google Pixel 8 or Web Browser',
     description: 'Client device model',
   })
   @IsString()
-  @IsNotEmpty()
-  device: string;
+  @IsOptional()
+  device?: string;
 
-  @ApiProperty({
-    example: 'DateMate/2.6 (Android 14)',
+  @ApiPropertyOptional({
+    example: 'DateMate/2.6 (Android 14) or Mozilla/5.0...',
     description: 'Client user-agent string',
   })
   @IsString()
-  @IsNotEmpty()
-  userAgent: string;
+  @IsOptional()
+  userAgent?: string;
 
   @ApiPropertyOptional({
     example: 'eXamPLe-fCm-ToKen...',
@@ -44,19 +62,19 @@ export class SignInDto {
   @IsOptional()
   fcmToken?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'base64_integrity_token_string',
-    description: 'Google Play Integrity token',
+    description: 'Google Play Integrity token (for Android clients)',
   })
   @IsString()
-  @IsNotEmpty()
-  integrityToken: string;
+  @IsOptional()
+  integrityToken?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'com.dmate.datemate',
-    description: 'Application package name',
+    description: 'Application package name (for Android clients)',
   })
   @IsString()
-  @IsNotEmpty()
-  packageName: string;
+  @IsOptional()
+  packageName?: string;
 }

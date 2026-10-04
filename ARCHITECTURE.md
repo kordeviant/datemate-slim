@@ -203,5 +203,41 @@ Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
   ]
 }
 ```
+---
 
+## 8. Authentication & Admin Sign-In (`src/modules/auth`)
 
+The Authentication module supports consumer mobile applications and web administration portals with unified credentials.
+
+### 8.1 Dual Identifier Sign-In (`POST /v1/auth/signin` & `/auth/signin`)
+- **Flexible Identifier**: Accepts either `username` or `email` (or `usernameOrEmail` alias).
+  - Searches `Profile.username` and `User.email` case-insensitively.
+- **Web & Mobile Compatibility**:
+  - Android client attestation fields (`integrityToken`, `packageName`, `device`, `userAgent`, `fcmToken`) are optional.
+  - Web applications (such as Admin Panels) can authenticate by providing only:
+    ```json
+    {
+      "username": "admin",
+      "password": "Password123!"
+    }
+    ```
+    or
+    ```json
+    {
+      "email": "admin@datemate.com",
+      "password": "Password123!"
+    }
+    ```
+- **Device Information Default**: If client device metadata is omitted, `deviceInfo` defaults gracefully to `'Web Browser'`.
+- **Role Propagation**:
+  - JWT access tokens encode `role` in the payload (`role: 'ADMIN' | 'USER'`).
+  - Auth response returns the authenticated user's role:
+    ```json
+    {
+      "userId": 18,
+      "access": "<jwt_access_token>",
+      "refresh": "<refresh_token>",
+      "role": "ADMIN"
+    }
+    ```
+- **Admin Seeding**: Seeded admin user can be provisioned via `npm run seed:users` (`admin` / `admin@datemate.com`).

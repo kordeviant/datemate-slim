@@ -11,7 +11,7 @@ import { USER_SESSION_REPOSITORY } from '../../domain/repositories/user-session.
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
 import { PasswordHasherService } from '../services/password-hasher.service';
 import { TokenService } from '../services/token.service';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { UserEntity } from '../../domain/user.entity';
 
 describe('Auth Use Cases', () => {
@@ -27,6 +27,8 @@ describe('Auth Use Cases', () => {
   beforeEach(async () => {
     mockUserRepo = {
       findByEmail: jest.fn(),
+      findByUsername: jest.fn(),
+      findByEmailOrUsername: jest.fn(),
       findById: jest.fn(),
       create: jest.fn(),
       updatePassword: jest.fn(),
@@ -191,7 +193,16 @@ describe('Auth Use Cases', () => {
   });
 
   describe('SignInUseCase', () => {
+    it('should throw BadRequestException if neither username nor email is provided', async () => {
+      await expect(
+        signInUseCase.execute({
+          password: 'password123',
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should throw UnauthorizedException if user not found', async () => {
+      mockUserRepo.findByEmailOrUsername.mockResolvedValue(null);
       mockUserRepo.findByEmail.mockResolvedValue(null);
 
       await expect(
@@ -206,9 +217,48 @@ describe('Auth Use Cases', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should return tokens if credentials are valid', async () => {
+    it('should throw UnauthorizedException if password is invalid', async () => {
       const passwordHash = await passwordHasher.hash('correctpassword');
-      mockUserRepo.findByEmail.mockResolvedValue(
+      mockUserRepo.findByEmailOrUsername.mockResolvedValue(
+        new UserEntity({
+          id: 101,
+          email: 'user@example.com',
+          passwordHash,
+          role: 'USER',
+        }),
+      );
+
+      await expect(
+        signInUseCase.execute({
+          email: 'user@example.com',
+          password: 'wrongpassword',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException if user is currently banned', async () => {
+      const passwordHash = await passwordHasher.hash('correctpassword');
+      mockUserRepo.findByEmailOrUsername.mockResolvedValue(
+        new UserEntity({
+          id: 101,
+          email: 'user@example.com',
+          passwordHash,
+          role: 'USER',
+          bannedUntil: new Date(Date.now() + 1000 * 60 * 60), // Banned for 1 hour
+        }),
+      );
+
+      await expect(
+        signInUseCase.execute({
+          email: 'user@example.com',
+          password: 'correctpassword',
+        }),
+      ).rejects.toThrow('User is currently banned');
+    });
+
+    it('should return tokens and role if credentials are valid with email', async () => {
+      const passwordHash = await passwordHasher.hash('correctpassword');
+      mockUserRepo.findByEmailOrUsername.mockResolvedValue(
         new UserEntity({
           id: 101,
           email: 'user@example.com',
@@ -230,6 +280,63 @@ describe('Auth Use Cases', () => {
       expect(result.userId).toBe(101);
       expect(result.access).toBe('mock_access_token');
       expect(result.refresh).toBe('mock_refresh_token');
+      expect(result.role).toBe('USER');
+      expect(mockSessionRepo.createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 101,
+          deviceInfo: 'Pixel 8 (Android)',
+        }),
+      );
+    });
+
+    it('should successfully sign in admin using username and default deviceInfo to Web Browser', async () => {
+      const passwordHash = await passwordHasher.hash('Password123!');
+      mockUserRepo.findByEmailOrUsername.mockResolvedValue(
+        new UserEntity({
+          id: 1,
+          email: 'admin@datemate.com',
+          passwordHash,
+          role: 'ADMIN',
+        }),
+      );
+      mockSessionRepo.createSession.mockResolvedValue({});
+
+      const result = await signInUseCase.execute({
+        username: 'admin',
+        password: 'Password123!',
+      });
+
+      expect(result.userId).toBe(1);
+      expect(result.access).toBe('mock_access_token');
+      expect(result.refresh).toBe('mock_refresh_token');
+      expect(result.role).toBe('ADMIN');
+      expect(mockSessionRepo.createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 1,
+          deviceInfo: 'Web Browser',
+        }),
+      );
+    });
+
+    it('should successfully sign in using usernameOrEmail alias', async () => {
+      const passwordHash = await passwordHasher.hash('Password123!');
+      mockUserRepo.findByEmailOrUsername.mockResolvedValue(
+        new UserEntity({
+          id: 1,
+          email: 'admin@datemate.com',
+          passwordHash,
+          role: 'ADMIN',
+        }),
+      );
+      mockSessionRepo.createSession.mockResolvedValue({});
+
+      const result = await signInUseCase.execute({
+        usernameOrEmail: 'admin',
+        password: 'Password123!',
+      });
+
+      expect(result.userId).toBe(1);
+      expect(result.role).toBe('ADMIN');
     });
   });
 

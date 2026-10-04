@@ -3,6 +3,8 @@ import { UserEntity } from '../user.entity';
 export interface IUserRepository {
   findById(id: number): Promise<UserEntity | null>;
   findByEmail(email: string): Promise<UserEntity | null>;
+  findByUsername?(username: string): Promise<UserEntity | null>;
+  findByEmailOrUsername?(identifier: string): Promise<UserEntity | null>;
   create(data: {
     email: string;
     passwordHash: string;

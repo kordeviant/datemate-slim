@@ -330,6 +330,41 @@ async function seedUsers() {
 
   console.log(`  ✅ User 3 created: ID #${user3.id} (Email: ${user3.email}) with avatar and incomplete profile (only username, fullName, BOD, city)`);
 
+  // -------------------------------------------------------------
+  // ADMIN USER: Role ADMIN + Username 'admin' + Email 'admin@datemate.com'
+  // -------------------------------------------------------------
+  console.log('\n👑 Seeding Admin User: admin@datemate.com (username: admin)...');
+  const adminEmail = 'admin@datemate.com';
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (existingAdmin) {
+    await prisma.user.delete({ where: { id: existingAdmin.id } });
+  }
+
+  const adminUser = await prisma.user.create({
+    data: {
+      email: adminEmail,
+      passwordHash,
+      role: 'ADMIN',
+      language: 'EN',
+      profileValidated: true,
+      wallet: 1000.0,
+      score: 5.0,
+      profile: {
+        create: {
+          fullName: 'DateMate Administrator',
+          username: 'admin',
+          avatarUrl: 'avatars/avatarbe9c29b29330.webp',
+          bio: 'DateMate Platform System Administrator',
+          latitude: 35.6892,
+          longitude: 51.3890,
+          isOnline: true,
+          lastSeenAt: new Date(),
+        },
+      },
+    },
+  });
+  console.log(`  ✅ Admin user created: ID #${adminUser.id} (Email: ${adminEmail}, Username: admin, Role: ADMIN, Password: Password123!)`);
+
   console.log('\n🎉 User seeding completed successfully!');
 }
 

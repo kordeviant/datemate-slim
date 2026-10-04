@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AuthValidateResultModel {
   @ApiProperty({
@@ -18,4 +18,10 @@ export class AuthValidateResultModel {
     description: 'User ID in the database',
   })
   userId: number;
+
+  @ApiPropertyOptional({
+    example: 'ADMIN',
+    description: 'User authorization role (USER or ADMIN)',
+  })
+  role?: string;
 }

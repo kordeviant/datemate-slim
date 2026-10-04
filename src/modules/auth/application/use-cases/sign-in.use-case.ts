@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   UnauthorizedException,
@@ -15,6 +16,7 @@ import {
 import { PasswordHasherService } from '../services/password-hasher.service';
 import { TokenService } from '../services/token.service';
 import { AuthValidateResultModel } from '../dtos/auth-response.dto';
+import { UserEntity } from '../../domain/user.entity';
 
 @Injectable()
 export class SignInUseCase {
@@ -28,9 +30,36 @@ export class SignInUseCase {
   ) {}
 
   async execute(dto: SignInDto): Promise<AuthValidateResultModel> {
-    const user = await this.userRepository.findByEmail(dto.email);
+    const rawIdentifier =
+      dto.username ||
+      dto.email ||
+      dto.usernameOrEmail ||
+      (dto as any).login ||
+      (dto as any).identifier ||
+      '';
+
+    if (typeof rawIdentifier !== 'string' || !rawIdentifier.trim()) {
+      throw new BadRequestException('Username or email is required');
+    }
+    const identifier = rawIdentifier.trim();
+
+    let user: UserEntity | null = null;
+    if (typeof this.userRepository.findByEmailOrUsername === 'function') {
+      user = await this.userRepository.findByEmailOrUsername(identifier);
+    }
+
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      if (identifier.includes('@')) {
+        user = await this.userRepository.findByEmail(identifier);
+      } else if (typeof this.userRepository.findByUsername === 'function') {
+        user = await this.userRepository.findByUsername(identifier);
+      } else {
+        user = await this.userRepository.findByEmail(identifier);
+      }
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email, username, or password');
     }
 
     const isPasswordValid = await this.passwordHasher.compare(
@@ -38,7 +67,7 @@ export class SignInUseCase {
       user.passwordHash,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid email, username, or password');
     }
 
     if (user.bannedUntil && user.bannedUntil > new Date()) {
@@ -55,10 +84,15 @@ export class SignInUseCase {
     const refreshObj = this.tokenService.generateRefreshToken({ sub: user.id });
 
     // Save session
+    const deviceInfo =
+      dto.device && dto.userAgent
+        ? `${dto.device} (${dto.userAgent})`
+        : dto.device || dto.userAgent || 'Web Browser';
+
     await this.sessionRepository.createSession({
       userId: user.id,
       refreshTokenHash: refreshObj.hash,
-      deviceInfo: `${dto.device} (${dto.userAgent})`,
+      deviceInfo,
       fcmToken: dto.fcmToken,
       expiresAt: refreshObj.expiresAt,
     });
@@ -67,6 +101,7 @@ export class SignInUseCase {
       access,
       refresh: refreshObj.token,
       userId: user.id,
+      role: user.role,
     };
   }
 }

@@ -551,7 +551,6 @@ export class AppService {
           <div class="brand-title">DateMate Platform Rules</div>
           <div style="font-size: 11px; color: var(--text-dim);">Client Validation & Protocol Specification &bull; <code>/docs/rules</code></div>
         </div>
-        <span class="badge-live">Live Synchronized</span>
       </div>
 
       <div class="header-actions">
@@ -575,7 +574,7 @@ export class AppService {
     <aside class="toc-sidebar">
       <div class="toc-title">Table of Contents</div>
       <nav>
-        <ul class="toc-nav" id="toc-list">
+        <ul class="toc-nav" id="toc-list" style="color: #2e84d0;">
           <!-- Populated dynamically from rendered headings -->
         </ul>
       </nav>

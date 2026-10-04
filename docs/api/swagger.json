@@ -3779,6 +3779,48 @@
           "data"
         ]
       },
+      "AdminUserGalleryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1,
+            "description": "Gallery photo ID"
+          },
+          "url": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/images/gallery_101_1728000000000_abc.webp",
+            "description": "Resolved public image URL"
+          },
+          "description": {
+            "type": "string",
+            "example": "Weekend vibes",
+            "description": "Photo caption or description",
+            "nullable": true
+          },
+          "likesCount": {
+            "type": "number",
+            "example": 12,
+            "description": "Likes count"
+          },
+          "isProfilePicture": {
+            "type": "boolean",
+            "example": true,
+            "description": "Whether this photo is the active profile swipe photo"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-10-04T12:00:00.000Z",
+            "description": "Upload timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "likesCount",
+          "isProfilePicture"
+        ]
+      },
       "AdminUserListItemDto": {
         "type": "object",
         "properties": {
@@ -3852,6 +3894,13 @@
           "createdAt": {
             "type": "string",
             "example": "2024-11-20T10:00:00.000Z"
+          },
+          "gallery": {
+            "description": "User photo gallery",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserGalleryItemDto"
+            }
           }
         },
         "required": [
@@ -3870,7 +3919,8 @@
           "registrationCompleted",
           "isOnline",
           "lastSeenAt",
-          "createdAt"
+          "createdAt",
+          "gallery"
         ]
       },
       "AdminUsersPaginatedDataDto": {

@@ -75,6 +75,7 @@ describe('AdminUsersController', () => {
             isOnline: true,
             lastSeenAt: '2026-10-04T07:15:00.000Z',
             createdAt: '2024-11-20T10:00:00.000Z',
+            gallery: [],
           },
         ],
         total: 1,

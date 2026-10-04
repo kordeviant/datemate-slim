@@ -4,6 +4,7 @@ import { PrismaService } from '../../../../infrastructure/database/prisma.servic
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 import { AdminDashboardStats } from '../../domain/entities/admin-dashboard-stats.entity';
 import {
+  AdminUserGalleryItem,
   AdminUserItem,
   AdminUsersPaginatedResult,
 } from '../../domain/entities/admin-user-item.entity';
@@ -130,6 +131,9 @@ export class PrismaAdminRepository implements IAdminRepository {
               city: true,
             },
           },
+          gallery: {
+            orderBy: { id: 'asc' },
+          },
         },
       }),
     ]);
@@ -155,6 +159,15 @@ export class PrismaAdminRepository implements IAdminRepository {
           user.demographic?.gender,
       );
 
+      const gallery: AdminUserGalleryItem[] = (user.gallery || []).map((g) => ({
+        id: g.id,
+        url: this.mediaUrlResolver.resolveUrl(g.imageUrl),
+        description: g.description ?? null,
+        likesCount: g.likesCount || 0,
+        isProfilePicture: Boolean(g.isProfilePicture),
+        createdAt: g.createdAt ? g.createdAt.toISOString() : undefined,
+      }));
+
       return {
         id: user.id,
         email: user.email,
@@ -176,6 +189,7 @@ export class PrismaAdminRepository implements IAdminRepository {
           ? user.profile.lastSeenAt.toISOString()
           : null,
         createdAt: user.createdAt.toISOString(),
+        gallery,
       };
     });
 

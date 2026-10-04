@@ -148,7 +148,7 @@ The Admin Module provides administration, monitoring, user directory search, acc
 
 ### 6.2 Administrative Endpoints
 - `GET /v1/admin/dashboard/stats`: Returns KPI metrics (totalUsers, onlineUsers, pendingSelfies, unansweredTickets).
-- `GET /v1/admin/users`: Paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`).
+- `GET /v1/admin/users`: Paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`). Each user item includes demographic info, registration status, avatar, and their photo `gallery` array with resolved public URLs.
 - `POST /v1/admin/users/:id/ban`: Bans/blocks user account with duration in hours or permanent ban (`null`).
 - `POST /v1/admin/users/:id/unban`: Unbans user account and restores full access.
 - `GET /v1/admin/verifications`: Paginated queue of pending selfie verifications displaying `avatarUrl` alongside private `selfieUrl`.

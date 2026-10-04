@@ -1,4 +1,37 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class AdminUserGalleryItemDto {
+  @ApiProperty({ example: 1, description: 'Gallery photo ID' })
+  id: number;
+
+  @ApiProperty({
+    example: 'http://localhost:3000/assets/images/gallery_101_1728000000000_abc.webp',
+    description: 'Resolved public image URL',
+  })
+  url: string;
+
+  @ApiPropertyOptional({
+    example: 'Weekend vibes',
+    description: 'Photo caption or description',
+    nullable: true,
+  })
+  description?: string | null;
+
+  @ApiProperty({ example: 12, description: 'Likes count' })
+  likesCount: number;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether this photo is the active profile swipe photo',
+  })
+  isProfilePicture: boolean;
+
+  @ApiPropertyOptional({
+    example: '2026-10-04T12:00:00.000Z',
+    description: 'Upload timestamp',
+  })
+  createdAt?: string;
+}
 
 export class AdminUserListItemDto {
   @ApiProperty({ example: 101 })
@@ -51,6 +84,9 @@ export class AdminUserListItemDto {
 
   @ApiProperty({ example: '2024-11-20T10:00:00.000Z' })
   createdAt: string;
+
+  @ApiProperty({ type: [AdminUserGalleryItemDto], description: 'User photo gallery' })
+  gallery: AdminUserGalleryItemDto[];
 }
 
 export class AdminUsersPaginatedDataDto {

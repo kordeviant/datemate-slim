@@ -10,6 +10,15 @@ export type AdminUserSortByType = 'createdAt' | 'lastSeenAt' | 'wallet';
 
 export type AdminSortOrderType = 'asc' | 'desc';
 
+export interface AdminUserGalleryItem {
+  id: number;
+  url: string;
+  description: string | null;
+  likesCount: number;
+  isProfilePicture: boolean;
+  createdAt?: string;
+}
+
 export interface AdminUserItem {
   id: number;
   email: string;
@@ -27,6 +36,7 @@ export interface AdminUserItem {
   isOnline: boolean;
   lastSeenAt: string | null;
   createdAt: string;
+  gallery: AdminUserGalleryItem[];
 }
 
 export interface AdminUsersPaginatedResult {

@@ -95,6 +95,16 @@ describe('PrismaAdminRepository', () => {
             name: 'اسلامشهر',
           },
         },
+        gallery: [
+          {
+            id: 1,
+            imageUrl: 'images/gallery_101_1.webp',
+            description: 'Photo 1',
+            likesCount: 5,
+            isProfilePicture: true,
+            createdAt: new Date('2026-10-04T12:00:00.000Z'),
+          },
+        ],
       };
 
       mockPrisma.user.count.mockResolvedValueOnce(1);
@@ -130,6 +140,16 @@ describe('PrismaAdminRepository', () => {
         isOnline: true,
         lastSeenAt: '2026-10-04T07:15:00.000Z',
         createdAt: '2024-11-20T10:00:00.000Z',
+        gallery: [
+          {
+            id: 1,
+            url: 'http://localhost:3000/assets/images/gallery_101_1.webp',
+            description: 'Photo 1',
+            likesCount: 5,
+            isProfilePicture: true,
+            createdAt: '2026-10-04T12:00:00.000Z',
+          },
+        ],
       });
     });
 

@@ -42,6 +42,17 @@ export class AssetTypeRegistry {
       description: 'User profile photos and avatars',
     });
 
+    // Selfies: user identity verification photos
+    this.register({
+      assetType: AssetType.SELFIES,
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+      allowedExtensions: ['.jpg', '.jpeg', '.png', '.webp'],
+      minSizeBytes: 10 * 1024, // 10 KB
+      maxSizeBytes: 15 * 1024 * 1024, // 15 MB
+      magicBytesValidation: true,
+      description: 'User identity verification selfie photos',
+    });
+
     // Banners: promotional and community event banners
     this.register({
       assetType: AssetType.BANNERS,

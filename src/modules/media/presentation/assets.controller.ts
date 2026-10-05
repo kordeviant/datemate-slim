@@ -112,6 +112,25 @@ export class AssetsController {
   }
 
   @Version([VERSION_NEUTRAL, '1'])
+  @Get('selfies/:filename')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Public asset route: selfies',
+    description: 'Serves user identity verification selfie photos.',
+  })
+  @ApiParam({ name: 'filename', description: 'Safe asset filename', example: 'selfie_user_123.webp' })
+  @ApiResponse({ status: 200, description: 'Selfie binary stream' })
+  @ApiResponse({ status: 304, description: 'Not Modified (cached)' })
+  @ApiResponse({ status: 404, description: 'Selfie asset not found' })
+  async getSelfie(
+    @Param('filename') filename: string,
+    @Res() res: Response,
+    @Headers('if-none-match') ifNoneMatch?: string,
+  ): Promise<void> {
+    return this.streamAsset(res, 'selfies', filename, ifNoneMatch);
+  }
+
+  @Version([VERSION_NEUTRAL, '1'])
   @Get(':type/:filename')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

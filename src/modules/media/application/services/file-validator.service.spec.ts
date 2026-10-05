@@ -56,6 +56,18 @@ describe('FileValidatorService', () => {
       expect(result.validatedMimeType).toBe('image/webp');
     });
 
+    it('should validate authentic WebP buffer for selfies', () => {
+      const webpHeader = Buffer.concat([
+        Buffer.from('RIFF'),
+        Buffer.from([0x00, 0x00, 0x00, 0x00]),
+        Buffer.from('WEBP'),
+      ]);
+      const webpBuffer = Buffer.concat([webpHeader, Buffer.alloc(15 * 1024)]);
+
+      const result = validator.validate(webpBuffer, 'selfies', 'image/webp');
+      expect(result.validatedMimeType).toBe('image/webp');
+    });
+
     it('should validate clean SVG buffer for icons', () => {
       const svgBuffer = Buffer.from(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>',

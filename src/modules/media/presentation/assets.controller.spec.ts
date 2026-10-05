@@ -91,6 +91,23 @@ describe('AssetsController', () => {
     expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'image/webp');
   });
 
+  it('should stream selfie at /assets/selfies/:filename', async () => {
+    mockGetStreamUseCase.execute.mockResolvedValueOnce({
+      stream: Buffer.from('selfie-data'),
+      sizeBytes: 12,
+      mimeType: 'image/webp',
+      etag: '"12-123"',
+    });
+
+    await controller.getSelfie('selfie_56_123.webp', mockRes);
+
+    expect(mockGetStreamUseCase.execute).toHaveBeenCalledWith(
+      'selfies',
+      'selfie_56_123.webp',
+    );
+    expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'image/webp');
+  });
+
   it('should support scalable route /assets/:type/:filename for any asset type', async () => {
     mockGetStreamUseCase.execute.mockResolvedValueOnce({
       stream: Buffer.from('banner-data'),

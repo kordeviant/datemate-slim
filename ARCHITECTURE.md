@@ -19,6 +19,7 @@ DateMate is architected as a **Modular Monolith** applying **Domain-Driven Desig
   - `/assets/icons/{filename}`
   - `/assets/images/{filename}`
   - `/assets/avatars/{filename}`
+  - `/assets/selfies/{filename}`
   - `/assets/{type}/{filename}` (extensible to future types without code modification)
 - **Decoupled Storage & Public URL Independence**:
   - The storage layer stores files organized by asset type (`uploads/<assetType>/<filename>` or `s3://<bucket>/<assetType>/<filename>`).
@@ -91,6 +92,7 @@ registry.register({
 - `GET /assets/icons/:filename`: High-performance icon streaming with `ETag` and `304 Not Modified` support.
 - `GET /assets/images/:filename`: High-performance image streaming.
 - `GET /assets/avatars/:filename`: High-performance avatar streaming.
+- `GET /assets/selfies/:filename`: High-performance selfie verification photo streaming.
 - `GET /assets/:type/:filename`: Scalable endpoint dynamically serving any registered asset category.
 
 ---

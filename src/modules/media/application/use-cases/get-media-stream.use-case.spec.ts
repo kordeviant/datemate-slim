@@ -39,6 +39,21 @@ describe('GetMediaStreamUseCase', () => {
     expect(mockStorage.get).toHaveBeenCalledWith('icons', 'badge_123.svg');
   });
 
+  it('should retrieve selfie stream for selfies asset type', async () => {
+    mockStorage.get.mockResolvedValueOnce({
+      stream: Buffer.from('webp-data'),
+      sizeBytes: 1024,
+      mimeType: 'image/webp',
+      etag: '"selfie-123"',
+    });
+
+    const result = await useCase.execute('selfies', 'selfie_56_1791204615298.webp');
+
+    expect(result.mimeType).toBe('image/webp');
+    expect(result.etag).toBe('"selfie-123"');
+    expect(mockStorage.get).toHaveBeenCalledWith('selfies', 'selfie_56_1791204615298.webp');
+  });
+
   it('should throw NotFoundException for unsupported asset category', async () => {
     await expect(
       useCase.execute('invalid_cat', 'test.svg'),

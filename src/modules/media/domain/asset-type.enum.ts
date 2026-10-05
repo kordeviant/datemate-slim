@@ -2,6 +2,7 @@ export enum AssetType {
   ICONS = 'icons',
   IMAGES = 'images',
   AVATARS = 'avatars',
+  SELFIES = 'selfies',
   BANNERS = 'banners',
   AUDIO = 'audio',
   DOCUMENTS = 'documents',

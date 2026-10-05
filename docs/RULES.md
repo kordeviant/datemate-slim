@@ -60,7 +60,7 @@ DateMate strictly verifies image files at the binary level using magic bytes to 
 | **Prohibited Formats** | Scripts, Executables (APK, EXE, ZIP), Malicious SVG with scripts | Strictly rejected with `400 Bad Request` |
 | **File Size Limits by Type** | **Icons**: Max 2 MB<br>**Images**: Max 15 MB<br>**Avatars**: Min 10 KB, Max 10 MB<br>**Audio**: Max 20 MB | Files exceeding type bounds rejected with `400 Bad Request` |
 | **Server Processing** | Auto-oriented via EXIF, resized, WebP conversion, GPS metadata stripped | Sharp library cleans image metadata |
-| **Scalable Public Routes** | `/assets/icons/{filename}`<br>`/assets/images/{filename}`<br>`/assets/avatars/{filename}`<br>`/assets/{type}/{filename}` | Dynamic asset controller with ETag and immutable caching |
+| **Scalable Public Routes** | `/assets/icons/{filename}`<br>`/assets/images/{filename}`<br>`/assets/avatars/{filename}`<br>`/assets/selfies/{filename}`<br>`/assets/{type}/{filename}` | Dynamic asset controller with ETag and immutable caching |
 | **Storage Independence** | Files stored on disk or S3/object storage by asset type; public URL generated dynamically via `baseUrl` | DB stores relative key; domain changes require zero DB migrations |
 | **Unique Safe Filenames** | `<assetType>_<uuidHex>_<timestamp>.<ext>` | URL-safe, collision-proof, path-traversal protected |
 
@@ -70,13 +70,14 @@ DateMate strictly verifies image files at the binary level using magic bytes to 
   - The server reads `ASSET_BASE_URL` (or fallback `MEDIA_BASE_URL` / `APP_BASE_URL`) from environment configuration.
   - Changing domains or switching to a CDN (e.g. `https://cdn.datemate.com`) is achieved simply by updating `ASSET_BASE_URL` in `.env` without modifying stored database records.
 - **Upload Endpoints**:
-  - `POST /media/upload/:type` (and `/assets/upload/:type`): Upload by asset type parameter (`icons`, `images`, `avatars`).
+  - `POST /media/upload/:type` (and `/assets/upload/:type`): Upload by asset type parameter (`icons`, `images`, `avatars`, `selfies`).
   - Specialized endpoints: `POST /media/upload/icons`, `POST /media/upload/images`, `POST /media/upload/avatars`.
   - Returns `MediaUploadResponseDto` containing `filename`, `assetType`, full `publicUrl` (resolved with `baseUrl`), `relativePath`, and `sizeBytes`.
 - **Public Asset Serving**:
   - `GET /assets/icons/{filename}`
   - `GET /assets/images/{filename}`
   - `GET /assets/avatars/{filename}`
+  - `GET /assets/selfies/{filename}`
   - `GET /assets/{type}/{filename}` (extensible to any future asset types like `banners`, `audio`, `documents`).
   - High-performance caching: `Cache-Control: public, max-age=31536000, immutable`, `ETag` conditional `304 Not Modified`.
 

@@ -304,6 +304,64 @@ describe("UpdateProfileDto / CreateProfileDto Validation", () => {
       expect(result.Profile?.RelationType).toBe("LONG");
       expect(result.RelationType).toBe("LONG");
     });
+
+    it("should transform single gallery object with isProfilePicture and description", async () => {
+      const payload = {
+        gallery: {
+          id: 5,
+          isProfilePicture: true,
+          description: "Trip photo",
+        },
+        profilePictureId: 5,
+      };
+
+      const result: UpdateProfileDto = await pipe.transform(payload, {
+        type: "body",
+        metatype: UpdateProfileDto,
+      });
+
+      expect(result.gallery).toBeDefined();
+      expect(result.gallery?.id).toBe(5);
+      expect(result.gallery?.isProfilePicture).toBe(true);
+      expect(result.gallery?.description).toBe("Trip photo");
+      expect(result.profilePictureId).toBe(5);
+    });
+
+    it("should parse stringified JSON gallery object and coerce string isProfilePicture", async () => {
+      const payload = {
+        gallery: JSON.stringify({
+          isProfilePicture: "true",
+          description: "From mobile",
+        }),
+      };
+
+      const result: UpdateProfileDto = await pipe.transform(payload, {
+        type: "body",
+        metatype: UpdateProfileDto,
+      });
+
+      expect(result.gallery).toBeDefined();
+      expect(result.gallery?.isProfilePicture).toBe(true);
+      expect(result.gallery?.description).toBe("From mobile");
+    });
+
+    it("should reject multiple gallery items in gallery payload with BadRequestException", async () => {
+      const payload = {
+        gallery: [
+          { id: 1, isProfilePicture: true },
+          { id: 2, isProfilePicture: false },
+        ],
+      };
+
+      await expect(
+        pipe.transform(payload, {
+          type: "body",
+          metatype: UpdateProfileDto,
+        }),
+      ).rejects.toThrow(
+        "Only one gallery picture is allowed per request. Multiple gallery uploads are not permitted.",
+      );
+    });
   });
 });
 

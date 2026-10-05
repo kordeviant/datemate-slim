@@ -240,6 +240,9 @@ export class GetProfileUseCase {
         : undefined,
     }));
 
+    const activeGallery = userGalleries.find((g: any) => Boolean(g.isProfilePicture));
+    const activeProfilePictureId = activeGallery ? activeGallery.id : null;
+
     const profilePictureUrl = profile?.profilePictureUrl || null;
     const resolvedProfilePicture = profilePictureUrl
       ? (this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(profilePictureUrl) : profilePictureUrl)
@@ -251,7 +254,7 @@ export class GetProfileUseCase {
       language: cleanLanguage.toUpperCase(),
       lat: cleanLatitude,
       lon: cleanLongitude,
-      profileValidated: user.profileValidated ?? false,
+      profileValidated: Boolean(user.profileValidated),
       isPremium: Boolean(user.isPremium),
       Profile: {
         fullName: cleanFullName,
@@ -263,6 +266,7 @@ export class GetProfileUseCase {
           ? this.mediaUrlResolver.resolveUrl(avatarUrl)
           : avatarUrl,
         profilePicture: resolvedProfilePicture,
+        profilePictureId: activeProfilePictureId,
         // selfie url: this will not use still, only client should send
         profileCompleted,
         isPremium: Boolean(user.isPremium),

@@ -1,6 +1,8 @@
+import { BadRequestException } from '@nestjs/common';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -47,6 +49,14 @@ export const transformJsonOrObject = <T>(cls: new () => T) => {
       }
     }
     if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed)) {
+        if (parsed.length > 1) {
+          throw new BadRequestException(
+            'Only one gallery picture is allowed per request. Multiple gallery uploads are not permitted.',
+          );
+        }
+        parsed = parsed[0];
+      }
       return plainToInstance(cls, parsed);
     }
     return parsed;
@@ -54,11 +64,53 @@ export const transformJsonOrObject = <T>(cls: new () => T) => {
 };
 
 // ---------------------------------------------------------------------------
-// Nested DTO classes matching the Android client schema:
-//   { language, lat, lon, Profile: { fullName, username, ...,
-//       Demographic: { birthDate, gender, height, degree, profession, relationStatus, City: { id } },
-//       Preferences: { relation } } }
+// Gallery DTO: single gallery picture object
 // ---------------------------------------------------------------------------
+
+export class GalleryDto {
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Gallery image ID (for updating existing gallery image or setting as profile picture)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  id?: number;
+
+  @ApiPropertyOptional({
+    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
+    description: 'Image URL or path for gallery photo',
+  })
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @ApiPropertyOptional({
+    example: 'Weekend trip',
+    description: 'Optional caption or description for gallery photo',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description:
+      'Whether this gallery image should be set as the profile picture. Optional; if not sent, the first gallery image is set as profile picture by default.',
+  })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined ? value : obj?.is_profile_picture;
+    if (typeof raw === 'string') {
+      const lower = raw.trim().toLowerCase();
+      if (lower === 'true' || lower === '1') return true;
+      if (lower === 'false' || lower === '0') return false;
+    }
+    return raw;
+  })
+  @IsBoolean()
+  isProfilePicture?: boolean;
+}
 
 export class CityDto {
   @ApiPropertyOptional({ example: 12, description: 'Selected city ID' })
@@ -303,22 +355,7 @@ export class ProfileNestedDto {
   @IsString()
   avatar?: string;
 
-  @ApiPropertyOptional({
-    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
-    description:
-      'Profile picture URL or path selected from gallery (used for swiping, distinct from avatar)',
-  })
-  @IsOptional()
-  profilePicture?: string;
 
-  @ApiPropertyOptional({
-    example: 12,
-    description: 'Gallery image ID to select as primary profile swipe picture',
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  profilePictureId?: number;
 
   @ApiPropertyOptional({
     description:
@@ -679,14 +716,6 @@ export class UpdateProfileDto {
   answers?: Record<string, number> | any;
 
   @ApiPropertyOptional({
-    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
-    description:
-      'Profile picture URL or path selected from gallery (flat fallback)',
-  })
-  @IsOptional()
-  profilePicture?: string;
-
-  @ApiPropertyOptional({
     example: 12,
     description:
       'Gallery image ID to select as primary profile swipe picture (flat fallback)',
@@ -697,12 +726,24 @@ export class UpdateProfileDto {
   profilePictureId?: number;
 
   @ApiPropertyOptional({
+    example: 'http://localhost:3000/assets/images/gallery_1_123.webp',
     description:
-      'Gallery items to update (max 6 items in update API). Accepts list of items, URLs, or IDs.',
+      'Deprecated. No need to send in request; use profilePictureId or gallery.isProfilePicture instead.',
+    deprecated: true,
   })
   @IsOptional()
-  @Transform(parseIfJsonString)
-  gallery?: any[];
+  profilePicture?: string;
+
+  @ApiPropertyOptional({
+    type: GalleryDto,
+    description:
+      'Single gallery photo object containing image and/or isProfilePicture flag. Multiple gallery items in one request are not allowed.',
+  })
+  @IsOptional()
+  @Transform(transformJsonOrObject(GalleryDto))
+  @ValidateNested()
+  @Type(() => GalleryDto)
+  gallery?: GalleryDto;
 
   @ApiPropertyOptional({
     description: 'List of gallery image IDs to delete/remove',

@@ -375,6 +375,11 @@ interface ResponseResult<T> {
     "language": "EN",
     "lat": 35.6892,
     "lon": 51.389,
+    "profilePictureId": 12,
+    "gallery": {
+      "isProfilePicture": true,
+      "description": "Weekend trip"
+    },
     "Profile": {
       "fullName": "Parsa",
       "username": "parsa",
@@ -394,18 +399,22 @@ interface ResponseResult<T> {
     }
   }
   ```
-- **Optional File Fields (multipart/form-data)**:
-  - `avatar` (File): Public profile picture (JPEG/PNG/WebP, 50KB-5MB, min 300x300).
-  - `selfie` (File): Private verification selfie (JPEG/PNG/WebP, 50KB-5MB, min 300x300). Note: this will not use still, only client should send; server does not return selfie URL in response.
+- **O (multipart/form-data)**:
+  - `avatar` (File): Public profile picture avatar (JPEG/PNG/WebP, 50KB-5MB, min 300x300).
+  - `selfie` (File): Private verification selfie (JPEG/PNG/WebP, 50KB-5MB, min 300x300).
+  - `gallery` (File): Single gallery picture file (WebP/JPEG/PNG, min 1200x800, max 3MB). **Note**: only 1 gallery picture file is allowed per request; uploading multiple gallery files in a single request returns `400 Bad Request`.
 - **Fields Description**:
   - Top-level: `language` (`EN`/`FA`, case-insensitive), `lat`, `lon`
+  - `gallery` (Object): Single gallery photo object `{ isProfilePicture?: boolean, image?: string, description?: string, id?: number }`. Sent strictly outside `Profile` at root level.
+    - `isProfilePicture` (Boolean, optional): When uploading a new gallery photo or referencing one, determines if it is the active profile swipe photo. If not sent, backend automatically sets the first gallery image as `isProfilePicture: true` by default.
+  - `profilePictureId` (Number, optional): Gallery photo ID to set as active profile picture. **Single canonical contract: sent strictly outside the `Profile` object at the root level** (not duplicated inside `Profile`). **There is no need for `profilePicture` key in the request**.
   - `Profile`: `fullName` (2–100 chars), `username` (3–30 chars), `phoneNumber`, `bio`, `languages` (Array or comma-separated string; accepted: `en`, `fa`, `de`, `fr`, `es`, `it`, `pt`, `ru`, `uk`, `tr`, `ar`, `hi`, `ur`, `zh`, `ja`, `ko`, `nl`, `pl`, `sv`, `no`, `da`, `fi`, `cs`, `el`, `he`. Full language names are converted to 2-letter codes in DB).
   - `Profile.Demographic`: `birthDate` (ISO or YYYY-MM-DD, age 18–80), `gender` (`MALE`/`FEMALE`), `height` (cm), `degree`, `profession`, `relationStatus`, `City.id`
   - `Profile.Preferences`: `relation` (`FUN`, `OPEN`, `LONG`)
 - **Incremental Update**: All fields optional; omitted fields retain existing values.
-- **Success Response (200 OK)**: Same schema as `GET /users/me`.
+- **Success Response (200 OK)**: Returns updated profile including `Profile.profilePictureId` and `gallery: GalleryItemResponseDto[]`.
 - **Error Responses**:
-  - `400 Bad Request`: Validation failure (username, language, age, image).
+  - `400 Bad Request`: Validation failure (multiple gallery files/items sent, username, language, age, image).
   - `401 Unauthorized`: Missing/invalid JWT.
   - `409 Conflict`: Username already taken.
 
@@ -701,6 +710,7 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
   - `gender`: `MALE` | `FEMALE` | `ALL` (default: `ALL`)
   - `sortBy`: `createdAt` | `lastSeenAt` | `wallet` (default: `createdAt`)
   - `order`: `asc` | `desc` (default: `desc`)
+- **Description**: Returns paginated user records with lightweight payload (excluding heavy gallery, bio, transactions, and chatRooms). Includes `id`, `email`, `fullName`, `avatarUrl`, `age`, `gender`, `isPremium`, `hasPendingSelfie`, `profileValidated`, `isOnline`, `bannedUntil`, and `createdAt`.
 - **Response**:
   ```json
   {
@@ -709,24 +719,18 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
     "data": {
       "items": [
         {
-          "id": 101,
-          "email": "Sarahemati@gmail.com",
-          "fullName": "سارا همتی",
-          "username": "sara_h",
-          "avatarUrl": "http://localhost:3000/assets/avatars/avatar_1.webp",
-          "bio": "علاقه‌مند به سفر، موسیقی و عکاسی",
+          "id": 1,
+          "email": "user@example.com",
+          "fullName": "علی رضایی",
+          "avatarUrl": "https://api-datemate.testdevvvv.site/uploads/avatars/user1.webp",
+          "age": 28,
+          "gender": "MALE",
           "isPremium": true,
-          "profileValidated": false,
-          "selfieVerified": false,
-          "isBanned": false,
-          "bannedUntil": null,
-          "gender": "FEMALE",
-          "age": 23,
-          "city": "اسلامشهر",
-          "registrationCompleted": true,
+          "hasPendingSelfie": false,
+          "profileValidated": true,
           "isOnline": true,
-          "lastSeenAt": "2026-10-04T07:15:00.000Z",
-          "createdAt": "2024-11-20T10:00:00.000Z"
+          "bannedUntil": null,
+          "createdAt": "2026-03-15T10:30:00.000Z"
         }
       ],
       "total": 245,
@@ -736,7 +740,102 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
   }
   ```
 
-### 7.3 Update User & Confirm Selfie Verification
+### 7.3 User Details
+- **Method**: `GET`
+- **Path**: `/v1/admin/users/:id`
+- **Path Parameter**: `id` (integer, e.g. `12`)
+- **Headers**: `Authorization: Bearer <ADMIN_JWT_TOKEN>`
+- **Description**: Retrieves complete user details for admin modal and inspection tabs (demographics, gallery, transactions, chatRooms, and interests).
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "User details retrieved successfully",
+    "data": {
+      "id": 12,
+      "email": "sarah.smith@example.com",
+      "role": "USER",
+      "language": "FA",
+      "fullName": "سارا محمدی",
+      "username": "sarah_m",
+      "phoneNumber": "09123456789",
+      "bio": "علاقه‌مند به سفر، کوهنوردی و مطالعه کتاب‌های روانشناسی.",
+      "avatarUrl": "https://api-datemate.testdevvvv.site/uploads/avatars/user12.webp",
+      "selfieUrl": "https://api-datemate.testdevvvv.site/uploads/selfies/user12.webp",
+      "profileValidated": true,
+      "hasPendingSelfie": false,
+      "bannedUntil": null,
+      "wallet": 150000,
+      "score": 420,
+      "notificationsOn": true,
+      "isPrivate": false,
+      "isOnline": false,
+      "isPremium": true,
+      "lastSeenAt": "2026-10-05T12:00:00.000Z",
+      "createdAt": "2025-11-20T14:22:00.000Z",
+      "updatedAt": "2026-04-01T08:15:00.000Z",
+      "demographic": {
+        "birthDate": "1997-07-05",
+        "gender": "FEMALE",
+        "age": 29,
+        "cityName": "تهران",
+        "job": "طراح محصول",
+        "degree": "کارشناسی ارشد",
+        "height": 168,
+        "weight": 58,
+        "religion": null,
+        "relationStatus": "مجرد"
+      },
+      "gallery": [
+        {
+          "id": 101,
+          "url": "https://api-datemate.testdevvvv.site/uploads/gallery/photo1.webp",
+          "likesCount": 24,
+          "createdAt": "2026-01-10T12:00:00.000Z"
+        }
+      ],
+      "transactions": [
+        {
+          "id": 501,
+          "title": "خرید اشتراک طلایی دیتمیت ۳ ماهه",
+          "amount": 450000,
+          "planName": "اشتراک ویژه طلایی",
+          "date": "۱۴۰۳/۱۱/۲۰",
+          "bank": "بانک ملت",
+          "cardNumber": "****۶۰۳۷",
+          "status": "SUCCESS"
+        }
+      ],
+      "chatRooms": [
+        {
+          "id": 1,
+          "title": "کافهگردی و هنر",
+          "memberCount": 45,
+          "imageUrl": "https://images.unsplash.com/photo-1511632765486-a01980e01a18"
+        }
+      ],
+      "interests": [
+        "Traditional Cuisine",
+        "Hiking",
+        "Art & Design",
+        "Cinema",
+        "Coffee"
+      ]
+    }
+  }
+  ```
+- **Error Responses**:
+  - `401 Unauthorized`: Missing or invalid admin token.
+  - `403 Forbidden`: Token user does not have ADMIN role.
+  - `404 Not Found`:
+    ```json
+    {
+      "status": "error",
+      "message": "کاربر مورد نظر یافت نشد"
+    }
+    ```
+
+### 7.4 Update User & Confirm Selfie Verification
 - **Method**: `PATCH` / `PUT`
 - **Path**: `/v1/admin/users/:id`
 - **Path Parameter**: `id` (integer)
@@ -774,13 +873,12 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
       "registrationCompleted": true,
       "isOnline": true,
       "lastSeenAt": "2026-10-04T07:15:00.000Z",
-      "createdAt": "2024-11-20T10:00:00.000Z",
-      "gallery": []
+      "createdAt": "2024-11-20T10:00:00.000Z"
     }
   }
   ```
 
-### 7.4 Ban User (GAP-3)
+### 7.5 Ban User (GAP-3)
 - **Method**: `POST`
 - **Path**: `/v1/admin/users/:id/ban`
 - **Path Parameter**: `id` (integer)
@@ -807,7 +905,7 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
   }
   ```
 
-### 7.4 Unban User
+### 7.6 Unban User
 - **Method**: `POST`
 - **Path**: `/v1/admin/users/:id/unban`
 - **Path Parameter**: `id` (integer)

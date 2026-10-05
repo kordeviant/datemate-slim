@@ -194,6 +194,7 @@ describe('PrismaAdminRepository', () => {
         avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
         bio: 'علاقه‌مند به هنر',
         isPremium: true,
+        hasPendingSelfie: false,
         profileValidated: false,
         selfieVerified: false,
         isBanned: false,
@@ -205,16 +206,6 @@ describe('PrismaAdminRepository', () => {
         isOnline: true,
         lastSeenAt: '2026-10-04T07:15:00.000Z',
         createdAt: '2024-11-20T10:00:00.000Z',
-        gallery: [
-          {
-            id: 1,
-            url: 'http://localhost:3000/assets/images/gallery_101_1.webp',
-            description: 'Photo 1',
-            likesCount: 5,
-            isProfilePicture: true,
-            createdAt: '2026-10-04T12:00:00.000Z',
-          },
-        ],
       });
     });
 
@@ -245,6 +236,8 @@ describe('PrismaAdminRepository', () => {
       });
 
       expect(result.items[0].isPremium).toBe(false);
+      expect(typeof result.items[0].profileValidated).toBe('boolean');
+      expect(result.items[0].profileValidated).toBe(false);
     });
 
     it('should correctly handle BLOCKED, PENDING_VERIFICATION, and COMPLETED status filters', async () => {
@@ -513,6 +506,98 @@ describe('PrismaAdminRepository', () => {
       expect(result.bio).toBe('بیوگرافی جدید');
       expect(result.fullName).toBe('سارا همتی جدید');
       expect(result.isPremium).toBe(true);
+    });
+  });
+
+  describe('getUserDetails', () => {
+    it('should throw NotFoundException if user is not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(repository.getUserDetails(999)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(repository.getUserDetails(999)).rejects.toThrow(
+        'کاربر مورد نظر یافت نشد',
+      );
+    });
+
+    it('should return complete user details including demographics, gallery, and interests', async () => {
+      const rawUser = {
+        id: 12,
+        email: 'sarah.smith@example.com',
+        role: 'USER',
+        language: 'FA',
+        profileValidated: true,
+        isPremium: true,
+        bannedUntil: null,
+        wallet: 150000,
+        score: 420,
+        notificationsOn: true,
+        createdAt: new Date('2025-11-20T14:22:00.000Z'),
+        updatedAt: new Date('2026-04-01T08:15:00.000Z'),
+        profile: {
+          fullName: 'سارا محمدی',
+          username: 'sarah_m',
+          phoneNumber: '09123456789',
+          bio: 'علاقه‌مند به سفر',
+          avatarUrl: 'avatars/user12.webp',
+          selfieUrl: null,
+          isPrivate: false,
+          isOnline: false,
+          lastSeenAt: new Date('2026-10-05T12:00:00.000Z'),
+        },
+        demographic: {
+          birthDate: new Date('1997-07-05'),
+          gender: 'FEMALE',
+          job: 'طراح محصول',
+          degree: 'MASTER_DEGREE',
+          height: 168,
+          weight: 58,
+          religion: null,
+          relationStatus: 'SINGLE',
+          city: {
+            name: 'تهران',
+          },
+        },
+        gallery: [
+          {
+            id: 101,
+            imageUrl: 'gallery/photo1.webp',
+            likesCount: 24,
+            createdAt: new Date('2026-01-10T12:00:00.000Z'),
+          },
+        ],
+        interests: [
+          {
+            interest: {
+              nameEn: 'Hiking',
+              nameFa: 'کوهنوردی',
+            },
+          },
+        ],
+      };
+
+      mockPrisma.user.findUnique.mockResolvedValueOnce(rawUser);
+
+      const result = await repository.getUserDetails(12);
+
+      expect(result.id).toBe(12);
+      expect(result.email).toBe('sarah.smith@example.com');
+      expect(result.role).toBe('USER');
+      expect(result.fullName).toBe('سارا محمدی');
+      expect(result.username).toBe('sarah_m');
+      expect(result.avatarUrl).toBe('http://localhost:3000/assets/avatars/user12.webp');
+      expect(result.profileValidated).toBe(true);
+      expect(result.hasPendingSelfie).toBe(false);
+      expect(result.wallet).toBe(150000);
+      expect(result.score).toBe(420);
+      expect(result.demographic.cityName).toBe('تهران');
+      expect(result.demographic.job).toBe('طراح محصول');
+      expect(result.gallery.length).toBe(1);
+      expect(result.gallery[0].url).toBe('http://localhost:3000/assets/gallery/photo1.webp');
+      expect(result.interests).toEqual(['Hiking']);
+      expect(result.transactions).toEqual([]);
+      expect(result.chatRooms).toEqual([]);
     });
   });
 });

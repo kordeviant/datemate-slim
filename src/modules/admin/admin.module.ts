@@ -8,6 +8,7 @@ import { AdminAuthGuard } from './application/guards/admin-auth.guard';
 import { GetDashboardStatsUseCase } from './application/use-cases/get-dashboard-stats.use-case';
 import { GetDashboardOverviewUseCase } from './application/use-cases/get-dashboard-overview.use-case';
 import { GetAdminUsersUseCase } from './application/use-cases/get-admin-users.use-case';
+import { GetAdminUserDetailsUseCase } from './application/use-cases/get-admin-user-details.use-case';
 import { UpdateAdminUserUseCase } from './application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from './application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from './application/use-cases/unban-user.use-case';
@@ -36,6 +37,7 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     GetDashboardStatsUseCase,
     GetDashboardOverviewUseCase,
     GetAdminUsersUseCase,
+    GetAdminUserDetailsUseCase,
     UpdateAdminUserUseCase,
     BanUserUseCase,
     UnbanUserUseCase,
@@ -48,6 +50,7 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     GetDashboardStatsUseCase,
     GetDashboardOverviewUseCase,
     GetAdminUsersUseCase,
+    GetAdminUserDetailsUseCase,
     UpdateAdminUserUseCase,
     BanUserUseCase,
     UnbanUserUseCase,

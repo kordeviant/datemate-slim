@@ -148,7 +148,9 @@ The Admin Module provides administration, monitoring, user directory search, acc
 
 ### 6.2 Administrative Endpoints
 - `GET /v1/admin/dashboard/stats` (also `/v1/admin/dashboard/overview`): Returns KPI metrics (totalUsers, onlineUsers, pendingSelfies, unansweredTickets).
-- `GET /v1/admin/users`: Paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`). Each user item includes demographic info, registration status, avatar, and their photo `gallery` array with resolved public URLs.
+- `GET /v1/admin/users`: Lightweight paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`). Excludes heavy payloads (gallery, bio, transactions, chatRooms) for fast listing. Returns `id`, `email`, `fullName`, `avatarUrl`, `age`, `gender`, `isPremium`, `hasPendingSelfie`, `profileValidated`, `isOnline`, `bannedUntil`, and `createdAt`.
+- `GET /v1/admin/users/:id`: Full user details endpoint providing complete inspection data for the admin details modal/tabs: demographics, full photo gallery, transactions, chatRooms, and interests.
+- `PATCH / PUT /v1/admin/users/:id`: Updates user moderation fields (bio, fullName, premium, wallet, and confirms selfie verification).
 - `POST /v1/admin/users/:id/ban`: Bans/blocks user account with duration in hours or permanent ban (`null`).
 - `POST /v1/admin/users/:id/unban`: Unbans user account and restores full access.
 - `GET /v1/admin/verifications`: Paginated queue of pending selfie verifications displaying `avatarUrl` alongside private `selfieUrl`.
@@ -166,23 +168,28 @@ The User Gallery system enables users to upload, manage, and curate their photo 
   - `avatar`: Dedicated identity verification photo (stored in `Profile.avatarUrl`, served via `/assets/avatars/...`).
   - `profilePicture`: The primary public swipe picture used in the matching/discovery deck (stored in `Profile.profilePictureUrl`, served via `/assets/images/...`).
   - `Profile.profilePictureUrl` is persisted in nullable `profiles.profile_picture_url` (added by the `20261004130000_add_profile_picture_url_to_profiles` migration).
+  - `Profile.profilePictureId`: Gallery ID of the currently active profile picture, returned in profile response.
   - `UserGallery.isProfilePicture`: Boolean flag designating which gallery item is currently active for swiping.
 - **Multipart Upload Fields**:
   - Only three distinct file fields are accepted on profile update endpoints (`PUT /v1/users/profile` and `POST /v1/users/profile`):
     - `avatar?: Express.Multer.File[]` (max 1)
     - `selfie?: Express.Multer.File[]` (max 1)
-    - `gallery?: Express.Multer.File[]` (max 5)
+    - `gallery?: Express.Multer.File[]` (max 1 - multiple gallery photo uploads in a single request are rejected)
+- **Gallery Object & Profile Picture Updating**:
+  - `gallery` in request body is a single object: `{ isProfilePicture?: boolean, image?: string, description?: string, id?: number }`.
+  - `isProfilePicture` is optional: if omitted, the backend sets the user's first gallery image as `isProfilePicture: true` by default.
+  - `profilePictureId`: integer gallery ID passed in request to select an existing or uploaded gallery photo as active profile picture.
+  - **Single Canonical Contract**: `gallery` and `profilePictureId` are strictly sent outside the `Profile` object at the root level (no duplicated fields across root and nested objects). There is **no need** for `profilePicture` string URL in the request.
 
 ### 7.2 Validation Boundaries & Upload Rules
 - **Minimum Resolution**: `1200×800` (landscape or portrait: min dimension ≥ 800px, max dimension ≥ 1200px).
 - **Recommended Resolutions**: `1600×1200` or `1920×1080`.
 - **Maximum Resolution**: `4096×4096`.
 - **Maximum File Size**: 3MB per photo.
-- **Maximum Photos Per Upload**: 5 photos per request.
+- **Maximum Photos Per Upload**: 1 photo per request (multi-photo gallery requests are rejected with 400 Bad Request).
 - **Maximum Total Upload Size**: 15MB per request.
 - **Accepted Formats**: WebP (recommended) and JPG/JPEG/PNG. All images are normalized, EXIF-rotated, stripped of metadata, and converted to WebP via Sharp.
 - **Gallery Total Capacity**: Maximum 10 photos stored per user (`projected = current - deleteCount + newUploads <= 10`).
-- **Update API Limit**: Maximum 6 gallery items can be submitted in an update request payload.
 
 ### 7.3 Profile Response
 Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
@@ -190,7 +197,8 @@ Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
 {
   "Profile": {
     "avatar": "http://localhost:3000/assets/avatars/avatar_1.webp",
-    "profilePicture": "http://localhost:3000/assets/images/gallery_1_123.webp"
+    "profilePicture": "http://localhost:3000/assets/images/gallery_1_123.webp",
+    "profilePictureId": 12
   },
   "gallery": [
     {

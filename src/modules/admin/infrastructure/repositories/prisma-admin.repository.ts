@@ -5,6 +5,11 @@ import { MediaUrlResolverService } from '../../../media/application/services/med
 import { AdminDashboardStats } from '../../domain/entities/admin-dashboard-stats.entity';
 import { AdminDashboardOverviewData } from '../../domain/entities/admin-dashboard-overview.entity';
 import {
+  AdminUserDetails,
+  AdminUserDemographicDetails,
+  AdminUserGalleryItemDetails,
+} from '../../domain/entities/admin-user-details.entity';
+import {
   AdminUserGalleryItem,
   AdminUserItem,
   AdminUsersPaginatedResult,
@@ -277,9 +282,6 @@ export class PrismaAdminRepository implements IAdminRepository {
               city: true,
             },
           },
-          gallery: {
-            orderBy: { id: 'asc' },
-          },
         },
       }),
     ]);
@@ -434,39 +436,36 @@ export class PrismaAdminRepository implements IAdminRepository {
         user.demographic?.gender,
     );
 
-    const gallery: AdminUserGalleryItem[] = (user.gallery || []).map((g: any) => ({
-      id: g.id,
-      url: this.mediaUrlResolver.resolveUrl(g.imageUrl),
-      description: g.description ?? null,
-      likesCount: g.likesCount || 0,
-      isProfilePicture: Boolean(g.isProfilePicture),
-      createdAt: g.createdAt ? g.createdAt.toISOString() : undefined,
-    }));
+    const hasPendingSelfie = Boolean(
+      !user.profileValidated &&
+        user.profile?.selfieUrl &&
+        user.profile.selfieUrl.trim() !== '',
+    );
 
     return {
       id: user.id,
       email: user.email,
       fullName: user.profile?.fullName ?? '',
-      username: user.profile?.username ?? null,
       avatarUrl: user.profile?.avatarUrl
         ? this.mediaUrlResolver.resolveUrl(user.profile.avatarUrl)
         : null,
-      bio: user.profile?.bio ?? null,
+      age,
+      gender: user.demographic?.gender ?? null,
       isPremium: Boolean(user.isPremium),
-      profileValidated: user.profileValidated,
+      hasPendingSelfie,
+      profileValidated: Boolean(user.profileValidated),
+      isOnline,
+      bannedUntil: user.bannedUntil ? user.bannedUntil.toISOString() : null,
+      createdAt: user.createdAt.toISOString(),
+      city: user.demographic?.city?.name ?? null,
+      username: user.profile?.username ?? null,
+      bio: user.profile?.bio ?? null,
       selfieVerified: Boolean(user.profileValidated),
       isBanned,
-      bannedUntil: user.bannedUntil ? user.bannedUntil.toISOString() : null,
-      gender: user.demographic?.gender ?? null,
-      age,
-      city: user.demographic?.city?.name ?? null,
       registrationCompleted,
-      isOnline,
       lastSeenAt: user.profile?.lastSeenAt
         ? user.profile.lastSeenAt.toISOString()
         : null,
-      createdAt: user.createdAt.toISOString(),
-      gallery,
     };
   }
 
@@ -691,6 +690,129 @@ export class PrismaAdminRepository implements IAdminRepository {
       userId,
       profileValidated: false,
       reason: rejectionReason,
+    };
+  }
+
+  async getUserDetails(userId: number): Promise<AdminUserDetails> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        demographic: {
+          include: {
+            city: true,
+          },
+        },
+        gallery: {
+          orderBy: { id: 'asc' },
+        },
+        interests: {
+          include: {
+            interest: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('کاربر مورد نظر یافت نشد');
+    }
+
+    const now = new Date();
+    let age: number | null = null;
+    if (user.demographic?.birthDate) {
+      const birth = new Date(user.demographic.birthDate);
+      age = now.getFullYear() - birth.getFullYear();
+      const m = now.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
+        age--;
+      }
+    }
+
+    const hasPendingSelfie = Boolean(
+      !user.profileValidated &&
+        user.profile?.selfieUrl &&
+        user.profile.selfieUrl.trim() !== '',
+    );
+
+    const gallery: AdminUserGalleryItemDetails[] = (user.gallery || []).map(
+      (g: any) => ({
+        id: g.id,
+        url: this.mediaUrlResolver.resolveUrl(g.imageUrl),
+        likesCount: g.likesCount || 0,
+        createdAt: g.createdAt
+          ? typeof g.createdAt.toISOString === 'function'
+            ? g.createdAt.toISOString()
+            : String(g.createdAt)
+          : new Date().toISOString(),
+      }),
+    );
+
+    const interests: string[] = (user.interests || [])
+      .map((ui: any) => ui.interest?.nameEn || ui.interest?.nameFa || '')
+      .filter(Boolean);
+
+    const demographic: AdminUserDemographicDetails = {
+      birthDate: user.demographic?.birthDate
+        ? typeof user.demographic.birthDate.toISOString === 'function'
+          ? user.demographic.birthDate.toISOString().slice(0, 10)
+          : String(user.demographic.birthDate).slice(0, 10)
+        : null,
+      gender: user.demographic?.gender ?? null,
+      age,
+      cityName: user.demographic?.city?.name ?? null,
+      job: user.demographic?.job ?? null,
+      degree: user.demographic?.degree ?? null,
+      height: user.demographic?.height ?? null,
+      weight: user.demographic?.weight ?? null,
+      religion: user.demographic?.religion ?? null,
+      relationStatus: user.demographic?.relationStatus ?? null,
+    };
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      language: user.language,
+      fullName: user.profile?.fullName ?? '',
+      username: user.profile?.username ?? null,
+      phoneNumber: user.profile?.phoneNumber ?? null,
+      bio: user.profile?.bio ?? null,
+      avatarUrl: user.profile?.avatarUrl
+        ? this.mediaUrlResolver.resolveUrl(user.profile.avatarUrl)
+        : null,
+      selfieUrl: user.profile?.selfieUrl
+        ? this.mediaUrlResolver.resolveUrl(user.profile.selfieUrl)
+        : null,
+      profileValidated: Boolean(user.profileValidated),
+      hasPendingSelfie,
+      bannedUntil: user.bannedUntil
+        ? typeof user.bannedUntil.toISOString === 'function'
+          ? user.bannedUntil.toISOString()
+          : String(user.bannedUntil)
+        : null,
+      wallet: user.wallet,
+      score: user.score,
+      notificationsOn: Boolean(user.notificationsOn),
+      isPrivate: Boolean(user.profile?.isPrivate),
+      isOnline: Boolean(user.profile?.isOnline),
+      isPremium: Boolean(user.isPremium),
+      lastSeenAt: user.profile?.lastSeenAt
+        ? typeof user.profile.lastSeenAt.toISOString === 'function'
+          ? user.profile.lastSeenAt.toISOString()
+          : String(user.profile.lastSeenAt)
+        : null,
+      createdAt: typeof user.createdAt.toISOString === 'function'
+        ? user.createdAt.toISOString()
+        : String(user.createdAt),
+      updatedAt: typeof user.updatedAt.toISOString === 'function'
+        ? user.updatedAt.toISOString()
+        : String(user.updatedAt),
+      demographic,
+      gallery,
+      transactions: [],
+      chatRooms: [],
+      interests,
     };
   }
 }

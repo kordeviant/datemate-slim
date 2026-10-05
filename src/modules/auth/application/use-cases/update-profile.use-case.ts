@@ -151,28 +151,57 @@ export class UpdateProfileUseCase {
       dataObj?.profile?.Preferences ??
       dataObj?.profile?.preferences;
 
-    // Gallery inputs extraction and validation
-    const candidateProfilePictureInput =
-      profileNested?.profilePicture ??
-      dto.profilePicture ??
-      dataObj?.Profile?.profilePicture ??
-      dataObj?.profile?.profilePicture ??
-      dataObj?.profilePicture;
-
+    // Gallery inputs extraction and validation (single contract: strictly outside Profile object)
     const candidateProfilePictureIdInput =
-      profileNested?.profilePictureId ??
       dto.profilePictureId ??
-      (profileNested as any)?.profile_picture_id ??
-      dataObj?.Profile?.profilePictureId ??
-      dataObj?.profile?.profilePictureId ??
-      dataObj?.profilePictureId;
+      (dto as any)?.profile_picture_id ??
+      dataObj?.profilePictureId ??
+      dataObj?.profile_picture_id;
+
+    const candidateProfilePictureInput =
+      dto.profilePicture ??
+      dataObj?.profilePicture;
 
     const candidateGalleryInput =
       dto.gallery ??
-      dataObj?.gallery ??
-      profileNested?.gallery ??
-      dataObj?.Profile?.gallery ??
-      dataObj?.profile?.gallery;
+      dataObj?.gallery;
+
+    // Single gallery photo rule: do not allow multi gallery
+    if (galleryFiles && galleryFiles.length > 1) {
+      throw new BadRequestException(
+        'Only one gallery picture is allowed per request. Multiple gallery uploads are not permitted.',
+      );
+    }
+
+    if (Array.isArray(candidateGalleryInput) && candidateGalleryInput.length > 1) {
+      throw new BadRequestException(
+        'Only one gallery picture is allowed per request. Multiple gallery uploads are not permitted.',
+      );
+    }
+
+    // Unpack single gallery object
+    const galleryObj: any = Array.isArray(candidateGalleryInput)
+      ? candidateGalleryInput[0]
+      : (candidateGalleryInput && typeof candidateGalleryInput === 'object')
+        ? candidateGalleryInput
+        : undefined;
+
+    let isProfilePictureFlag: boolean | undefined = undefined;
+    if (galleryObj) {
+      const rawFlag =
+        galleryObj.isProfilePicture !== undefined
+          ? galleryObj.isProfilePicture
+          : (galleryObj as any).is_profile_picture;
+      if (typeof rawFlag === 'boolean') {
+        isProfilePictureFlag = rawFlag;
+      } else if (typeof rawFlag === 'string') {
+        if (rawFlag.trim().toLowerCase() === 'true' || rawFlag.trim() === '1') {
+          isProfilePictureFlag = true;
+        } else if (rawFlag.trim().toLowerCase() === 'false' || rawFlag.trim() === '0') {
+          isProfilePictureFlag = false;
+        }
+      }
+    }
 
     const candidateDeleteGalleryIdsInput =
       profileNested?.deleteGalleryIds ??
@@ -181,13 +210,6 @@ export class UpdateProfileUseCase {
       (dto as any)?.delete_gallery_ids ??
       dataObj?.Profile?.deleteGalleryIds ??
       dataObj?.deleteGalleryIds;
-
-    // Rule: Limit in update in API: 6
-    if (Array.isArray(candidateGalleryInput) && candidateGalleryInput.length > 6) {
-      throw new BadRequestException(
-        'Cannot update or provide more than 6 gallery items in update API request.',
-      );
-    }
 
     // Parse deleteGalleryIds
     const deleteGalleryIds: number[] = Array.isArray(candidateDeleteGalleryIdsInput)
@@ -199,7 +221,7 @@ export class UpdateProfileUseCase {
       typeof (this.prisma as any).userGallery?.count === 'function'
         ? await (this.prisma as any).userGallery.count({ where: { userId } })
         : 0;
-    const newUploadsCount = galleryFiles ? galleryFiles.length : 0;
+    const newUploadsCount = galleryFiles ? Math.min(galleryFiles.length, 1) : 0;
     const deleteCount = deleteGalleryIds.length;
     const projectedGalleryCount = Math.max(0, currentGalleryCount - deleteCount) + newUploadsCount;
     if (projectedGalleryCount > 10) {
@@ -208,12 +230,12 @@ export class UpdateProfileUseCase {
       );
     }
 
-    // Process new gallery uploads via galleryProcessor
+    // Process new gallery uploads via galleryProcessor (at most 1)
     let processedGalleryImages: ProcessedGalleryImage[] = [];
     if (galleryFiles && galleryFiles.length > 0) {
       if (this.galleryProcessor) {
         processedGalleryImages = await this.galleryProcessor.processBatchGallery(
-          galleryFiles,
+          [galleryFiles[0]],
           userId,
         );
       }
@@ -735,36 +757,62 @@ export class UpdateProfileUseCase {
         });
       }
 
-      // Newly uploaded gallery images
-      const createdGalleries: any[] = [];
+      // Newly uploaded gallery images (max 1)
+      let newlyCreatedGallery: any = null;
       if (processedGalleryImages.length > 0 && typeof (tx as any).userGallery?.create === 'function') {
-        for (const img of processedGalleryImages) {
-          const created = await (tx as any).userGallery.create({
-            data: {
-              userId,
-              imageUrl: img.relativeUrl,
-              likesCount: 0,
-              isProfilePicture: false,
-            },
-          });
-          createdGalleries.push(created);
+        const img = processedGalleryImages[0];
+
+        // Determine if new image should be profilePicture:
+        // 1. If isProfilePicture flag was explicitly sent, use it.
+        // 2. If isProfilePicture was NOT sent (undefined), set the first gallery as isProfilePicture by default:
+        //    (i.e. if user has no existing gallery, or no existing gallery has isProfilePicture: true).
+        let newIsProfilePicture = false;
+        if (isProfilePictureFlag === true) {
+          newIsProfilePicture = true;
+        } else if (isProfilePictureFlag === false) {
+          newIsProfilePicture = false;
+        } else {
+          const existingActive = typeof (tx as any).userGallery?.findFirst === 'function'
+            ? await (tx as any).userGallery.findFirst({
+                where: { userId, isProfilePicture: true },
+              })
+            : null;
+          if (!existingActive) {
+            newIsProfilePicture = true;
+          }
+        }
+
+        newlyCreatedGallery = await (tx as any).userGallery.create({
+          data: {
+            userId,
+            imageUrl: img.relativeUrl,
+            description: galleryObj?.description ?? null,
+            likesCount: 0,
+            isProfilePicture: newIsProfilePicture,
+          },
+        });
+
+        if (newIsProfilePicture) {
+          if (typeof (tx as any).userGallery?.updateMany === 'function') {
+            await (tx as any).userGallery.updateMany({
+              where: { userId, id: { not: newlyCreatedGallery.id } },
+              data: { isProfilePicture: false },
+            });
+          }
+          profilePictureUrl = newlyCreatedGallery.imageUrl;
         }
       }
 
-      // Update descriptions of existing gallery items
-      if (Array.isArray(candidateGalleryInput) && typeof (tx as any).userGallery?.updateMany === 'function') {
-        for (const item of candidateGalleryInput) {
-          if (item && typeof item === 'object' && item.id) {
-            const galleryId = Number(item.id);
-            if (!isNaN(galleryId)) {
-              await (tx as any).userGallery.updateMany({
-                where: { id: galleryId, userId },
-                data: {
-                  ...(item.description !== undefined ? { description: item.description } : {}),
-                },
-              });
-            }
-          }
+      // Update description of existing gallery item if specified
+      if (galleryObj?.id && typeof (tx as any).userGallery?.updateMany === 'function') {
+        const galleryId = Number(galleryObj.id);
+        if (!isNaN(galleryId) && galleryObj.description !== undefined) {
+          await (tx as any).userGallery.updateMany({
+            where: { id: galleryId, userId },
+            data: {
+              description: galleryObj.description,
+            },
+          });
         }
       }
 
@@ -773,31 +821,34 @@ export class UpdateProfileUseCase {
         ? Number(candidateProfilePictureIdInput)
         : null;
 
-      if (!selectedGalleryId && Array.isArray(candidateGalleryInput)) {
-        const itemWithFlag = candidateGalleryInput.find(
-          (g: any) => g && (g.isProfilePicture === true || g.is_profile_picture === true),
-        );
-        if (itemWithFlag?.id) {
-          selectedGalleryId = Number(itemWithFlag.id);
-        }
+      if (!selectedGalleryId && galleryObj?.id && isProfilePictureFlag === true) {
+        selectedGalleryId = Number(galleryObj.id);
       }
 
-      if (selectedGalleryId && typeof (tx as any).userGallery?.findFirst === 'function') {
-        const chosen = await (tx as any).userGallery.findFirst({
-          where: { id: selectedGalleryId, userId },
-        });
-        if (chosen) {
-          await (tx as any).userGallery.updateMany({
-            where: { userId },
-            data: { isProfilePicture: false },
+      if (newlyCreatedGallery && newlyCreatedGallery.isProfilePicture) {
+        selectedGalleryId = newlyCreatedGallery.id;
+      }
+
+      if (selectedGalleryId && (!newlyCreatedGallery || selectedGalleryId !== newlyCreatedGallery.id)) {
+        if (typeof (tx as any).userGallery?.findFirst === 'function') {
+          const chosen = await (tx as any).userGallery.findFirst({
+            where: { id: selectedGalleryId, userId },
           });
-          await (tx as any).userGallery.update({
-            where: { id: chosen.id },
-            data: { isProfilePicture: true },
-          });
-          profilePictureUrl = chosen.imageUrl;
+          if (chosen) {
+            await (tx as any).userGallery.updateMany({
+              where: { userId },
+              data: { isProfilePicture: false },
+            });
+            await (tx as any).userGallery.update({
+              where: { id: chosen.id },
+              data: { isProfilePicture: true },
+            });
+            profilePictureUrl = chosen.imageUrl;
+          } else {
+            throw new BadRequestException('Gallery image with specified profilePictureId not found.');
+          }
         }
-      } else if (candidateProfilePictureInput && typeof candidateProfilePictureInput === 'string') {
+      } else if (!newlyCreatedGallery && candidateProfilePictureInput && typeof candidateProfilePictureInput === 'string') {
         const filename = path.basename(candidateProfilePictureInput.trim());
         const chosen = typeof (tx as any).userGallery?.findFirst === 'function'
           ? await (tx as any).userGallery.findFirst({
@@ -817,10 +868,11 @@ export class UpdateProfileUseCase {
             data: { isProfilePicture: true },
           });
           profilePictureUrl = chosen.imageUrl;
+          selectedGalleryId = chosen.id;
         } else {
           profilePictureUrl = candidateProfilePictureInput.trim();
         }
-      } else {
+      } else if (!newlyCreatedGallery) {
         // Fallback or maintain existing profile picture
         if (profilePictureUrl && typeof (tx as any).userGallery?.findFirst === 'function') {
           const stillExists = await (tx as any).userGallery.findFirst({
@@ -829,26 +881,33 @@ export class UpdateProfileUseCase {
           if (!stillExists) {
             const fallback = await (tx as any).userGallery.findFirst({
               where: { userId },
-              orderBy: { createdAt: 'desc' },
+              orderBy: { createdAt: 'asc' },
             });
             if (fallback) {
               profilePictureUrl = fallback.imageUrl;
+              selectedGalleryId = fallback.id;
+              await (tx as any).userGallery.updateMany({
+                where: { userId },
+                data: { isProfilePicture: false },
+              });
               await (tx as any).userGallery.update({
                 where: { id: fallback.id },
                 data: { isProfilePicture: true },
               });
             } else {
               profilePictureUrl = null;
+              selectedGalleryId = null;
             }
           }
-        } else if (!profilePictureUrl && createdGalleries.length > 0 && typeof (tx as any).userGallery?.findFirst === 'function') {
-          // If user had no profile picture and uploaded gallery images, set first as profile picture
+        } else if (!profilePictureUrl && typeof (tx as any).userGallery?.findFirst === 'function') {
+          // If user had no profile picture and has gallery images, set first as profile picture by default
           const first = await (tx as any).userGallery.findFirst({
             where: { userId },
             orderBy: { createdAt: 'asc' },
           });
           if (first) {
             profilePictureUrl = first.imageUrl;
+            selectedGalleryId = first.id;
             await (tx as any).userGallery.update({
               where: { id: first.id },
               data: { isProfilePicture: true },
@@ -1303,6 +1362,9 @@ export class UpdateProfileUseCase {
       createdAt: g.createdAt ? g.createdAt.toISOString() : undefined,
     }));
 
+    const activeGallery = userGalleries.find((g: any) => Boolean(g.isProfilePicture));
+    const activeProfilePictureId = activeGallery ? activeGallery.id : null;
+
     const resolvedProfilePicture = profilePictureUrl
       ? (this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(profilePictureUrl) : profilePictureUrl)
       : null;
@@ -1313,7 +1375,7 @@ export class UpdateProfileUseCase {
       language: cleanLanguage.toUpperCase(),
       lat: cleanLatitude !== undefined ? cleanLatitude : null,
       lon: cleanLongitude !== undefined ? cleanLongitude : null,
-      profileValidated: user.profileValidated ?? false,
+      profileValidated: Boolean(user.profileValidated),
       isPremium: Boolean(user.isPremium),
       Profile: {
         fullName: cleanFullName ? cleanFullName : null,
@@ -1323,6 +1385,7 @@ export class UpdateProfileUseCase {
         languages: cleanLanguages,
         avatar: this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(avatarUrl) : avatarUrl,
         profilePicture: resolvedProfilePicture,
+        profilePictureId: activeProfilePictureId,
         // selfie url: this will not use still, only client should send
         profileCompleted,
         isPremium: Boolean(user.isPremium),

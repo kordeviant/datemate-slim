@@ -23,6 +23,9 @@ This rules document is hosted live directly by the backend server:
 
 ## Table of Contents
 1. [Media & Image Upload Rules](#1-media--image-upload-rules)
+   - [1.1 Scalable Media Upload & Public Asset System](#scalable-media-upload--public-asset-system)
+   - [1.2 Avatar vs. Selfie Distinction](#avatar-vs-selfie-distinction)
+   - [1.3 Gallery & Profile Picture Update Rules](#13-gallery--profile-picture-update-rules-put-v1usersprofile--post-v1usersprofile)
 2. [Username Rules](#2-username-rules)
 3. [Full Name Rules](#3-full-name-rules)
 4. [Date of Birth & Age Restrictions](#4-date-of-birth--age-restrictions)
@@ -85,6 +88,19 @@ DateMate strictly verifies image files at the binary level using magic bytes to 
   - Used **strictly by human administrators** to verify the user identity against the avatar photo.
   - Stored privately in `/uploads/selfies/selfie_<userId>_<timestamp>.webp` or S3 bucket.
   - **CRITICAL CLIENT INVARIANT**: The server **never returns the selfie URL** in any profile response (`Profile.selfie` is not returned: *this will not use still, only client should send*). The client sends the selfie photo during onboarding/edit, but does not receive or render it back.
+
+### 1.3 Gallery & Profile Picture Update Rules (`PUT /v1/users/profile` & `POST /v1/users/profile`)
+
+DateMate strictly separates identity avatars, private verification selfies, and public profile swipe photos.
+
+| Rule | Requirement | Backend Enforcement |
+| :--- | :--- | :--- |
+| **Single Image Upload Per Request** | At most **one gallery picture** can be uploaded per request (`maxCount: 1`) | Multi-image uploads are strictly rejected with `400 Bad Request` (`Only one gallery image is allowed per request`). |
+| **Gallery Payload as an Object** | Request metadata must be a **single JSON object**, NOT an array | Payload format: `gallery: { isProfilePicture?: boolean, description?: string }` (parsed from string in multipart form-data). |
+| **Default `isProfilePicture` Behavior** | `isProfilePicture` is optional | If omitted, backend automatically defaults `isProfilePicture: true` on the user's first gallery image upload. |
+| **Selecting Existing Profile Picture (`profilePictureId`)** | Client passes integer ID at root level | Sets the designated gallery image as the active swipe photo. **No `profilePicture` string URL key is required or accepted in the request**. |
+| **Single Canonical Contract (Strictly Outside `Profile`)** | `gallery` and `profilePictureId` belong **strictly at root level** | Never duplicate or accept `gallery` or `profilePictureId` inside the `Profile` object. |
+| **Resolution & Size Limits** | Minimum **1200x800**, maximum **4096x4096**, max **3 MB** | Images below 1200x800 or exceeding 3MB rejected with `400 Bad Request`. Automatically converted to optimized WebP. |
 
 ---
 
@@ -320,6 +336,11 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
   "language": "EN",
   "lat": 35.6892,
   "lon": 51.389,
+  "profilePictureId": 12,
+  "gallery": {
+    "isProfilePicture": true,
+    "description": "Weekend vibes"
+  },
   "Profile": {
     "fullName": "Parsa",
     "username": "parsa",
@@ -343,10 +364,11 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
 ```
 
 > **Multipart Form-Data Flexibility**:
-> When uploading avatars via `multipart/form-data`, clients can send data in either:
-> 1. **Structured / JSON string**: A `Profile` text field containing stringified JSON (as shown above), or
-> 2. **Flat form-data fields**: Direct fields (`fullName`, `username`, `birthDate`, `gender`, `height`, `degree`, `profession`, `relationStatus`, `cityId`, `relation`, `languages`).
-> Both nested JSON string and flat multipart form-data formats are fully accepted and preserved.
+> When uploading avatars/selfies/gallery via `multipart/form-data`, clients can send data in either:
+> 1. **Structured / JSON string**: A `Profile` text field containing stringified JSON, with `gallery` and `profilePictureId` strictly at the root level outside `Profile`, or
+> 2. **Flat form-data fields**: Direct fields (`fullName`, `username`, `birthDate`, `gender`, `height`, `degree`, `profession`, `relationStatus`, `cityId`, `relation`, `languages`, `profilePictureId`, `gallery`).
+> Both nested JSON string and flat multipart form-data formats are fully accepted.
+> **Note**: At most 1 gallery image upload is allowed per request (`maxCount: 1`).
 
 ### 11.2 Profile Response Schema (`GET /v1/users/me` & `PUT /v1/users/profile`)
 ```json
@@ -359,7 +381,8 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
     "language": "EN",
     "lat": 35.6892,
     "lon": 51.389,
-    "profileValidated": false,
+    "profileValidated": true,
+    "isPremium": false,
     "Profile": {
       "fullName": "Parsa",
       "username": "parsa",
@@ -367,7 +390,10 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
       "bio": "Software engineer living in Tehran.",
       "languages": ["fa", "en"],
       "avatar": "/uploads/avatars/avatar_1_1726912345.webp",
+      "profilePicture": "http://localhost:3000/assets/images/gallery_1_123.webp",
+      "profilePictureId": 12,
       "profileCompleted": true,
+      "isPremium": false,
       "Demographic": {
         "birthDate": "1998-11-25",
         "gender": "MALE",
@@ -382,13 +408,21 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
           "country": "Iran"
         }
       },
-      "Preferences": {
-        "relation": "LONG"
-      },
+      "RelationType": "LONG",
       "Answers": {
         "1": 0
       }
-    }
+    },
+    "gallery": [
+      {
+        "id": 12,
+        "url": "http://localhost:3000/assets/images/gallery_1_123.webp",
+        "description": "Weekend vibes",
+        "likesCount": 0,
+        "isProfilePicture": true,
+        "createdAt": "2026-10-05T12:00:00.000Z"
+      }
+    ]
   },
   "error": null
 }
@@ -399,6 +433,8 @@ The backend calculates profile completion dynamically. It evaluates to `true` **
 > - Profile answers only return `Answers` map `{ [questionId]: answerId }` (no `answersList` or `answerIds`, and no text). The client resolves question and answer text using the questions list fetched from `GET /v1/questions`.
 > - `LikedActivities` is removed.
 > - `selfie` URL is omitted from responses (`this will not use still, only client should send`).
+> - **Gallery single object**: In requests, `gallery` is sent as a single object `{ isProfilePicture?: boolean, description?: string }` (maximum 1 image file per request).
+> - **Root-level placement (No Duplication)**: Both `gallery` and `profilePictureId` belong strictly at the root level outside `Profile`. No `profilePicture` string URL key is required.
 
 ---
 

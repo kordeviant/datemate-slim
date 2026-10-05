@@ -27,3 +27,16 @@
 
 ## 5. Keep Documentation Updated
 - Whenever code, APIs, schemas, or business logic change, immediately update the relevant documentation (e.g. `ARCHITECTURE.md`, API specs, and schemas) to stay in sync.
+
+## 6. Single Canonical Contract (No Duplicate Fields)
+- Maintain a single, unambiguous contract for every DTO, API request, and API response.
+- Do NOT duplicate fields between parent/root payload structures and nested objects.
+- Fields must have one and only one authoritative location in a request. For example, `profilePictureId` and `gallery` belong strictly at the root level outside the `Profile` object in profile update requests. Never duplicate or accept them in multiple locations.
+
+## 7. Gallery & Profile Picture Update Rules (`PUT /v1/users/profile` & `POST /v1/users/profile`)
+- **Single Image Upload Per Request**: Do NOT allow sending multiple gallery images in a single request. Only one gallery picture is permitted per request (`maxCount: 1`).
+- **Gallery Payload as an Object**: In request payloads, `gallery` must be sent as a single object (`{ isProfilePicture?: boolean, description?: string }`), NOT as an array.
+- **Default `isProfilePicture`**: The `isProfilePicture` field can be omitted by the client. If not provided, the backend must automatically default `isProfilePicture: true` for the first gallery image upload.
+- **Selecting Existing Profile Picture via `profilePictureId`**: To select an existing gallery photo as the active profile picture, the client sends `profilePictureId` (integer ID) at the root level. No `profilePicture` string URL key is needed or accepted in the request.
+- **Strictly Outside `Profile`**: Both `gallery` and `profilePictureId` must strictly reside at the root level outside the `Profile` object. Never accept or duplicate them inside `Profile`.
+

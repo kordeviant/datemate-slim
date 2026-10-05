@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { UsersController } from "./users.controller";
 import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
@@ -78,6 +78,8 @@ describe("UsersController", () => {
       );
       expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(1);
       expect(res).toEqual(mockProfile);
+      expect(typeof res.profileValidated).toBe("boolean");
+      expect(res.profileValidated).toBe(false);
       expect(res.Profile.profileCompleted).toBe(true);
       expect(res.isPremium).toBe(true);
       expect(res.Profile.isPremium).toBe(true);
@@ -326,14 +328,13 @@ describe("UsersController", () => {
       expect(res).toEqual(expectedResponse);
     });
 
-    it("should accept gallery files and pass them to updateProfileUseCase", async () => {
+    it("should accept single gallery file and pass to updateProfileUseCase", async () => {
       const dto = {
         Profile: { fullName: "Gallery User" },
       };
       const avatarFile: any = { buffer: Buffer.from("avatar_buf") };
       const galleryFiles: any[] = [
         { buffer: Buffer.from("img1") },
-        { buffer: Buffer.from("img2") },
       ];
       const expectedResponse: any = {
         id: 1,
@@ -356,6 +357,26 @@ describe("UsersController", () => {
         galleryFiles,
       );
       expect(res).toEqual(expectedResponse);
+    });
+
+    it("should reject multiple gallery files with BadRequestException", async () => {
+      const dto = {
+        Profile: { fullName: "Gallery User" },
+      };
+      const galleryFiles: any[] = [
+        { buffer: Buffer.from("img1") },
+        { buffer: Buffer.from("img2") },
+      ];
+
+      await expect(
+        controller.updateProfile(
+          "Bearer token123",
+          dto as any,
+          { gallery: galleryFiles } as any,
+        ),
+      ).rejects.toThrow(
+        new BadRequestException("Only one gallery image is allowed per request"),
+      );
     });
   });
 });

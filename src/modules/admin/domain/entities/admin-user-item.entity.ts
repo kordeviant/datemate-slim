@@ -23,22 +23,23 @@ export interface AdminUserItem {
   id: number;
   email: string;
   fullName: string;
-  username: string | null;
   avatarUrl: string | null;
-  bio: string | null;
-  isPremium: boolean;
-  profileValidated: boolean;
-  selfieVerified: boolean;
-  isBanned: boolean;
-  bannedUntil: string | null;
-  gender: string | null;
   age: number | null;
-  city: string | null;
-  registrationCompleted: boolean;
+  gender: string | null;
+  isPremium: boolean;
+  hasPendingSelfie: boolean;
+  profileValidated: boolean;
   isOnline: boolean;
-  lastSeenAt: string | null;
+  bannedUntil: string | null;
   createdAt: string;
-  gallery: AdminUserGalleryItem[];
+  city?: string | null;
+  username?: string | null;
+  bio?: string | null;
+  selfieVerified?: boolean;
+  isBanned?: boolean;
+  registrationCompleted?: boolean;
+  lastSeenAt?: string | null;
+  gallery?: AdminUserGalleryItem[];
 }
 
 export interface AdminUsersPaginatedResult {

@@ -142,6 +142,13 @@ export class ProfileNestedResponseDto {
   })
   profilePicture?: string | null;
 
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Active profile picture gallery ID',
+    nullable: true,
+  })
+  profilePictureId?: number | null;
+
   @ApiProperty({
     example: true,
     description: 'Profile completion status',
@@ -210,7 +217,11 @@ export class ProfileResponseDto {
   @ApiPropertyOptional({ example: 51.389, description: 'Longitude coordinate', nullable: true })
   lon?: number | null;
 
-  @ApiProperty({ example: false, description: 'Whether admin has verified user identity' })
+  @ApiProperty({
+    example: false,
+    type: Boolean,
+    description: 'Whether admin has verified user identity',
+  })
   profileValidated: boolean;
 
   @ApiProperty({ example: false, description: 'Whether user has premium status' })

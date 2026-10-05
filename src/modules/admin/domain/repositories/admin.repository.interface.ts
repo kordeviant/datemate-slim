@@ -1,5 +1,6 @@
 import { AdminDashboardStats } from '../entities/admin-dashboard-stats.entity';
 import { AdminDashboardOverviewData } from '../entities/admin-dashboard-overview.entity';
+import { AdminUserDetails } from '../entities/admin-user-details.entity';
 import {
   AdminGenderFilterType,
   AdminSortOrderType,
@@ -42,6 +43,7 @@ export interface IAdminRepository {
   getDashboardStats(): Promise<AdminDashboardStats>;
   getDashboardOverview(): Promise<AdminDashboardOverviewData>;
   getUsers(params: GetAdminUsersParams): Promise<AdminUsersPaginatedResult>;
+  getUserDetails(userId: number): Promise<AdminUserDetails>;
   updateUser(
     userId: number,
     params: UpdateAdminUserParams,

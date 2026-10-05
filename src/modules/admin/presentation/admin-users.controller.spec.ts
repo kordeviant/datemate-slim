@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AdminUsersController } from './admin-users.controller';
 import { GetAdminUsersUseCase } from '../application/use-cases/get-admin-users.use-case';
+import { GetAdminUserDetailsUseCase } from '../application/use-cases/get-admin-user-details.use-case';
 import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
@@ -16,12 +17,16 @@ import {
 describe('AdminUsersController', () => {
   let controller: AdminUsersController;
   let mockGetAdminUsersUseCase: Partial<GetAdminUsersUseCase>;
+  let mockGetAdminUserDetailsUseCase: Partial<GetAdminUserDetailsUseCase>;
   let mockUpdateAdminUserUseCase: Partial<UpdateAdminUserUseCase>;
   let mockBanUserUseCase: Partial<BanUserUseCase>;
   let mockUnbanUserUseCase: Partial<UnbanUserUseCase>;
 
   beforeEach(async () => {
     mockGetAdminUsersUseCase = {
+      execute: jest.fn(),
+    };
+    mockGetAdminUserDetailsUseCase = {
       execute: jest.fn(),
     };
     mockUpdateAdminUserUseCase = {
@@ -40,6 +45,10 @@ describe('AdminUsersController', () => {
         {
           provide: GetAdminUsersUseCase,
           useValue: mockGetAdminUsersUseCase,
+        },
+        {
+          provide: GetAdminUserDetailsUseCase,
+          useValue: mockGetAdminUserDetailsUseCase,
         },
         {
           provide: UpdateAdminUserUseCase,
@@ -71,22 +80,15 @@ describe('AdminUsersController', () => {
             id: 101,
             email: 'Sarahemati@gmail.com',
             fullName: 'سارا همتی',
-            username: 'sara_h',
             avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
-            bio: 'علاقه‌مند به هنر و عکاسی',
-            isPremium: true,
-            profileValidated: false,
-            selfieVerified: false,
-            isBanned: false,
-            bannedUntil: null,
-            gender: 'FEMALE',
             age: 23,
-            city: 'اسلامشهر',
-            registrationCompleted: true,
+            gender: 'FEMALE',
+            isPremium: true,
+            hasPendingSelfie: false,
+            profileValidated: false,
             isOnline: true,
-            lastSeenAt: '2026-10-04T07:15:00.000Z',
+            bannedUntil: null,
             createdAt: '2024-11-20T10:00:00.000Z',
-            gallery: [],
           },
         ],
         total: 1,
@@ -115,6 +117,10 @@ describe('AdminUsersController', () => {
         message: 'Users list retrieved',
         data: mockResult,
       });
+      expect(typeof res.data.items[0].profileValidated).toBe('boolean');
+      expect(res.data.items[0].profileValidated).toBe(false);
+      expect(res.data.items[0].hasPendingSelfie).toBe(false);
+      expect((res.data.items[0] as any).gallery).toBeUndefined();
       expect(mockGetAdminUsersUseCase.execute).toHaveBeenCalledWith({
         page: 1,
         limit: 10,
@@ -124,6 +130,71 @@ describe('AdminUsersController', () => {
         sortBy: AdminUserSortBy.CREATED_AT,
         order: AdminSortOrder.DESC,
       });
+    });
+  });
+
+  describe('GET /v1/admin/users/:id', () => {
+    it('should return complete user details by id', async () => {
+      const mockUserDetails: any = {
+        id: 12,
+        email: 'sarah.smith@example.com',
+        role: 'USER',
+        language: 'FA',
+        fullName: 'سارا محمدی',
+        username: 'sarah_m',
+        phoneNumber: '09123456789',
+        bio: 'علاقه‌مند به سفر',
+        avatarUrl: 'https://example.com/avatar.webp',
+        selfieUrl: null,
+        profileValidated: true,
+        hasPendingSelfie: false,
+        bannedUntil: null,
+        wallet: 150000,
+        score: 420,
+        notificationsOn: true,
+        isPrivate: false,
+        isOnline: false,
+        isPremium: true,
+        lastSeenAt: '2026-10-05T12:00:00.000Z',
+        createdAt: '2025-11-20T14:22:00.000Z',
+        updatedAt: '2026-04-01T08:15:00.000Z',
+        demographic: {
+          birthDate: '1997-07-05',
+          gender: 'FEMALE',
+          age: 29,
+          cityName: 'تهران',
+          job: 'طراح محصول',
+          degree: 'کارشناسی ارشد',
+          height: 168,
+          weight: 58,
+          religion: null,
+          relationStatus: 'مجرد',
+        },
+        gallery: [
+          {
+            id: 101,
+            url: 'https://example.com/photo1.webp',
+            likesCount: 24,
+            createdAt: '2026-01-10T12:00:00.000Z',
+          },
+        ],
+        transactions: [],
+        chatRooms: [],
+        interests: ['Hiking'],
+      };
+
+      (mockGetAdminUserDetailsUseCase.execute as jest.Mock).mockResolvedValue(
+        mockUserDetails,
+      );
+
+      const res = await controller.getUserDetails(12);
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'User details retrieved successfully',
+        data: mockUserDetails,
+      });
+      expect(mockGetAdminUserDetailsUseCase.execute).toHaveBeenCalledWith(12);
     });
   });
 

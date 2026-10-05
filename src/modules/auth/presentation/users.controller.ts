@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -106,14 +107,14 @@ export class UsersController {
     FileFieldsInterceptor([
       { name: "avatar", maxCount: 1 },
       { name: "selfie", maxCount: 1 },
-      { name: "gallery", maxCount: 5 },
+      { name: "gallery", maxCount: 1 },
     ]),
   )
   @ApiConsumes("multipart/form-data", "application/json")
   @ApiOperation({
     summary: "Update user profile (step-by-step onboarding, edit profile & gallery)",
     description:
-      "Updates user profile using Android schema (language, lat, lon, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences, gallery, profilePicture }). Also supports avatar, selfie, and up to 5 gallery photo uploads (WebP/JPEG, min 1200x800, max 4096x4096, max 3MB per photo, max 15MB total).",
+      "Updates user profile using Android schema (language, lat, lon, profilePictureId, gallery, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Supports avatar, selfie, and at most 1 gallery photo upload per request (WebP/JPEG, min 1200x800, max 4096x4096, max 3MB). Single canonical contract: gallery and profilePictureId are sent strictly outside the Profile object at the root level (no duplicate keys). profilePictureId can be provided to select an existing gallery photo as profile picture without needing profilePicture key.",
   })
   @ApiBody({
     description:
@@ -178,6 +179,10 @@ export class UsersController {
       }
     }
 
+    if (galleryFiles && galleryFiles.length > 1) {
+      throw new BadRequestException("Only one gallery image is allowed per request");
+    }
+
     console.log("User with ID:", decoded.sub, "with data:", dto);
 
     if (galleryFiles && galleryFiles.length > 0) {
@@ -205,14 +210,14 @@ export class UsersController {
     FileFieldsInterceptor([
       { name: "avatar", maxCount: 1 },
       { name: "selfie", maxCount: 1 },
-      { name: "gallery", maxCount: 5 },
+      { name: "gallery", maxCount: 1 },
     ]),
   )
   @ApiConsumes("multipart/form-data", "application/json")
   @ApiOperation({
     summary: "Update user profile via POST (mobile client onboarding & edit profile)",
     description:
-      "Handles profile updates for mobile clients that submit via HTTP POST to /users/profile.",
+      "Handles profile updates for mobile clients that submit via HTTP POST to /users/profile. Only 1 gallery photo upload allowed per request.",
   })
   @ApiBody({
     description:

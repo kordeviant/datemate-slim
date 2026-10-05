@@ -22,11 +22,13 @@ import {
 } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../application/guards/admin-auth.guard';
 import { GetAdminUsersUseCase } from '../application/use-cases/get-admin-users.use-case';
+import { GetAdminUserDetailsUseCase } from '../application/use-cases/get-admin-user-details.use-case';
 import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { GetAdminUsersDto } from '../application/dtos/get-admin-users.dto';
 import { AdminUsersResponseDto } from '../application/dtos/admin-users-response.dto';
+import { AdminUserDetailsResponseDto } from '../application/dtos/admin-user-details-response.dto';
 import { UpdateAdminUserDto } from '../application/dtos/update-admin-user.dto';
 import { UpdateAdminUserResponseDto } from '../application/dtos/update-admin-user-response.dto';
 import { BanUserDto } from '../application/dtos/ban-user.dto';
@@ -39,6 +41,7 @@ import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
 export class AdminUsersController {
   constructor(
     private readonly getAdminUsersUseCase: GetAdminUsersUseCase,
+    private readonly getAdminUserDetailsUseCase: GetAdminUserDetailsUseCase,
     private readonly updateAdminUserUseCase: UpdateAdminUserUseCase,
     private readonly banUserUseCase: BanUserUseCase,
     private readonly unbanUserUseCase: UnbanUserUseCase,
@@ -76,6 +79,43 @@ export class AdminUsersController {
     return {
       status: 'success',
       message: 'Users list retrieved',
+      data: result,
+    };
+  }
+
+  @Get(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get user detailed information for admin modal/details view',
+    description:
+      'Retrieves complete user information including profile, demographics, gallery, transactions, chatRooms, and interests.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User ID',
+    example: 12,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User details retrieved successfully',
+    type: AdminUserDetailsResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found / کاربر مورد نظر یافت نشد',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async getUserDetails(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<AdminUserDetailsResponseDto> {
+    const result = await this.getAdminUserDetailsUseCase.execute(id);
+
+    return {
+      status: 'success',
+      message: 'User details retrieved successfully',
       data: result,
     };
   }

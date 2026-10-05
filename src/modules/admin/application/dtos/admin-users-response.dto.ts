@@ -34,72 +34,55 @@ export class AdminUserGalleryItemDto {
 }
 
 export class AdminUserListItemDto {
-  @ApiProperty({ example: 101 })
+  @ApiProperty({ example: 1 })
   id: number;
 
-  @ApiProperty({ example: 'Sarahemati@gmail.com' })
+  @ApiProperty({ example: 'user@example.com' })
   email: string;
 
-  @ApiProperty({ example: 'سارا همتی' })
+  @ApiProperty({ example: 'علی رضایی' })
   fullName: string;
 
-  @ApiProperty({ example: 'sara_h', nullable: true })
-  username: string | null;
-
   @ApiProperty({
-    example: 'http://localhost:3000/assets/avatars/avatar_1.webp',
+    example: 'https://api-datemate.testdevvvv.site/uploads/avatars/user1.webp',
     nullable: true,
   })
   avatarUrl: string | null;
 
-  @ApiPropertyOptional({
-    example: 'علاقه‌مند به سفر و کتاب‌خوانی',
-    nullable: true,
-    description: 'User biography / about me',
-  })
-  bio: string | null;
+  @ApiProperty({ example: 28, nullable: true })
+  age: number | null;
+
+  @ApiProperty({ example: 'MALE', nullable: true })
+  gender: string | null;
 
   @ApiProperty({ example: true })
   isPremium: boolean;
 
-  @ApiProperty({ example: false })
-  profileValidated: boolean;
-
   @ApiProperty({
     example: false,
-    description: 'Whether the user selfie verification is confirmed/approved',
+    type: Boolean,
+    description: 'Whether user has a pending selfie submitted for verification',
   })
-  selfieVerified: boolean;
+  hasPendingSelfie: boolean;
 
-  @ApiProperty({ example: false })
-  isBanned: boolean;
+  @ApiProperty({
+    example: true,
+    type: Boolean,
+    description: 'Whether user profile has been validated by admin',
+  })
+  profileValidated: boolean;
+
+  @ApiProperty({ example: true, type: Boolean })
+  isOnline: boolean;
 
   @ApiProperty({ example: null, nullable: true })
   bannedUntil: string | null;
 
-  @ApiProperty({ example: 'FEMALE', nullable: true })
-  gender: string | null;
-
-  @ApiProperty({ example: 23, nullable: true })
-  age: number | null;
-
-  @ApiProperty({ example: 'اسلامشهر', nullable: true })
-  city: string | null;
-
-  @ApiProperty({ example: true })
-  registrationCompleted: boolean;
-
-  @ApiProperty({ example: true })
-  isOnline: boolean;
-
-  @ApiProperty({ example: '2026-10-04T07:15:00.000Z', nullable: true })
-  lastSeenAt: string | null;
-
-  @ApiProperty({ example: '2024-11-20T10:00:00.000Z' })
+  @ApiProperty({ example: '2026-03-15T10:30:00.000Z' })
   createdAt: string;
 
-  @ApiProperty({ type: [AdminUserGalleryItemDto], description: 'User photo gallery' })
-  gallery: AdminUserGalleryItemDto[];
+  @ApiPropertyOptional({ example: 'تهران', nullable: true })
+  city?: string | null;
 }
 
 export class AdminUsersPaginatedDataDto {

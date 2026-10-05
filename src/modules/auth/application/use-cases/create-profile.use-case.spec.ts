@@ -7,11 +7,13 @@ import {
 import { UpdateProfileUseCase } from "./update-profile.use-case";
 import { PrismaService } from "../../../../infrastructure/database/prisma.service";
 import { AvatarProcessorService } from "../services/avatar-processor.service";
+import { GalleryProcessorService } from "../services/gallery-processor.service";
 
 describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => {
   let useCase: UpdateProfileUseCase;
   let mockPrisma: any;
   let mockAvatarProcessor: any;
+  let mockGalleryProcessor: any;
 
   beforeEach(async () => {
     mockPrisma = {
@@ -79,11 +81,25 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       }),
     };
 
+    mockGalleryProcessor = {
+      processBatchGallery: jest.fn().mockResolvedValue([
+        {
+          relativeUrl: "images/gallery_1_first.webp",
+          filePath: "/path/to/gallery.webp",
+          width: 1200,
+          height: 1200,
+          format: "webp",
+          sizeBytes: 100000,
+        },
+      ]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UpdateProfileUseCase,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AvatarProcessorService, useValue: mockAvatarProcessor },
+        { provide: GalleryProcessorService, useValue: mockGalleryProcessor },
       ],
     }).compile();
 
@@ -718,6 +734,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         languages: ["fa", "en"],
         avatar: "",
         profilePicture: null,
+        profilePictureId: null,
         profileCompleted: false,
         isPremium: false,
         Demographic: {
@@ -1008,15 +1025,10 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
   });
 
   describe("Gallery rules & profile picture selection", () => {
-    it("should reject update if candidate gallery items in update API exceed 6", async () => {
+    it("should reject update if candidate gallery items in update API exceed 1 (array of multiple items)", async () => {
       const excessiveGallery = [
         { id: 1 },
         { id: 2 },
-        { id: 3 },
-        { id: 4 },
-        { id: 5 },
-        { id: 6 },
-        { id: 7 },
       ];
       await expect(
         useCase.execute(1, {
@@ -1024,16 +1036,34 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
         } as any),
       ).rejects.toThrow(
         new BadRequestException(
-          "Cannot update or provide more than 6 gallery items in update API request.",
+          "Only one gallery picture is allowed per request. Multiple gallery uploads are not permitted.",
+        ),
+      );
+    });
+
+    it("should reject update if multiple gallery files are provided", async () => {
+      const fakeFiles: any[] = [
+        { buffer: Buffer.alloc(100) },
+        { buffer: Buffer.alloc(100) },
+      ];
+      await expect(
+        useCase.execute(
+          1,
+          {} as any,
+          undefined,
+          undefined,
+          fakeFiles,
+        ),
+      ).rejects.toThrow(
+        new BadRequestException(
+          "Only one gallery picture is allowed per request. Multiple gallery uploads are not permitted.",
         ),
       );
     });
 
     it("should reject update if total projected gallery images exceed 10", async () => {
-      mockPrisma.userGallery.count.mockResolvedValue(8);
+      mockPrisma.userGallery.count.mockResolvedValue(10);
       const fakeFiles: any[] = [
-        { buffer: Buffer.alloc(100) },
-        { buffer: Buffer.alloc(100) },
         { buffer: Buffer.alloc(100) },
       ];
       await expect(
@@ -1047,6 +1077,50 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       ).rejects.toThrow(
         /User gallery cannot exceed maximum limit of 10 images/,
       );
+    });
+
+    it("should set first gallery as isProfilePicture by default when isProfilePicture is not sent", async () => {
+      mockPrisma.userGallery.count.mockResolvedValue(0);
+      mockPrisma.userGallery.findFirst.mockResolvedValue(null);
+      mockPrisma.userGallery.create.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        imageUrl: "images/gallery_1_first.webp",
+        isProfilePicture: true,
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 1,
+          userId: 1,
+          imageUrl: "images/gallery_1_first.webp",
+          isProfilePicture: true,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+      ]);
+
+      const singleFile: any = { buffer: Buffer.alloc(100) };
+      const res = await useCase.execute(
+        1,
+        {
+          // gallery object without isProfilePicture
+          gallery: { description: "First upload" },
+        } as any,
+        undefined,
+        undefined,
+        [singleFile],
+      );
+
+      expect(mockPrisma.userGallery.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isProfilePicture: true,
+            description: "First upload",
+          }),
+        }),
+      );
+      expect(res.Profile.profilePicture).toBe("images/gallery_1_first.webp");
+      expect(res.Profile.profilePictureId).toBe(1);
+      expect(res.gallery![0].isProfilePicture).toBe(true);
     });
 
     it("should select one of the gallery images as profilePicture (distinct from avatar)", async () => {
@@ -1069,9 +1143,9 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       ]);
 
       const res = await useCase.execute(1, {
+        profilePictureId: 15,
         Profile: {
           fullName: "Parsa",
-          profilePictureId: 15,
         },
       } as any);
 
@@ -1100,6 +1174,101 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
           userId: 1,
         },
       });
+    });
+
+    it("should not change active profile picture when uploading a second gallery photo with isProfilePicture omitted", async () => {
+      mockPrisma.userGallery.count.mockResolvedValue(1);
+      // Existing active profile picture exists
+      mockPrisma.userGallery.findFirst.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        imageUrl: "images/gallery_1_existing.webp",
+        isProfilePicture: true,
+      });
+      mockPrisma.userGallery.create.mockResolvedValue({
+        id: 2,
+        userId: 1,
+        imageUrl: "images/gallery_1_second.webp",
+        isProfilePicture: false,
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 1,
+          userId: 1,
+          imageUrl: "images/gallery_1_existing.webp",
+          isProfilePicture: true,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+        {
+          id: 2,
+          userId: 1,
+          imageUrl: "images/gallery_1_second.webp",
+          isProfilePicture: false,
+          createdAt: new Date("2026-10-04T13:00:00Z"),
+        },
+      ]);
+
+      const singleFile: any = { buffer: Buffer.alloc(100) };
+      const res = await useCase.execute(
+        1,
+        {
+          gallery: { description: "Second photo" },
+        } as any,
+        undefined,
+        undefined,
+        [singleFile],
+      );
+
+      // The new photo is NOT set as profile picture because an existing active one already exists
+      expect(mockPrisma.userGallery.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isProfilePicture: false,
+          }),
+        }),
+      );
+      expect(res.Profile.profilePictureId).toBe(1);
+    });
+
+    it("should throw BadRequestException if profilePictureId does not exist for the user", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue(null);
+
+      await expect(
+        useCase.execute(1, {
+          profilePictureId: 9999,
+        } as any),
+      ).rejects.toThrow(
+        new BadRequestException("Gallery image with specified profilePictureId not found."),
+      );
+    });
+
+    it("should update profile picture by profilePictureId without needing profilePicture key in request", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue({
+        id: 42,
+        userId: 1,
+        imageUrl: "images/gallery_42.webp",
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 42,
+          userId: 1,
+          imageUrl: "images/gallery_42.webp",
+          isProfilePicture: true,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+      ]);
+
+      const res = await useCase.execute(1, {
+        profilePictureId: 42,
+        // Notice: NO profilePicture key provided in request
+      } as any);
+
+      expect(mockPrisma.userGallery.update).toHaveBeenCalledWith({
+        where: { id: 42 },
+        data: { isProfilePicture: true },
+      });
+      expect(res.Profile.profilePicture).toBe("images/gallery_42.webp");
+      expect(res.Profile.profilePictureId).toBe(42);
     });
   });
 });

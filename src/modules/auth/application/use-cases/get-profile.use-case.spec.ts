@@ -68,6 +68,7 @@ describe('GetProfileUseCase', () => {
         languages: null,
         avatar: '',
         profilePicture: null,
+        profilePictureId: null,
         profileCompleted: false,
         isPremium: false,
         Demographic: {
@@ -153,6 +154,7 @@ describe('GetProfileUseCase', () => {
     });
     expect(res.Profile.profileCompleted).toBe(true);
     expect(res.profileValidated).toBe(true);
+    expect(typeof res.profileValidated).toBe('boolean');
     expect(res.isPremium).toBe(false);
     expect(res.Profile.isPremium).toBe(false);
     expect(res.Profile.username).toBe('ali123');
@@ -175,6 +177,26 @@ describe('GetProfileUseCase', () => {
     const res = await useCase.execute(1);
     expect(res.isPremium).toBe(true);
     expect(res.Profile.isPremium).toBe(true);
+    expect(res.profileValidated).toBe(true);
+    expect(typeof res.profileValidated).toBe('boolean');
+  });
+
+  it('should return profileValidated as boolean false when not set in database', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'unvalidated@example.com',
+      language: 'EN',
+      profileValidated: undefined,
+      isPremium: false,
+      profile: null,
+      demographic: null,
+      preferences: null,
+      interests: [],
+    });
+
+    const res = await useCase.execute(1);
+    expect(res.profileValidated).toBe(false);
+    expect(typeof res.profileValidated).toBe('boolean');
   });
 
   it('should return profileCompleted: false if basic profile is incomplete (missing avatar)', async () => {

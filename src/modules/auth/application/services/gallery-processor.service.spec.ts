@@ -44,12 +44,8 @@ describe('GalleryProcessorService', () => {
   });
 
   describe('validateBatchConstraints', () => {
-    it('should reject more than 5 photos per upload', () => {
+    it('should reject more than 1 photo per upload', () => {
       const fakeFiles: any[] = [
-        { buffer: Buffer.alloc(100) },
-        { buffer: Buffer.alloc(100) },
-        { buffer: Buffer.alloc(100) },
-        { buffer: Buffer.alloc(100) },
         { buffer: Buffer.alloc(100) },
         { buffer: Buffer.alloc(100) },
       ];
@@ -58,14 +54,13 @@ describe('GalleryProcessorService', () => {
         BadRequestException,
       );
       expect(() => service.validateBatchConstraints(fakeFiles)).toThrow(
-        'Cannot upload more than 5 photos per upload',
+        'Cannot upload more than 1 photo per upload',
       );
     });
 
     it('should reject total upload size exceeding 15MB', () => {
       const fakeFiles: any[] = [
-        { size: 8 * 1024 * 1024, buffer: Buffer.alloc(10) },
-        { size: 8 * 1024 * 1024, buffer: Buffer.alloc(10) },
+        { size: 16 * 1024 * 1024, buffer: Buffer.alloc(10) },
       ];
 
       expect(() => service.validateBatchConstraints(fakeFiles)).toThrow(
@@ -76,10 +71,8 @@ describe('GalleryProcessorService', () => {
       );
     });
 
-    it('should accept valid batch within 5 photos and <= 15MB', () => {
+    it('should accept valid upload of 1 photo <= 15MB', () => {
       const fakeFiles: any[] = [
-        { size: 2 * 1024 * 1024, buffer: Buffer.alloc(10) },
-        { size: 2 * 1024 * 1024, buffer: Buffer.alloc(10) },
         { size: 2 * 1024 * 1024, buffer: Buffer.alloc(10) },
       ];
 

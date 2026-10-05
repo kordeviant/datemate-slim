@@ -27,10 +27,10 @@ export class GalleryProcessorService {
   public static readonly MIN_LONG_DIMENSION = 1200; // 1200px max dimension (1200x800 or 800x1200)
   public static readonly MAX_DIMENSION = 4096; // 4096x4096px
   public static readonly MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB per photo
-  public static readonly MAX_PHOTOS_PER_UPLOAD = 5; // Max 5 photos per upload
+  public static readonly MAX_PHOTOS_PER_UPLOAD = 1; // Max 1 photo per upload
   public static readonly MAX_TOTAL_UPLOAD_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB total
   public static readonly MAX_GALLERY_TOTAL_IMAGES = 10; // Max 10 gallery photos total
-  public static readonly MAX_UPDATE_API_LIMIT = 6; // Max 6 gallery items in update API
+  public static readonly MAX_UPDATE_API_LIMIT = 1; // Only 1 gallery item per update request
 
   /**
    * Validates file magic bytes to verify JPEG, WebP, or PNG format.
@@ -89,7 +89,7 @@ export class GalleryProcessorService {
 
     if (files.length > GalleryProcessorService.MAX_PHOTOS_PER_UPLOAD) {
       throw new BadRequestException(
-        `Cannot upload more than ${GalleryProcessorService.MAX_PHOTOS_PER_UPLOAD} photos per upload (received ${files.length}).`,
+        `Cannot upload more than ${GalleryProcessorService.MAX_PHOTOS_PER_UPLOAD} photo per upload (received ${files.length}).`,
       );
     }
 

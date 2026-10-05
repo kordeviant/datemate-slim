@@ -1,6 +1,7 @@
 import { GetDashboardStatsUseCase } from './get-dashboard-stats.use-case';
 import { GetDashboardOverviewUseCase } from './get-dashboard-overview.use-case';
 import { GetAdminUsersUseCase } from './get-admin-users.use-case';
+import { GetAdminUserDetailsUseCase } from './get-admin-user-details.use-case';
 import { UpdateAdminUserUseCase } from './update-admin-user.use-case';
 import { BanUserUseCase } from './ban-user.use-case';
 import { UnbanUserUseCase } from './unban-user.use-case';
@@ -18,6 +19,7 @@ describe('Admin Use Cases', () => {
       getDashboardStats: jest.fn(),
       getDashboardOverview: jest.fn(),
       getUsers: jest.fn(),
+      getUserDetails: jest.fn(),
       updateUser: jest.fn(),
       banUser: jest.fn(),
       unbanUser: jest.fn(),
@@ -290,6 +292,63 @@ describe('Admin Use Cases', () => {
 
       expect(result).toEqual(updatedUser);
       expect(mockAdminRepository.updateUser).toHaveBeenCalledWith(101, params);
+    });
+  });
+
+  describe('GetAdminUserDetailsUseCase', () => {
+    it('should delegate fetching full user details by id', async () => {
+      const mockUserDetails: any = {
+        id: 12,
+        email: 'sarah.smith@example.com',
+        role: 'USER',
+        language: 'FA',
+        fullName: 'سارا محمدی',
+        username: 'sarah_m',
+        phoneNumber: '09123456789',
+        bio: 'علاقه‌مند به سفر',
+        avatarUrl: 'https://example.com/avatar.webp',
+        selfieUrl: null,
+        profileValidated: true,
+        hasPendingSelfie: false,
+        bannedUntil: null,
+        wallet: 150000,
+        score: 420,
+        notificationsOn: true,
+        isPrivate: false,
+        isOnline: false,
+        isPremium: true,
+        lastSeenAt: '2026-10-05T12:00:00.000Z',
+        createdAt: '2025-11-20T14:22:00.000Z',
+        updatedAt: '2026-04-01T08:15:00.000Z',
+        demographic: {
+          birthDate: '1997-07-05',
+          gender: 'FEMALE',
+          age: 29,
+          cityName: 'تهران',
+          job: 'طراح محصول',
+          degree: 'کارشناسی ارشد',
+          height: 168,
+          weight: 58,
+          religion: null,
+          relationStatus: 'مجرد',
+        },
+        gallery: [],
+        transactions: [],
+        chatRooms: [],
+        interests: ['Hiking'],
+      };
+
+      (mockAdminRepository.getUserDetails as jest.Mock).mockResolvedValue(
+        mockUserDetails,
+      );
+
+      const useCase = new GetAdminUserDetailsUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(12);
+
+      expect(result).toEqual(mockUserDetails);
+      expect(mockAdminRepository.getUserDetails).toHaveBeenCalledWith(12);
     });
   });
 });

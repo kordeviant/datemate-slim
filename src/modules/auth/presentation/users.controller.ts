@@ -114,7 +114,7 @@ export class UsersController {
   @ApiOperation({
     summary: "Update user profile (step-by-step onboarding, edit profile & gallery)",
     description:
-      "Updates user profile using Android schema (language, lat, lon, profilePictureId, gallery, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Supports avatar, selfie, and at most 1 gallery photo upload per request (WebP/JPEG, min 1200x800, max 4096x4096, max 3MB). Single canonical contract: gallery and profilePictureId are sent strictly outside the Profile object at the root level (no duplicate keys). profilePictureId can be provided to select an existing gallery photo as profile picture without needing profilePicture key.",
+      "Updates user profile using Android schema (language, lat, lon, profilePictureId, gallery, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Supports avatar, selfie, and at most 1 gallery photo upload per request (WebP/JPEG, min 50KB, max 10MB). Single canonical contract: gallery and profilePictureId are sent strictly outside the Profile object at the root level (no duplicate keys). profilePictureId can be provided to select an existing gallery photo as profile picture without needing profilePicture key.",
   })
   @ApiBody({
     description:
@@ -129,7 +129,7 @@ export class UsersController {
   @ApiResponse({
     status: 400,
     description:
-      "Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image, resolution below 1200x800)",
+      "Validation error (e.g. invalid username, age < 18 or > 80, corrupted/invalid image, size not between 50KB and 10MB)",
   })
   @ApiResponse({
     status: 409,

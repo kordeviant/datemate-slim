@@ -5,6 +5,7 @@ import { GetAdminUserDetailsUseCase } from '../application/use-cases/get-admin-u
 import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
+import { DeleteUserGalleryItemUseCase } from '../application/use-cases/delete-user-gallery-item.use-case';
 import { TokenService } from '../../auth/application/services/token.service';
 import {
   AdminGenderFilter,
@@ -21,6 +22,7 @@ describe('AdminUsersController', () => {
   let mockUpdateAdminUserUseCase: Partial<UpdateAdminUserUseCase>;
   let mockBanUserUseCase: Partial<BanUserUseCase>;
   let mockUnbanUserUseCase: Partial<UnbanUserUseCase>;
+  let mockDeleteUserGalleryItemUseCase: Partial<DeleteUserGalleryItemUseCase>;
 
   beforeEach(async () => {
     mockGetAdminUsersUseCase = {
@@ -36,6 +38,9 @@ describe('AdminUsersController', () => {
       execute: jest.fn(),
     };
     mockUnbanUserUseCase = {
+      execute: jest.fn(),
+    };
+    mockDeleteUserGalleryItemUseCase = {
       execute: jest.fn(),
     };
 
@@ -61,6 +66,10 @@ describe('AdminUsersController', () => {
         {
           provide: UnbanUserUseCase,
           useValue: mockUnbanUserUseCase,
+        },
+        {
+          provide: DeleteUserGalleryItemUseCase,
+          useValue: mockDeleteUserGalleryItemUseCase,
         },
         {
           provide: TokenService,
@@ -331,6 +340,33 @@ describe('AdminUsersController', () => {
       expect(mockUpdateAdminUserUseCase.execute).toHaveBeenCalledWith(101, {
         confirmSelfie: true,
       });
+    });
+  });
+
+  describe('DELETE /v1/admin/users/:userId/gallery/:galleryId', () => {
+    it('should delete user gallery image and return success response', async () => {
+      const mockResult = {
+        userId: 63,
+        galleryId: 68,
+        deleted: true,
+      };
+
+      (
+        mockDeleteUserGalleryItemUseCase.execute as jest.Mock
+      ).mockResolvedValue(mockResult);
+
+      const res = await controller.deleteUserGalleryItem(63, 68);
+
+      expect(res).toEqual({
+        status: 'success',
+        success: true,
+        message: 'Gallery image deleted successfully',
+        data: mockResult,
+      });
+      expect(mockDeleteUserGalleryItemUseCase.execute).toHaveBeenCalledWith(
+        63,
+        68,
+      );
     });
   });
 });

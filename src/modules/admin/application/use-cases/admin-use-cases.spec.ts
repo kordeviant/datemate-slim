@@ -8,6 +8,7 @@ import { UnbanUserUseCase } from './unban-user.use-case';
 import { GetPendingVerificationsUseCase } from './get-pending-verifications.use-case';
 import { ApproveVerificationUseCase } from './approve-verification.use-case';
 import { RejectVerificationUseCase } from './reject-verification.use-case';
+import { DeleteUserGalleryItemUseCase } from './delete-user-gallery-item.use-case';
 import { IAdminRepository } from '../../domain/repositories/admin.repository.interface';
 import { AdminUserStatusFilter, AdminGenderFilter } from '../dtos/get-admin-users.dto';
 
@@ -26,6 +27,7 @@ describe('Admin Use Cases', () => {
       getPendingVerifications: jest.fn(),
       approveVerification: jest.fn(),
       rejectVerification: jest.fn(),
+      deleteUserGalleryItem: jest.fn(),
     };
   });
 
@@ -176,24 +178,26 @@ describe('Admin Use Cases', () => {
   describe('GetPendingVerificationsUseCase', () => {
     it('should delegate fetching pending verifications', async () => {
       const verificationsResult = {
-        items: [
+        data: [
           {
+            id: 1,
             userId: 101,
             fullName: 'سارا همتی',
-            username: 'sara_h',
             email: 'sara@example.com',
             avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
             selfieUrl: 'http://localhost:3000/assets/selfies/selfie_1.webp',
             gender: 'FEMALE',
             age: 23,
-            city: 'اسلامشهر',
-            submittedAt: '2026-10-04T07:15:00.000Z',
+            requestedAt: '۱۷ دقیقه قبل',
+            status: 'PENDING',
             createdAt: '2024-11-20T10:00:00.000Z',
           },
         ],
-        total: 1,
-        page: 1,
-        totalPages: 1,
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 10,
+        },
       };
       (mockAdminRepository.getPendingVerifications as jest.Mock).mockResolvedValue(
         verificationsResult,
@@ -208,6 +212,7 @@ describe('Admin Use Cases', () => {
       expect(mockAdminRepository.getPendingVerifications).toHaveBeenCalledWith(
         1,
         10,
+        undefined,
       );
     });
   });
@@ -215,8 +220,9 @@ describe('Admin Use Cases', () => {
   describe('ApproveVerificationUseCase', () => {
     it('should delegate approval to repository', async () => {
       const approvalResult = {
-        userId: 101,
-        profileValidated: true,
+        id: 101,
+        status: 'APPROVED',
+        verifiedAt: '2026-10-05T12:15:00.000Z',
       };
       (mockAdminRepository.approveVerification as jest.Mock).mockResolvedValue(
         approvalResult,
@@ -235,9 +241,10 @@ describe('Admin Use Cases', () => {
   describe('RejectVerificationUseCase', () => {
     it('should delegate rejection with reason to repository', async () => {
       const rejectionResult = {
-        userId: 101,
-        profileValidated: false,
+        id: 101,
+        status: 'REJECTED',
         reason: 'Blurry face',
+        rejectedAt: '2026-10-05T12:16:00.000Z',
       };
       (mockAdminRepository.rejectVerification as jest.Mock).mockResolvedValue(
         rejectionResult,
@@ -349,6 +356,31 @@ describe('Admin Use Cases', () => {
 
       expect(result).toEqual(mockUserDetails);
       expect(mockAdminRepository.getUserDetails).toHaveBeenCalledWith(12);
+    });
+  });
+
+  describe('DeleteUserGalleryItemUseCase', () => {
+    it('should delegate deleting user gallery image', async () => {
+      const mockResult = {
+        userId: 63,
+        galleryId: 68,
+        deleted: true,
+      };
+
+      (
+        mockAdminRepository.deleteUserGalleryItem as jest.Mock
+      ).mockResolvedValue(mockResult);
+
+      const useCase = new DeleteUserGalleryItemUseCase(
+        mockAdminRepository as IAdminRepository,
+      );
+      const result = await useCase.execute(63, 68);
+
+      expect(result).toEqual(mockResult);
+      expect(mockAdminRepository.deleteUserGalleryItem).toHaveBeenCalledWith(
+        63,
+        68,
+      );
     });
   });
 });

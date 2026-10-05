@@ -15,6 +15,7 @@ import { UnbanUserUseCase } from './application/use-cases/unban-user.use-case';
 import { GetPendingVerificationsUseCase } from './application/use-cases/get-pending-verifications.use-case';
 import { ApproveVerificationUseCase } from './application/use-cases/approve-verification.use-case';
 import { RejectVerificationUseCase } from './application/use-cases/reject-verification.use-case';
+import { DeleteUserGalleryItemUseCase } from './application/use-cases/delete-user-gallery-item.use-case';
 import { AdminDashboardController } from './presentation/admin-dashboard.controller';
 import { AdminUsersController } from './presentation/admin-users.controller';
 import { AdminVerificationsController } from './presentation/admin-verifications.controller';
@@ -44,6 +45,7 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     GetPendingVerificationsUseCase,
     ApproveVerificationUseCase,
     RejectVerificationUseCase,
+    DeleteUserGalleryItemUseCase,
   ],
   exports: [
     ADMIN_REPOSITORY,
@@ -57,6 +59,7 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     GetPendingVerificationsUseCase,
     ApproveVerificationUseCase,
     RejectVerificationUseCase,
+    DeleteUserGalleryItemUseCase,
   ],
 })
 export class AdminModule {}

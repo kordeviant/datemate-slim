@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -26,6 +27,7 @@ import { GetAdminUserDetailsUseCase } from '../application/use-cases/get-admin-u
 import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-user.use-case';
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
+import { DeleteUserGalleryItemUseCase } from '../application/use-cases/delete-user-gallery-item.use-case';
 import { GetAdminUsersDto } from '../application/dtos/get-admin-users.dto';
 import { AdminUsersResponseDto } from '../application/dtos/admin-users-response.dto';
 import { AdminUserDetailsResponseDto } from '../application/dtos/admin-user-details-response.dto';
@@ -33,6 +35,7 @@ import { UpdateAdminUserDto } from '../application/dtos/update-admin-user.dto';
 import { UpdateAdminUserResponseDto } from '../application/dtos/update-admin-user-response.dto';
 import { BanUserDto } from '../application/dtos/ban-user.dto';
 import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
+import { DeleteGalleryResponseDto } from '../application/dtos/delete-gallery-response.dto';
 
 @ApiTags('Admin - Users')
 @ApiBearerAuth('JWT-auth')
@@ -45,6 +48,7 @@ export class AdminUsersController {
     private readonly updateAdminUserUseCase: UpdateAdminUserUseCase,
     private readonly banUserUseCase: BanUserUseCase,
     private readonly unbanUserUseCase: UnbanUserUseCase,
+    private readonly deleteUserGalleryItemUseCase: DeleteUserGalleryItemUseCase,
   ) {}
 
   @Get()
@@ -265,5 +269,52 @@ export class AdminUsersController {
     @Body() body: UpdateAdminUserDto,
   ): Promise<UpdateAdminUserResponseDto> {
     return this.updateUser(id, body);
+  }
+
+  @Delete(':userId/gallery/:galleryId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete a gallery image of a user',
+    description:
+      'Allows administrators to delete a specific photo from a user gallery by userId and galleryId.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'User ID whose gallery photo is being deleted',
+    example: 63,
+  })
+  @ApiParam({
+    name: 'galleryId',
+    description: 'Gallery image ID to delete',
+    example: 68,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Gallery image deleted successfully',
+    type: DeleteGalleryResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User or gallery item not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async deleteUserGalleryItem(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('galleryId', ParseIntPipe) galleryId: number,
+  ): Promise<DeleteGalleryResponseDto> {
+    const result = await this.deleteUserGalleryItemUseCase.execute(
+      userId,
+      galleryId,
+    );
+
+    return {
+      status: 'success',
+      success: true,
+      message: 'Gallery image deleted successfully',
+      data: result,
+    };
   }
 }

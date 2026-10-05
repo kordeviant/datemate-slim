@@ -8,8 +8,13 @@ import {
   AdminUsersPaginatedResult,
   AdminUserSortByType,
   AdminUserStatusFilterType,
+  DeleteUserGalleryItemResult,
 } from '../entities/admin-user-item.entity';
-import { AdminVerificationsPaginatedResult } from '../entities/admin-verification-item.entity';
+import {
+  AdminVerificationsPaginatedResult,
+  ApproveVerificationResult,
+  RejectVerificationResult,
+} from '../entities/admin-verification-item.entity';
 
 export interface GetAdminUsersParams {
   page: number;
@@ -57,14 +62,19 @@ export interface IAdminRepository {
   getPendingVerifications(
     page: number,
     limit: number,
+    status?: string,
   ): Promise<AdminVerificationsPaginatedResult>;
   approveVerification(
-    userId: number,
-  ): Promise<{ userId: number; profileValidated: boolean }>;
+    targetId: number,
+  ): Promise<ApproveVerificationResult>;
   rejectVerification(
-    userId: number,
+    targetId: number,
     reason?: string,
-  ): Promise<{ userId: number; profileValidated: boolean; reason: string | null }>;
+  ): Promise<RejectVerificationResult>;
+  deleteUserGalleryItem(
+    userId: number,
+    galleryId: number,
+  ): Promise<DeleteUserGalleryItemResult>;
 }
 
 export const ADMIN_REPOSITORY = Symbol('IAdminRepository');

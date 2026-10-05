@@ -3,6 +3,7 @@ import {
   ADMIN_REPOSITORY,
   IAdminRepository,
 } from '../../domain/repositories/admin.repository.interface';
+import { RejectVerificationResult } from '../../domain/entities/admin-verification-item.entity';
 
 @Injectable()
 export class RejectVerificationUseCase {
@@ -12,9 +13,9 @@ export class RejectVerificationUseCase {
   ) {}
 
   async execute(
-    userId: number,
-    reason?: string,
-  ): Promise<{ userId: number; profileValidated: boolean; reason: string | null }> {
-    return this.adminRepository.rejectVerification(userId, reason);
+    targetId: number,
+    reason: string,
+  ): Promise<RejectVerificationResult> {
+    return this.adminRepository.rejectVerification(targetId, reason);
   }
 }

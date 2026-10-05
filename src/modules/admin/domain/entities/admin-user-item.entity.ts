@@ -48,3 +48,10 @@ export interface AdminUsersPaginatedResult {
   page: number;
   totalPages: number;
 }
+
+export interface DeleteUserGalleryItemResult {
+  userId: number;
+  galleryId: number;
+  deleted: boolean;
+}
+

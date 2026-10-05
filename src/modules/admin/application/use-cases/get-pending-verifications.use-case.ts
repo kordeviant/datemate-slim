@@ -14,8 +14,9 @@ export class GetPendingVerificationsUseCase {
 
   async execute(
     page: number = 1,
-    limit: number = 10,
+    limit: number = 20,
+    status?: string,
   ): Promise<AdminVerificationsPaginatedResult> {
-    return this.adminRepository.getPendingVerifications(page, limit);
+    return this.adminRepository.getPendingVerifications(page, limit, status);
   }
 }

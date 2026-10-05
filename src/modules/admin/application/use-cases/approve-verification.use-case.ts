@@ -3,6 +3,7 @@ import {
   ADMIN_REPOSITORY,
   IAdminRepository,
 } from '../../domain/repositories/admin.repository.interface';
+import { ApproveVerificationResult } from '../../domain/entities/admin-verification-item.entity';
 
 @Injectable()
 export class ApproveVerificationUseCase {
@@ -11,9 +12,7 @@ export class ApproveVerificationUseCase {
     private readonly adminRepository: IAdminRepository,
   ) {}
 
-  async execute(
-    userId: number,
-  ): Promise<{ userId: number; profileValidated: boolean }> {
-    return this.adminRepository.approveVerification(userId);
+  async execute(targetId: number): Promise<ApproveVerificationResult> {
+    return this.adminRepository.approveVerification(targetId);
   }
 }

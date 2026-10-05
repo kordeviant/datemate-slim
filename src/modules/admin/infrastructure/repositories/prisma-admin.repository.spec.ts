@@ -20,6 +20,7 @@ describe('PrismaAdminRepository', () => {
         count: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn(),
       },
       profile: {
@@ -34,6 +35,11 @@ describe('PrismaAdminRepository', () => {
       },
       notification: {
         create: jest.fn(),
+      },
+      userGallery: {
+        findFirst: jest.fn(),
+        delete: jest.fn(),
+        update: jest.fn(),
       },
       $transaction: jest.fn().mockImplementation(async (promises) => {
         return Promise.all(promises);
@@ -362,8 +368,8 @@ describe('PrismaAdminRepository', () => {
         updatedAt: new Date('2026-10-04T07:15:00.000Z'),
         createdAt: new Date('2024-11-20T10:00:00.000Z'),
         profile: {
+          id: 5,
           fullName: 'سارا همتی',
-          username: 'sara_h',
           avatarUrl: 'avatars/avatar_1.webp',
           selfieUrl: 'selfies/selfie_1.webp',
           updatedAt: new Date('2026-10-04T07:15:00.000Z'),
@@ -380,26 +386,88 @@ describe('PrismaAdminRepository', () => {
 
       const result = await repository.getPendingVerifications(1, 10);
 
-      expect(result.total).toBe(1);
-      expect(result.items[0]).toEqual({
+      expect(result.meta.total).toBe(1);
+      expect(result.data[0]).toEqual({
+        id: 5,
         userId: 101,
         fullName: 'سارا همتی',
-        username: 'sara_h',
         email: 'sara@example.com',
         avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
         selfieUrl: 'http://localhost:3000/assets/selfies/selfie_1.webp',
         gender: 'FEMALE',
         age: expect.any(Number),
-        city: 'تهران',
-        submittedAt: '2026-10-04T07:15:00.000Z',
+        requestedAt: expect.any(String),
+        status: 'PENDING',
         createdAt: '2024-11-20T10:00:00.000Z',
+      });
+    });
+
+    it('should return null for avatarUrl if profile has no avatar', async () => {
+      const rawUser = {
+        id: 102,
+        email: 'noavatar@example.com',
+        updatedAt: new Date('2026-10-04T07:15:00.000Z'),
+        createdAt: new Date('2024-11-20T10:00:00.000Z'),
+        profile: {
+          id: 6,
+          fullName: 'کاربر بدون تصویر',
+          avatarUrl: '',
+          selfieUrl: 'selfies/selfie_2.webp',
+          updatedAt: new Date('2026-10-04T07:15:00.000Z'),
+        },
+        demographic: null,
+      };
+
+      mockPrisma.user.count.mockResolvedValueOnce(1);
+      mockPrisma.user.findMany.mockResolvedValueOnce([rawUser]);
+
+      const result = await repository.getPendingVerifications(1, 10);
+
+      expect(result.data[0].avatarUrl).toBeNull();
+    });
+
+    it('should query profileValidated true when status is APPROVED', async () => {
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+
+      const result = await repository.getPendingVerifications(1, 10, 'APPROVED');
+
+      expect(result.data).toEqual([]);
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({
+        where: { profileValidated: true },
+      });
+    });
+
+    it('should query all verifications when status is ALL', async () => {
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+
+      const result = await repository.getPendingVerifications(1, 10, 'ALL');
+
+      expect(result.data).toEqual([]);
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            {
+              profile: {
+                selfieUrl: {
+                  not: null,
+                  notIn: [''],
+                },
+              },
+            },
+            {
+              profileValidated: true,
+            },
+          ],
+        },
       });
     });
   });
 
   describe('approveVerification', () => {
     it('should throw NotFoundException if user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
 
       await expect(repository.approveVerification(999)).rejects.toThrow(
         NotFoundException,
@@ -407,18 +475,25 @@ describe('PrismaAdminRepository', () => {
     });
 
     it('should validate profile and fire notification', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 101 });
+      mockPrisma.user.findFirst.mockResolvedValueOnce({
+        id: 101,
+        profile: { id: 1 },
+      });
 
       const result = await repository.approveVerification(101);
 
-      expect(result).toEqual({ userId: 101, profileValidated: true });
+      expect(result).toEqual({
+        id: 101,
+        status: 'APPROVED',
+        verifiedAt: expect.any(String),
+      });
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
   });
 
   describe('rejectVerification', () => {
     it('should throw NotFoundException if user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
 
       await expect(
         repository.rejectVerification(999, 'Blurry face'),
@@ -426,7 +501,7 @@ describe('PrismaAdminRepository', () => {
     });
 
     it('should reset profileValidated, clear selfieUrl and create rejection notification', async () => {
-      mockPrisma.user.findUnique.mockResolvedValueOnce({
+      mockPrisma.user.findFirst.mockResolvedValueOnce({
         id: 101,
         profile: { id: 1 },
       });
@@ -434,9 +509,10 @@ describe('PrismaAdminRepository', () => {
       const result = await repository.rejectVerification(101, 'Face does not match');
 
       expect(result).toEqual({
-        userId: 101,
-        profileValidated: false,
+        id: 101,
+        status: 'REJECTED',
         reason: 'Face does not match',
+        rejectedAt: expect.any(String),
       });
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
@@ -598,6 +674,70 @@ describe('PrismaAdminRepository', () => {
       expect(result.interests).toEqual(['Hiking']);
       expect(result.transactions).toEqual([]);
       expect(result.chatRooms).toEqual([]);
+    });
+  });
+
+  describe('deleteUserGalleryItem', () => {
+    it('should throw NotFoundException if user is not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(repository.deleteUserGalleryItem(63, 68)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw NotFoundException if gallery item is not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 63,
+        profile: { profilePictureUrl: 'gallery/photo1.webp' },
+      });
+      mockPrisma.userGallery.findFirst.mockResolvedValueOnce(null);
+
+      await expect(repository.deleteUserGalleryItem(63, 68)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should delete gallery item and update active profile picture if deleted photo was active', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 63,
+        profile: { profilePictureUrl: 'gallery/photo68.webp' },
+      });
+      mockPrisma.userGallery.findFirst
+        .mockResolvedValueOnce({
+          id: 68,
+          userId: 63,
+          imageUrl: 'gallery/photo68.webp',
+          isProfilePicture: true,
+        })
+        .mockResolvedValueOnce({
+          id: 70,
+          userId: 63,
+          imageUrl: 'gallery/photo70.webp',
+          isProfilePicture: false,
+        });
+      mockPrisma.userGallery.delete.mockResolvedValueOnce({});
+      mockPrisma.userGallery.update.mockResolvedValueOnce({});
+      mockPrisma.profile.update.mockResolvedValueOnce({});
+
+      const result = await repository.deleteUserGalleryItem(63, 68);
+
+      expect(mockPrisma.userGallery.delete).toHaveBeenCalledWith({
+        where: { id: 68 },
+      });
+      expect(mockPrisma.userGallery.update).toHaveBeenCalledWith({
+        where: { id: 70 },
+        data: { isProfilePicture: true },
+      });
+      expect(mockPrisma.profile.update).toHaveBeenCalledWith({
+        where: { userId: 63 },
+        data: { profilePictureUrl: 'gallery/photo70.webp' },
+      });
+      expect(result).toEqual({
+        userId: 63,
+        galleryId: 68,
+        deleted: true,
+      });
     });
   });
 });

@@ -22,7 +22,7 @@ import { AdminAuthGuard } from '../application/guards/admin-auth.guard';
 import { GetPendingVerificationsUseCase } from '../application/use-cases/get-pending-verifications.use-case';
 import { ApproveVerificationUseCase } from '../application/use-cases/approve-verification.use-case';
 import { RejectVerificationUseCase } from '../application/use-cases/reject-verification.use-case';
-import { PaginationQueryDto } from '../application/dtos/pagination-query.dto';
+import { GetAdminVerificationsDto } from '../application/dtos/get-admin-verifications.dto';
 import {
   AdminVerificationsResponseDto,
   ApproveVerificationResponseDto,
@@ -44,13 +44,13 @@ export class AdminVerificationsController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get list of pending identity selfie verifications',
+    summary: 'Get list of identity selfie verifications',
     description:
-      "Retrieves the queue of pending selfie reviews with user avatarUrl and selfieUrl for admin inspection.",
+      'Retrieves the queue of selfie reviews with user avatarUrl and selfieUrl for admin inspection, filterable by status.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Pending verifications retrieved successfully',
+    description: 'Verifications retrieved successfully',
     type: AdminVerificationsResponseDto,
   })
   @ApiResponse({
@@ -58,21 +58,23 @@ export class AdminVerificationsController {
     description: 'Missing/invalid token or insufficient administrator privileges',
   })
   async getPendingVerifications(
-    @Query() query: PaginationQueryDto,
+    @Query() query: GetAdminVerificationsDto,
   ): Promise<AdminVerificationsResponseDto> {
     const result = await this.getPendingVerificationsUseCase.execute(
       query.page,
       query.limit,
+      query.status,
     );
 
     return {
       status: 'success',
-      message: 'Pending verifications retrieved',
-      data: result,
+      message: 'Pending verifications retrieved successfully',
+      data: result.data,
+      meta: result.meta,
     };
   }
 
-  @Post(':userId/approve')
+  @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Approve selfie verification for a user',
@@ -80,9 +82,9 @@ export class AdminVerificationsController {
       'Approves the user identity selfie verification, sets User.profileValidated = true, and fires a PROFILE_VERIFIED notification.',
   })
   @ApiParam({
-    name: 'userId',
-    description: 'User ID whose verification is being approved',
-    example: 101,
+    name: 'id',
+    description: 'Verification request ID or User ID being approved',
+    example: 1,
   })
   @ApiResponse({
     status: 200,
@@ -91,25 +93,26 @@ export class AdminVerificationsController {
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found',
+    description: 'Verification request not found',
   })
   @ApiResponse({
     status: 401,
     description: 'Missing/invalid token or insufficient administrator privileges',
   })
   async approveVerification(
-    @Param('userId', ParseIntPipe) userId: number,
+    @Param('id', ParseIntPipe) id: number,
   ): Promise<ApproveVerificationResponseDto> {
-    const result = await this.approveVerificationUseCase.execute(userId);
+    const result = await this.approveVerificationUseCase.execute(id);
 
     return {
       status: 'success',
-      message: 'User selfie verification approved',
+      success: true,
+      message: 'Verification approved successfully',
       data: result,
     };
   }
 
-  @Post(':userId/reject')
+  @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reject selfie verification for a user',
@@ -117,9 +120,9 @@ export class AdminVerificationsController {
       'Rejects the user identity selfie verification, clears the selfieUrl, sets profileValidated = false, and creates a notification explaining the rejection reason.',
   })
   @ApiParam({
-    name: 'userId',
-    description: 'User ID whose verification is being rejected',
-    example: 101,
+    name: 'id',
+    description: 'Verification request ID or User ID being rejected',
+    example: 1,
   })
   @ApiResponse({
     status: 200,
@@ -128,24 +131,25 @@ export class AdminVerificationsController {
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found',
+    description: 'Verification request not found',
   })
   @ApiResponse({
     status: 401,
     description: 'Missing/invalid token or insufficient administrator privileges',
   })
   async rejectVerification(
-    @Param('userId', ParseIntPipe) userId: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body() body: RejectVerificationDto,
   ): Promise<RejectVerificationResponseDto> {
     const result = await this.rejectVerificationUseCase.execute(
-      userId,
-      body.reason,
+      id,
+      body?.reason,
     );
 
     return {
       status: 'success',
-      message: 'User selfie verification rejected',
+      success: true,
+      message: 'Verification rejected successfully',
       data: result,
     };
   }

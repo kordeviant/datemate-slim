@@ -150,12 +150,13 @@ The Admin Module provides administration, monitoring, user directory search, acc
 - `GET /v1/admin/dashboard/stats` (also `/v1/admin/dashboard/overview`): Returns KPI metrics (totalUsers, onlineUsers, pendingSelfies, unansweredTickets).
 - `GET /v1/admin/users`: Lightweight paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), and sorting (`createdAt`, `lastSeenAt`, `wallet`). Excludes heavy payloads (gallery, bio, transactions, chatRooms) for fast listing. Returns `id`, `email`, `fullName`, `avatarUrl`, `age`, `gender`, `isPremium`, `hasPendingSelfie`, `profileValidated`, `isOnline`, `bannedUntil`, and `createdAt`.
 - `GET /v1/admin/users/:id`: Full user details endpoint providing complete inspection data for the admin details modal/tabs: demographics, full photo gallery, transactions, chatRooms, and interests.
+- `DELETE /v1/admin/users/:userId/gallery/:galleryId`: Deletes a specific gallery photo for a user. If the deleted photo was the active profile picture, the backend automatically falls back to another gallery photo or clears `profilePictureUrl`. Returns `{ success: true, message: "Gallery image deleted successfully", data: { userId, galleryId, deleted: true } }`.
 - `PATCH / PUT /v1/admin/users/:id`: Updates user moderation fields (bio, fullName, premium, wallet, and confirms selfie verification).
 - `POST /v1/admin/users/:id/ban`: Bans/blocks user account with duration in hours or permanent ban (`null`).
 - `POST /v1/admin/users/:id/unban`: Unbans user account and restores full access.
-- `GET /v1/admin/verifications`: Paginated queue of pending selfie verifications displaying `avatarUrl` alongside private `selfieUrl`.
-- `POST /v1/admin/verifications/:userId/approve`: Validates user profile (`profileValidated = true`) and fires notification.
-- `POST /v1/admin/verifications/:userId/reject`: Clears unverified selfie, sets `profileValidated = false`, and notifies user with reason.
+- `GET /v1/admin/verifications`: Paginated queue of identity selfie reviews displaying user details (`id`, `userId`, `fullName`, `email`, `avatarUrl`, `selfieUrl`, `age`, `gender`, `requestedAt` ISO string, `status`). Supports `status` filter (`PENDING`, `APPROVED`, `REJECTED`, `ALL`), `page`, and `limit`.
+- `POST /v1/admin/verifications/:id/approve`: Validates user profile (`profileValidated = true`) by verification request ID or userId, creates `PROFILE_VERIFIED` notification, and returns `{ success: true, message: "Verification approved successfully", ... }`.
+- `POST /v1/admin/verifications/:id/reject`: Rejects verification by verification request ID or userId, clears `selfieUrl`, sets `profileValidated = false`, and fires notification explaining rejection reason. Accepts `{ reason?: string }` body and returns `{ success: true, message: "Verification rejected successfully", ... }`.
 
 ---
 
@@ -182,12 +183,10 @@ The User Gallery system enables users to upload, manage, and curate their photo 
   - **Single Canonical Contract**: `gallery` and `profilePictureId` are strictly sent outside the `Profile` object at the root level (no duplicated fields across root and nested objects). There is **no need** for `profilePicture` string URL in the request.
 
 ### 7.2 Validation Boundaries & Upload Rules
-- **Minimum Resolution**: `1200×800` (landscape or portrait: min dimension ≥ 800px, max dimension ≥ 1200px).
-- **Recommended Resolutions**: `1600×1200` or `1920×1080`.
-- **Maximum Resolution**: `4096×4096`.
-- **Maximum File Size**: 3MB per photo.
+- **Resolution**: Resolution restriction removed for gallery uploads (no minimum 1200×800 or maximum dimension restriction; image dimensions are extracted for metadata and converted to WebP).
+- **File Size Limits**: Minimum **50KB** and maximum **10MB** per photo.
 - **Maximum Photos Per Upload**: 1 photo per request (multi-photo gallery requests are rejected with 400 Bad Request).
-- **Maximum Total Upload Size**: 15MB per request.
+- **Maximum Total Upload Size**: 10MB per request.
 - **Accepted Formats**: WebP (recommended) and JPG/JPEG/PNG. All images are normalized, EXIF-rotated, stripped of metadata, and converted to WebP via Sharp.
 - **Gallery Total Capacity**: Maximum 10 photos stored per user (`projected = current - deleteCount + newUploads <= 10`).
 

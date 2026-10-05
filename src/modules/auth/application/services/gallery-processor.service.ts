@@ -23,12 +23,10 @@ export class GalleryProcessorService {
   private readonly logger = new Logger(GalleryProcessorService.name);
 
   // Validation Boundaries
-  public static readonly MIN_SHORT_DIMENSION = 800; // 800px min dimension
-  public static readonly MIN_LONG_DIMENSION = 1200; // 1200px max dimension (1200x800 or 800x1200)
-  public static readonly MAX_DIMENSION = 4096; // 4096x4096px
-  public static readonly MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB per photo
+  public static readonly MIN_FILE_SIZE_BYTES = 50 * 1024; // 50 KB
+  public static readonly MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per photo
   public static readonly MAX_PHOTOS_PER_UPLOAD = 1; // Max 1 photo per upload
-  public static readonly MAX_TOTAL_UPLOAD_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB total
+  public static readonly MAX_TOTAL_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB total
   public static readonly MAX_GALLERY_TOTAL_IMAGES = 10; // Max 10 gallery photos total
   public static readonly MAX_UPDATE_API_LIMIT = 1; // Only 1 gallery item per update request
 
@@ -81,8 +79,8 @@ export class GalleryProcessorService {
 
   /**
    * Validates batch upload constraints:
-   * - Max 5 photos per upload
-   * - Max 15MB total upload size
+   * - Max 1 photo per upload
+   * - Max 10MB total upload size
    */
   validateBatchConstraints(files: Express.Multer.File[]): void {
     if (!files || files.length === 0) return;
@@ -99,79 +97,55 @@ export class GalleryProcessorService {
     );
     if (totalSizeBytes > GalleryProcessorService.MAX_TOTAL_UPLOAD_SIZE_BYTES) {
       throw new BadRequestException(
-        `Total upload size (${(totalSizeBytes / (1024 * 1024)).toFixed(2)} MB) exceeds maximum limit of 15MB.`,
+        `Total upload size (${(totalSizeBytes / (1024 * 1024)).toFixed(2)} MB) exceeds maximum limit of 10MB.`,
       );
     }
   }
 
   /**
    * Validates and processes a single gallery image:
-   * - Max 3MB file size
-   * - Min 1200x800 (or 800x1200) resolution
-   * - Max 4096x4096 resolution
-   * - Strips EXIF metadata
+   * - Size min 50KB and max 10MB (resolution check removed)
+   * - Strips EXIF metadata and auto-rotates
    * - Converts to WebP format
    */
   async processAndSaveGalleryImage(
     fileBuffer: Buffer,
     userId: number,
   ): Promise<ProcessedGalleryImage> {
+    if (fileBuffer.length < GalleryProcessorService.MIN_FILE_SIZE_BYTES) {
+      throw new BadRequestException(
+        `Gallery photo size (${(fileBuffer.length / 1024).toFixed(2)} KB) is below minimum allowed limit of 50KB.`,
+      );
+    }
+
     if (fileBuffer.length > GalleryProcessorService.MAX_FILE_SIZE_BYTES) {
       throw new BadRequestException(
-        `Gallery photo size (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB) exceeds maximum allowed limit of 3MB.`,
+        `Gallery photo size (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB) exceeds maximum allowed limit of 10MB.`,
       );
     }
 
     // 1. Validate magic bytes
     this.validateMagicBytes(fileBuffer);
 
-    // 2. Read dimensions with Sharp
-    let metadata: Metadata;
+    // 2. Read dimensions with Sharp (extracted for metadata without enforcing resolution limits)
+    let width = 0;
+    let height = 0;
     try {
-      metadata = await sharpFn(fileBuffer).metadata();
+      const metadata: Metadata = await sharpFn(fileBuffer).metadata();
+      width = metadata.width || 0;
+      height = metadata.height || 0;
     } catch (err: any) {
       this.logger.error(`Sharp metadata extraction failed: ${err.message}`);
       throw new BadRequestException('Corrupted or invalid image file content');
     }
 
-    const width = metadata.width || 0;
-    const height = metadata.height || 0;
-
-    if (width === 0 || height === 0) {
-      throw new BadRequestException('Unable to determine image dimensions');
-    }
-
-    // 3. Resolution checks:
-    // Minimum resolution: 1200x800 (landscape or portrait)
-    const longDim = Math.max(width, height);
-    const shortDim = Math.min(width, height);
-
-    if (
-      longDim < GalleryProcessorService.MIN_LONG_DIMENSION ||
-      shortDim < GalleryProcessorService.MIN_SHORT_DIMENSION
-    ) {
-      throw new BadRequestException(
-        `Image resolution (${width}x${height}) is below minimum requirement of 1200×800. Recommended resolutions: 1600×1200 or 1920×1080.`,
-      );
-    }
-
-    // Maximum resolution: 4096x4096
-    if (
-      width > GalleryProcessorService.MAX_DIMENSION ||
-      height > GalleryProcessorService.MAX_DIMENSION
-    ) {
-      throw new BadRequestException(
-        `Image resolution (${width}x${height}) exceeds maximum allowed limit of 4096×4096.`,
-      );
-    }
-
-    // 4. Convert to WebP, auto-rotate according to EXIF, strip metadata
+    // 3. Convert to WebP, auto-rotate according to EXIF, strip metadata
     const processedBuffer = await sharpFn(fileBuffer)
       .rotate()
       .webp({ quality: 85 })
       .toBuffer();
 
-    // 5. Ensure storage directory exists
+    // 4. Ensure storage directory exists
     const uploadsDir = path.join(process.cwd(), 'uploads', 'images');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });

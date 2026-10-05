@@ -4,6 +4,7 @@ import { GetPendingVerificationsUseCase } from '../application/use-cases/get-pen
 import { ApproveVerificationUseCase } from '../application/use-cases/approve-verification.use-case';
 import { RejectVerificationUseCase } from '../application/use-cases/reject-verification.use-case';
 import { TokenService } from '../../auth/application/services/token.service';
+import { AdminVerificationStatusFilter } from '../application/dtos/get-admin-verifications.dto';
 
 describe('AdminVerificationsController', () => {
   let controller: AdminVerificationsController;
@@ -50,26 +51,28 @@ describe('AdminVerificationsController', () => {
   });
 
   describe('GET /v1/admin/verifications', () => {
-    it('should return pending verifications', async () => {
+    it('should return pending verifications list with meta and status message', async () => {
       const mockResult = {
-        items: [
+        data: [
           {
-            userId: 101,
-            fullName: 'سارا همتی',
-            username: 'sara_h',
+            id: 1,
+            userId: 102,
+            fullName: 'Sara Mohammadi',
             email: 'sara@example.com',
-            avatarUrl: 'http://localhost:3000/assets/avatars/avatar_1.webp',
-            selfieUrl: 'http://localhost:3000/assets/selfies/selfie_1.webp',
+            avatarUrl: 'https://storage.datemate.com/avatars/user-102.webp',
+            selfieUrl: 'https://storage.datemate.com/selfies/user-102-selfie.jpg',
+            age: 25,
             gender: 'FEMALE',
-            age: 23,
-            city: 'اسلامشهر',
-            submittedAt: '2026-10-04T07:15:00.000Z',
-            createdAt: '2024-11-20T10:00:00.000Z',
+            requestedAt: '2026-10-05T12:00:00.000Z',
+            status: 'PENDING',
+            createdAt: '2026-10-05T12:00:00.000Z',
           },
         ],
-        total: 1,
-        page: 1,
-        totalPages: 1,
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 20,
+        },
       };
 
       (
@@ -78,67 +81,74 @@ describe('AdminVerificationsController', () => {
 
       const res = await controller.getPendingVerifications({
         page: 1,
-        limit: 10,
+        limit: 20,
+        status: AdminVerificationStatusFilter.PENDING,
       });
 
       expect(res).toEqual({
         status: 'success',
-        message: 'Pending verifications retrieved',
-        data: mockResult,
+        message: 'Pending verifications retrieved successfully',
+        data: mockResult.data,
+        meta: mockResult.meta,
       });
       expect(mockGetPendingVerificationsUseCase.execute).toHaveBeenCalledWith(
         1,
-        10,
+        20,
+        AdminVerificationStatusFilter.PENDING,
       );
     });
   });
 
-  describe('POST /v1/admin/verifications/:userId/approve', () => {
-    it('should approve selfie verification', async () => {
+  describe('POST /v1/admin/verifications/:id/approve', () => {
+    it('should approve selfie verification and return success message with data', async () => {
       const mockResult = {
-        userId: 101,
-        profileValidated: true,
+        id: 1,
+        status: 'APPROVED',
+        verifiedAt: '2026-10-05T12:15:00.000Z',
       };
 
       (mockApproveVerificationUseCase.execute as jest.Mock).mockResolvedValue(
         mockResult,
       );
 
-      const res = await controller.approveVerification(101);
+      const res = await controller.approveVerification(1);
 
       expect(res).toEqual({
         status: 'success',
-        message: 'User selfie verification approved',
+        success: true,
+        message: 'Verification approved successfully',
         data: mockResult,
       });
-      expect(mockApproveVerificationUseCase.execute).toHaveBeenCalledWith(101);
+      expect(mockApproveVerificationUseCase.execute).toHaveBeenCalledWith(1);
     });
   });
 
-  describe('POST /v1/admin/verifications/:userId/reject', () => {
-    it('should reject selfie verification with reason', async () => {
+  describe('POST /v1/admin/verifications/:id/reject', () => {
+    it('should reject selfie verification with reason and return success message with data', async () => {
       const mockResult = {
-        userId: 101,
-        profileValidated: false,
-        reason: 'Blurry selfie',
+        id: 1,
+        status: 'REJECTED',
+        reason: 'Image is blurry or does not match profile picture.',
+        rejectedAt: '2026-10-05T12:16:00.000Z',
       };
 
       (mockRejectVerificationUseCase.execute as jest.Mock).mockResolvedValue(
         mockResult,
       );
 
-      const res = await controller.rejectVerification(101, {
-        reason: 'Blurry selfie',
+      const res = await controller.rejectVerification(1, {
+        reason: 'Image is blurry or does not match profile picture.',
       });
 
       expect(res).toEqual({
         status: 'success',
-        message: 'User selfie verification rejected',
+        success: true,
+        message: 'Verification rejected successfully',
         data: mockResult,
       });
       expect(mockRejectVerificationUseCase.execute).toHaveBeenCalledWith(
-        101,
-        'Blurry selfie',
+        1,
+        'Image is blurry or does not match profile picture.',
       );
     });
   });

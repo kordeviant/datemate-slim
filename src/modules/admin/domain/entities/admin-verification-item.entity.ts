@@ -1,20 +1,35 @@
 export interface AdminVerificationItem {
+  id: number;
   userId: number;
   fullName: string;
-  username: string | null;
   email: string;
   avatarUrl: string | null;
   selfieUrl: string | null;
-  gender: string | null;
   age: number | null;
-  city: string | null;
-  submittedAt: string;
+  gender: string | null;
+  requestedAt: string;
+  status: string;
   createdAt: string;
 }
 
 export interface AdminVerificationsPaginatedResult {
-  items: AdminVerificationItem[];
-  total: number;
-  page: number;
-  totalPages: number;
+  data: AdminVerificationItem[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
+export interface ApproveVerificationResult {
+  id: number;
+  status: string;
+  verifiedAt: string;
+}
+
+export interface RejectVerificationResult {
+  id: number;
+  status: string;
+  reason: string;
+  rejectedAt: string;
 }

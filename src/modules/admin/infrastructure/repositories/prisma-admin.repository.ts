@@ -1,7 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { formatPersianRelativeTime } from '../../../../common/utils/persian-date.util';
 import { AdminDashboardStats } from '../../domain/entities/admin-dashboard-stats.entity';
 import { AdminDashboardOverviewData } from '../../domain/entities/admin-dashboard-overview.entity';
 import {
@@ -13,10 +16,13 @@ import {
   AdminUserGalleryItem,
   AdminUserItem,
   AdminUsersPaginatedResult,
+  DeleteUserGalleryItemResult,
 } from '../../domain/entities/admin-user-item.entity';
 import {
   AdminVerificationItem,
   AdminVerificationsPaginatedResult,
+  ApproveVerificationResult,
+  RejectVerificationResult,
 } from '../../domain/entities/admin-verification-item.entity';
 import {
   BanUserResult,
@@ -27,6 +33,8 @@ import {
 
 @Injectable()
 export class PrismaAdminRepository implements IAdminRepository {
+  private readonly logger = new Logger(PrismaAdminRepository.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mediaUrlResolver: MediaUrlResolverService,
@@ -534,21 +542,48 @@ export class PrismaAdminRepository implements IAdminRepository {
 
   async getPendingVerifications(
     page: number = 1,
-    limit: number = 10,
+    limit: number = 20,
+    status?: string,
   ): Promise<AdminVerificationsPaginatedResult> {
     const safePage = Math.max(1, page || 1);
-    const safeLimit = Math.max(1, Math.min(100, limit || 10));
+    const safeLimit = Math.max(1, Math.min(100, limit || 20));
     const skip = (safePage - 1) * safeLimit;
 
-    const where: Prisma.UserWhereInput = {
-      profileValidated: false,
-      profile: {
-        selfieUrl: {
-          not: null,
-          notIn: [''],
+    let where: Prisma.UserWhereInput;
+    const normalizedStatus = (status || 'PENDING').toUpperCase();
+
+    if (normalizedStatus === 'APPROVED') {
+      where = {
+        profileValidated: true,
+      };
+    } else if (normalizedStatus === 'ALL') {
+      where = {
+        OR: [
+          {
+            profile: {
+              selfieUrl: {
+                not: null,
+                notIn: [''],
+              },
+            },
+          },
+          {
+            profileValidated: true,
+          },
+        ],
+      };
+    } else {
+      // PENDING (default)
+      where = {
+        profileValidated: false,
+        profile: {
+          selfieUrl: {
+            not: null,
+            notIn: [''],
+          },
         },
-      },
-    };
+      };
+    }
 
     const [total, users] = await Promise.all([
       this.prisma.user.count({ where }),
@@ -584,112 +619,152 @@ export class PrismaAdminRepository implements IAdminRepository {
         }
       }
 
+      const avatarUrl =
+        user.profile?.avatarUrl && user.profile.avatarUrl.trim() !== ''
+          ? this.mediaUrlResolver.resolveUrl(user.profile.avatarUrl)
+          : null;
+
+      const selfieUrl =
+        user.profile?.selfieUrl && user.profile.selfieUrl.trim() !== ''
+          ? this.mediaUrlResolver.resolveUrl(user.profile.selfieUrl)
+          : null;
+
+      const requestedDate = user.profile?.updatedAt ?? user.updatedAt;
+      const verificationStatus = user.profileValidated ? 'APPROVED' : 'PENDING';
+
       return {
+        id: user.profile?.id ?? user.id,
         userId: user.id,
         fullName: user.profile?.fullName ?? '',
-        username: user.profile?.username ?? null,
         email: user.email,
-        avatarUrl: user.profile?.avatarUrl
-          ? this.mediaUrlResolver.resolveUrl(user.profile.avatarUrl)
-          : null,
-        selfieUrl: user.profile?.selfieUrl
-          ? this.mediaUrlResolver.resolveUrl(user.profile.selfieUrl)
-          : null,
-        gender: user.demographic?.gender ?? null,
+        avatarUrl,
+        selfieUrl,
         age,
-        city: user.demographic?.city?.name ?? null,
-        submittedAt: (user.profile?.updatedAt ?? user.updatedAt).toISOString(),
+        gender: user.demographic?.gender ?? null,
+        requestedAt: requestedDate.toISOString(),
+        status: verificationStatus,
         createdAt: user.createdAt.toISOString(),
       };
     });
 
-    const totalPages = Math.ceil(total / safeLimit) || 1;
-
     return {
-      items,
-      total,
-      page: safePage,
-      totalPages,
+      data: items,
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+      },
     };
   }
 
   async approveVerification(
-    userId: number,
-  ): Promise<{ userId: number; profileValidated: boolean }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { profileValidated: true },
-      }),
-      this.prisma.notification.create({
-        data: {
-          userId,
-          type: NotificationType.PROFILE_VERIFIED,
-          metadata: {
-            message: 'Your profile has been verified successfully.',
-            verifiedAt: new Date().toISOString(),
-          },
-          isRead: false,
-        },
-      }),
-    ]);
-
-    return {
-      userId,
-      profileValidated: true,
-    };
-  }
-
-  async rejectVerification(
-    userId: number,
-    reason?: string,
-  ): Promise<{ userId: number; profileValidated: boolean; reason: string | null }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    targetId: number,
+  ): Promise<ApproveVerificationResult> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: targetId },
+          { profile: { id: targetId } },
+        ],
+      },
       include: { profile: true },
     });
 
     if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
+      throw new NotFoundException(
+        `Verification request with ID ${targetId} not found`,
+      );
     }
 
-    const rejectionReason = reason?.trim() || 'Blurry face or does not match profile picture';
+    const verifiedAt = new Date();
 
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id: userId },
-        data: { profileValidated: false },
-      }),
-      this.prisma.profile.update({
-        where: { userId },
-        data: { selfieUrl: null },
+        where: { id: user.id },
+        data: { profileValidated: true },
       }),
       this.prisma.notification.create({
         data: {
-          userId,
+          userId: user.id,
           type: NotificationType.PROFILE_VERIFIED,
           metadata: {
-            status: 'REJECTED',
-            reason: rejectionReason,
-            rejectedAt: new Date().toISOString(),
+            status: 'APPROVED',
+            message: 'Your profile has been verified successfully.',
+            verifiedAt: verifiedAt.toISOString(),
           },
           isRead: false,
         },
       }),
     ]);
 
+    this.logger.log(
+      `Admin approved selfie verification for user ${user.id} (request ID: ${targetId})`,
+    );
+
     return {
-      userId,
-      profileValidated: false,
+      id: targetId,
+      status: 'APPROVED',
+      verifiedAt: verifiedAt.toISOString(),
+    };
+  }
+
+  async rejectVerification(
+    targetId: number,
+    reason: string,
+  ): Promise<RejectVerificationResult> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: targetId },
+          { profile: { id: targetId } },
+        ],
+      },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Verification request with ID ${targetId} not found`,
+      );
+    }
+
+    const rejectedAt = new Date();
+    const rejectionReason = reason?.trim() || 'عکس سلفی تار و نامشخص است';
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { profileValidated: false },
+      }),
+      this.prisma.profile.update({
+        where: { userId: user.id },
+        data: { selfieUrl: null },
+      }),
+      this.prisma.notification.create({
+        data: {
+          userId: user.id,
+          type: NotificationType.PROFILE_VERIFIED,
+          metadata: {
+            status: 'REJECTED',
+            reason: rejectionReason,
+            rejectionReason: rejectionReason,
+            message: rejectionReason,
+            rejectedAt: rejectedAt.toISOString(),
+          },
+          isRead: false,
+        },
+      }),
+    ]);
+
+    this.logger.log(
+      `Admin rejected selfie verification for user ${user.id} (request ID: ${targetId}). Reason: ${rejectionReason}`,
+    );
+
+    return {
+      id: targetId,
+      status: 'REJECTED',
       reason: rejectionReason,
+      rejectedAt: rejectedAt.toISOString(),
     };
   }
 
@@ -813,6 +888,84 @@ export class PrismaAdminRepository implements IAdminRepository {
       transactions: [],
       chatRooms: [],
       interests,
+    };
+  }
+
+  async deleteUserGalleryItem(
+    userId: number,
+    galleryId: number,
+  ): Promise<DeleteUserGalleryItemResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const galleryItem = await this.prisma.userGallery.findFirst({
+      where: { id: galleryId, userId },
+    });
+
+    if (!galleryItem) {
+      throw new NotFoundException(
+        `Gallery image with ID ${galleryId} for user ${userId} not found`,
+      );
+    }
+
+    // Delete database record
+    await this.prisma.userGallery.delete({
+      where: { id: galleryId },
+    });
+
+    // If the deleted photo was the active profile picture, fallback to next gallery photo or null
+    if (
+      galleryItem.isProfilePicture ||
+      user.profile?.profilePictureUrl === galleryItem.imageUrl
+    ) {
+      const nextGallery = await this.prisma.userGallery.findFirst({
+        where: { userId },
+        orderBy: { id: 'asc' },
+      });
+
+      if (nextGallery) {
+        await this.prisma.userGallery.update({
+          where: { id: nextGallery.id },
+          data: { isProfilePicture: true },
+        });
+        await this.prisma.profile.update({
+          where: { userId },
+          data: { profilePictureUrl: nextGallery.imageUrl },
+        });
+      } else {
+        await this.prisma.profile.update({
+          where: { userId },
+          data: { profilePictureUrl: null },
+        });
+      }
+    }
+
+    // Attempt physical file deletion from disk
+    try {
+      const filePath = path.join(process.cwd(), 'uploads', galleryItem.imageUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to unlink physical gallery image file for user ${userId} (${galleryItem.imageUrl}): ${err.message}`,
+      );
+    }
+
+    this.logger.log(
+      `Admin deleted gallery image ${galleryId} for user ${userId}`,
+    );
+
+    return {
+      userId,
+      galleryId,
+      deleted: true,
     };
   }
 }

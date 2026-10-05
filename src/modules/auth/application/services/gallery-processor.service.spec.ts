@@ -58,20 +58,20 @@ describe('GalleryProcessorService', () => {
       );
     });
 
-    it('should reject total upload size exceeding 15MB', () => {
+    it('should reject total upload size exceeding 10MB', () => {
       const fakeFiles: any[] = [
-        { size: 16 * 1024 * 1024, buffer: Buffer.alloc(10) },
+        { size: 11 * 1024 * 1024, buffer: Buffer.alloc(10) },
       ];
 
       expect(() => service.validateBatchConstraints(fakeFiles)).toThrow(
         BadRequestException,
       );
       expect(() => service.validateBatchConstraints(fakeFiles)).toThrow(
-        'exceeds maximum limit of 15MB',
+        'exceeds maximum limit of 10MB',
       );
     });
 
-    it('should accept valid upload of 1 photo <= 15MB', () => {
+    it('should accept valid upload of 1 photo <= 10MB', () => {
       const fakeFiles: any[] = [
         { size: 2 * 1024 * 1024, buffer: Buffer.alloc(10) },
       ];
@@ -81,11 +81,18 @@ describe('GalleryProcessorService', () => {
   });
 
   describe('processAndSaveGalleryImage file size restriction', () => {
-    it('should reject single photo exceeding 3MB', async () => {
-      const largeBuffer = Buffer.alloc(4 * 1024 * 1024); // 4 MB
+    it('should reject single photo below 50KB', async () => {
+      const smallBuffer = Buffer.alloc(40 * 1024); // 40 KB
+      await expect(
+        service.processAndSaveGalleryImage(smallBuffer, 1),
+      ).rejects.toThrow('below minimum allowed limit of 50KB');
+    });
+
+    it('should reject single photo exceeding 10MB', async () => {
+      const largeBuffer = Buffer.alloc(11 * 1024 * 1024); // 11 MB
       await expect(
         service.processAndSaveGalleryImage(largeBuffer, 1),
-      ).rejects.toThrow('exceeds maximum allowed limit of 3MB');
+      ).rejects.toThrow('exceeds maximum allowed limit of 10MB');
     });
   });
 });

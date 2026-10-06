@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export enum AdminUserStatusFilter {
@@ -76,6 +76,42 @@ export class GetAdminUsersDto {
   @IsOptional()
   @IsEnum(AdminGenderFilter)
   gender: AdminGenderFilter = AdminGenderFilter.ALL;
+
+  @ApiPropertyOptional({
+    description: 'Filter by minimum age (inclusive)',
+    example: 24,
+    minimum: 0,
+    maximum: 120,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(120)
+  minAge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter by maximum age (inclusive)',
+    example: 27,
+    minimum: 0,
+    maximum: 120,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(120)
+  maxAge?: number;
 
   @ApiPropertyOptional({
     description: 'Sort field',

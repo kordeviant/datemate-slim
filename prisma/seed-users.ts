@@ -31,10 +31,14 @@ function copyProfileImages() {
   const rootDir = process.cwd();
   const sourceDir = path.join(rootDir, 'seed-icons', 'profiles');
   const avatarsDir = path.join(rootDir, 'uploads', 'avatars');
+  const selfiesDir = path.join(rootDir, 'uploads', 'selfies');
   const imagesDir = path.join(rootDir, 'uploads', 'images');
 
   if (!fs.existsSync(avatarsDir)) {
     fs.mkdirSync(avatarsDir, { recursive: true });
+  }
+  if (!fs.existsSync(selfiesDir)) {
+    fs.mkdirSync(selfiesDir, { recursive: true });
   }
   if (!fs.existsSync(imagesDir)) {
     fs.mkdirSync(imagesDir, { recursive: true });
@@ -47,6 +51,7 @@ function copyProfileImages() {
 
   const files = fs.readdirSync(sourceDir);
   let avatarsCopied = 0;
+  let selfiesCopied = 0;
   let imagesCopied = 0;
 
   for (const file of files) {
@@ -58,13 +63,18 @@ function copyProfileImages() {
     fs.copyFileSync(srcFile, destAvatar);
     avatarsCopied++;
 
+    // Copy to selfies
+    const destSelfie = path.join(selfiesDir, file);
+    fs.copyFileSync(srcFile, destSelfie);
+    selfiesCopied++;
+
     // Copy to images (gallery)
     const destImage = path.join(imagesDir, file);
     fs.copyFileSync(srcFile, destImage);
     imagesCopied++;
   }
 
-  console.log(`📁 Prepared seed images: copied ${avatarsCopied} to uploads/avatars/ and ${imagesCopied} to uploads/images/`);
+  console.log(`📁 Prepared seed images: copied ${avatarsCopied} to avatars/, ${selfiesCopied} to selfies/, and ${imagesCopied} to images/`);
 }
 
 async function getOrCreateCityId(): Promise<number> {
@@ -246,6 +256,7 @@ async function seedUsers() {
           languages: ['en', 'fa'],
           bio: 'Software engineer who loves architecture, gym workouts, and sci-fi books.',
           avatarUrl: `avatars/${user2AvatarFile}`,
+          selfieUrl: `selfies/${user2AvatarFile}`,
           isPrivate: false,
           relationType: RelationType.LONG,
           latitude: 35.7152,

@@ -136,6 +136,51 @@ describe('AdminUsersController', () => {
         search: 'sara',
         status: AdminUserStatusFilter.ALL,
         gender: AdminGenderFilter.FEMALE,
+        minAge: undefined,
+        maxAge: undefined,
+        sortBy: AdminUserSortBy.CREATED_AT,
+        order: AdminSortOrder.DESC,
+      });
+    });
+
+    it('should pass minAge and maxAge filters when provided in query', async () => {
+      const mockResult = {
+        items: [],
+        total: 0,
+        page: 1,
+        totalPages: 1,
+      };
+
+      (mockGetAdminUsersUseCase.execute as jest.Mock).mockResolvedValue(
+        mockResult,
+      );
+
+      const query: GetAdminUsersDto = {
+        page: 1,
+        limit: 9,
+        status: AdminUserStatusFilter.ALL,
+        gender: AdminGenderFilter.ALL,
+        minAge: 24,
+        maxAge: 27,
+        sortBy: AdminUserSortBy.CREATED_AT,
+        order: AdminSortOrder.DESC,
+      };
+
+      const res = await controller.getUsers(query);
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'Users list retrieved',
+        data: mockResult,
+      });
+      expect(mockGetAdminUsersUseCase.execute).toHaveBeenCalledWith({
+        page: 1,
+        limit: 9,
+        search: undefined,
+        status: AdminUserStatusFilter.ALL,
+        gender: AdminGenderFilter.ALL,
+        minAge: 24,
+        maxAge: 27,
         sortBy: AdminUserSortBy.CREATED_AT,
         order: AdminSortOrder.DESC,
       });

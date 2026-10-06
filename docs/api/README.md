@@ -708,6 +708,8 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
   - `search`: Search name, username, or email
   - `status`: `ALL` | `BLOCKED` | `PENDING_VERIFICATION` | `COMPLETED` (default: `ALL`)
   - `gender`: `MALE` | `FEMALE` | `ALL` (default: `ALL`)
+  - `minAge`: Minimum age filter (inclusive, e.g. `24`)
+  - `maxAge`: Maximum age filter (inclusive, e.g. `27`)
   - `sortBy`: `createdAt` | `lastSeenAt` | `wallet` (default: `createdAt`)
   - `order`: `asc` | `desc` (default: `desc`)
 - **Description**: Returns paginated user records with lightweight payload (excluding heavy gallery, bio, transactions, and chatRooms). Includes `id`, `email`, `fullName`, `avatarUrl`, `age`, `gender`, `isPremium`, `hasPendingSelfie`, `profileValidated`, `isOnline`, `bannedUntil`, and `createdAt`.

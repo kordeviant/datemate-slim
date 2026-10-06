@@ -22,6 +22,8 @@ export interface GetAdminUsersParams {
   search?: string;
   status?: AdminUserStatusFilterType;
   gender?: AdminGenderFilterType;
+  minAge?: number;
+  maxAge?: number;
   sortBy?: AdminUserSortByType;
   order?: AdminSortOrderType;
 }

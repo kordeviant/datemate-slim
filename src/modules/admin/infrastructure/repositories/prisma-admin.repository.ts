@@ -261,7 +261,74 @@ export class PrismaAdminRepository implements IAdminRepository {
       where.demographic = {
         ...(where.demographic as Prisma.DemographicWhereInput),
         birthDate: { not: null },
-        gender: { in: ['MALE', 'FEMALE'] },
+        gender:
+          params.gender && params.gender !== 'ALL'
+            ? params.gender
+            : { in: ['MALE', 'FEMALE'] },
+      };
+    }
+
+    const minAge =
+      params.minAge !== undefined &&
+      params.minAge !== null &&
+      (params.minAge as any) !== ''
+        ? Number(params.minAge)
+        : undefined;
+    const maxAge =
+      params.maxAge !== undefined &&
+      params.maxAge !== null &&
+      (params.maxAge as any) !== ''
+        ? Number(params.maxAge)
+        : undefined;
+
+    if (
+      (minAge !== undefined && !isNaN(minAge)) ||
+      (maxAge !== undefined && !isNaN(maxAge))
+    ) {
+      const existingDemographic =
+        (where.demographic as Prisma.DemographicWhereInput) || {};
+      const existingBirthDateFilter = existingDemographic.birthDate;
+      const birthDateFilter: Prisma.DateTimeFilter =
+        typeof existingBirthDateFilter === 'object' &&
+        existingBirthDateFilter !== null
+          ? { ...(existingBirthDateFilter as Prisma.DateTimeFilter) }
+          : {};
+
+      if (minAge !== undefined && !isNaN(minAge)) {
+        // User must be at least minAge: minAge birthday occurred on or before today
+        const maxBirthDate = new Date(
+          Date.UTC(
+            now.getFullYear() - minAge,
+            now.getMonth(),
+            now.getDate(),
+            23,
+            59,
+            59,
+            999,
+          ),
+        );
+        birthDateFilter.lte = maxBirthDate;
+      }
+
+      if (maxAge !== undefined && !isNaN(maxAge)) {
+        // User must be at most maxAge: user has not turned (maxAge + 1) yet
+        const minBirthDate = new Date(
+          Date.UTC(
+            now.getFullYear() - (maxAge + 1),
+            now.getMonth(),
+            now.getDate() + 1,
+            0,
+            0,
+            0,
+            0,
+          ),
+        );
+        birthDateFilter.gte = minBirthDate;
+      }
+
+      where.demographic = {
+        ...existingDemographic,
+        birthDate: birthDateFilter,
       };
     }
 
@@ -552,36 +619,27 @@ export class PrismaAdminRepository implements IAdminRepository {
     let where: Prisma.UserWhereInput;
     const normalizedStatus = (status || 'PENDING').toUpperCase();
 
+    const selfieExistsCondition: Prisma.ProfileWhereInput = {
+      selfieUrl: {
+        not: null,
+        notIn: [''],
+      },
+    };
+
     if (normalizedStatus === 'APPROVED') {
       where = {
         profileValidated: true,
+        profile: selfieExistsCondition,
       };
     } else if (normalizedStatus === 'ALL') {
       where = {
-        OR: [
-          {
-            profile: {
-              selfieUrl: {
-                not: null,
-                notIn: [''],
-              },
-            },
-          },
-          {
-            profileValidated: true,
-          },
-        ],
+        profile: selfieExistsCondition,
       };
     } else {
-      // PENDING (default)
+      // PENDING (default) - selfie must exist and profile must not be validated
       where = {
         profileValidated: false,
-        profile: {
-          selfieUrl: {
-            not: null,
-            notIn: [''],
-          },
-        },
+        profile: selfieExistsCondition,
       };
     }
 
@@ -608,7 +666,12 @@ export class PrismaAdminRepository implements IAdminRepository {
     ]);
 
     const now = new Date();
-    const items: AdminVerificationItem[] = users.map((user) => {
+    const items: AdminVerificationItem[] = users
+      .filter(
+        (user) =>
+          Boolean(user.profile?.selfieUrl && user.profile.selfieUrl.trim() !== ''),
+      )
+      .map((user) => {
       let age: number | null = null;
       if (user.demographic?.birthDate) {
         const birth = new Date(user.demographic.birthDate);

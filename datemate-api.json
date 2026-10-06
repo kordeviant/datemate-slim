@@ -622,7 +622,7 @@
       "put": {
         "operationId": "UsersController_updateProfile",
         "summary": "Update user profile (step-by-step onboarding, edit profile & gallery)",
-        "description": "Updates user profile using Android schema (language, lat, lon, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences, gallery, profilePicture }). Also supports avatar, selfie, and at most 1 gallery photo upload per request (WebP/JPEG, min 50KB, max 10MB).",
+        "description": "Updates user profile using Android schema (language, lat, lon, profilePictureId, gallery, Profile: { fullName, username, phoneNumber, bio, languages, Demographic, Preferences }). Supports avatar, selfie, and at most 1 gallery photo upload per request (WebP/JPEG, min 50KB, max 10MB). Single canonical contract: gallery and profilePictureId are sent strictly outside the Profile object at the root level (no duplicate keys). profilePictureId can be provided to select an existing gallery photo as profile picture without needing profilePicture key.",
         "parameters": [
           {
             "name": "authorization",
@@ -682,7 +682,7 @@
       "post": {
         "operationId": "UsersController_updateProfilePost",
         "summary": "Update user profile via POST (mobile client onboarding & edit profile)",
-        "description": "Handles profile updates for mobile clients that submit via HTTP POST to /users/profile.",
+        "description": "Handles profile updates for mobile clients that submit via HTTP POST to /users/profile. Only 1 gallery photo upload allowed per request.",
         "parameters": [
           {
             "name": "authorization",
@@ -850,6 +850,47 @@
           },
           "404": {
             "description": "Avatar asset not found"
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/assets/selfies/{filename}": {
+      "get": {
+        "operationId": "AssetsController_getSelfie",
+        "summary": "Public asset route: selfies",
+        "description": "Serves user identity verification selfie photos.",
+        "parameters": [
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "description": "Safe asset filename",
+            "schema": {
+              "example": "selfie_user_123.webp",
+              "type": "string"
+            }
+          },
+          {
+            "name": "if-none-match",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Selfie binary stream"
+          },
+          "304": {
+            "description": "Not Modified (cached)"
+          },
+          "404": {
+            "description": "Selfie asset not found"
           }
         },
         "tags": [
@@ -1823,6 +1864,30 @@
             }
           },
           {
+            "name": "minAge",
+            "required": false,
+            "in": "query",
+            "description": "Filter by minimum age (inclusive)",
+            "schema": {
+              "minimum": 0,
+              "maximum": 120,
+              "example": 24,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxAge",
+            "required": false,
+            "in": "query",
+            "description": "Filter by maximum age (inclusive)",
+            "schema": {
+              "minimum": 0,
+              "maximum": 120,
+              "example": 27,
+              "type": "number"
+            }
+          },
+          {
             "name": "sortBy",
             "required": false,
             "in": "query",
@@ -1865,6 +1930,157 @@
           },
           "401": {
             "description": "Missing/invalid token or insufficient administrator privileges"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/admin/users/{id}": {
+      "get": {
+        "operationId": "AdminUsersController_getUserDetails",
+        "summary": "Get user detailed information for admin modal/details view",
+        "description": "Retrieves complete user information including profile, demographics, gallery, transactions, chatRooms, and interests.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User details retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailsResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found / کاربر مورد نظر یافت نشد"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "AdminUsersController_updateUser",
+        "summary": "Update user details and/or confirm selfie verification",
+        "description": "Allows admin to update user fields including confirming their selfie verification (setting profileValidated = true), bio, fullName, wallet, and premium status.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID to update",
+            "schema": {
+              "example": 101,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAdminUserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "AdminUsersController_updateUserPut",
+        "summary": "Update user details and/or confirm selfie verification (PUT alias)",
+        "description": "Allows admin to update user fields (PUT alias for PATCH :id).",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "User ID to update",
+            "schema": {
+              "example": 101,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAdminUserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found"
           }
         },
         "tags": [
@@ -1977,114 +2193,6 @@
         ]
       }
     },
-    "/admin/users/{id}": {
-      "patch": {
-        "operationId": "AdminUsersController_updateUser",
-        "summary": "Update user details and/or confirm selfie verification",
-        "description": "Allows admin to update user fields including confirming their selfie verification (setting profileValidated = true), bio, fullName, wallet, and premium status.",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "User ID to update",
-            "schema": {
-              "example": 101,
-              "type": "number"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAdminUserDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "User updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateAdminUserResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing/invalid token or insufficient administrator privileges"
-          },
-          "404": {
-            "description": "User not found"
-          }
-        },
-        "tags": [
-          "Admin - Users"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
-        ]
-      },
-      "put": {
-        "operationId": "AdminUsersController_updateUserPut",
-        "summary": "Update user details and/or confirm selfie verification (PUT alias)",
-        "description": "Allows admin to update user fields (PUT alias for PATCH :id).",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "User ID to update",
-            "schema": {
-              "example": 101,
-              "type": "number"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAdminUserDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "User updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateAdminUserResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing/invalid token or insufficient administrator privileges"
-          },
-          "404": {
-            "description": "User not found"
-          }
-        },
-        "tags": [
-          "Admin - Users"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
-        ]
-      }
-    },
     "/admin/users/{userId}/gallery/{galleryId}": {
       "delete": {
         "operationId": "AdminUsersController_deleteUserGalleryItem",
@@ -2175,20 +2283,20 @@
             "in": "query",
             "description": "Filter by verification status",
             "schema": {
-              "type": "string",
+              "default": "PENDING",
               "enum": [
                 "PENDING",
                 "APPROVED",
                 "REJECTED",
                 "ALL"
               ],
-              "default": "PENDING"
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Pending verifications retrieved successfully",
+            "description": "Verifications retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -2274,7 +2382,7 @@
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2737,6 +2845,12 @@
             "description": "Profile picture URL used for swiping (selected from gallery, distinct from avatar)",
             "nullable": true
           },
+          "profilePictureId": {
+            "type": "number",
+            "example": 12,
+            "description": "Active profile picture gallery ID",
+            "nullable": true
+          },
           "profileCompleted": {
             "type": "boolean",
             "example": true,
@@ -3085,16 +3199,6 @@
             "example": "/uploads/avatars/default.webp",
             "description": "Avatar image URL or path"
           },
-          "profilePicture": {
-            "type": "string",
-            "example": "http://localhost:3000/assets/images/gallery_1_123.webp",
-            "description": "Profile picture URL or path selected from gallery (used for swiping, distinct from avatar)"
-          },
-          "profilePictureId": {
-            "type": "number",
-            "example": 12,
-            "description": "Gallery image ID to select as primary profile swipe picture"
-          },
           "Answers": {
             "type": "object",
             "description": "Question answers formatted as { [questionId]: answerId } where answerId starts from 0 for each question (e.g. { \"1\": 0, \"2\": 1 }), or array of IDs",
@@ -3146,6 +3250,31 @@
           "favorites": {
             "type": "object",
             "description": "User selected interests map or list (alias)"
+          }
+        }
+      },
+      "GalleryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12,
+            "description": "Gallery image ID (for updating existing gallery image or setting as profile picture)"
+          },
+          "image": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/images/gallery_1_123.webp",
+            "description": "Image URL or path for gallery photo"
+          },
+          "description": {
+            "type": "string",
+            "example": "Weekend trip",
+            "description": "Optional caption or description for gallery photo"
+          },
+          "isProfilePicture": {
+            "type": "boolean",
+            "example": true,
+            "description": "Whether this gallery image should be set as the profile picture. Optional; if not sent, the first gallery image is set as profile picture by default."
           }
         }
       },
@@ -3359,22 +3488,24 @@
               "3": 0
             }
           },
-          "profilePicture": {
-            "type": "string",
-            "example": "http://localhost:3000/assets/images/gallery_1_123.webp",
-            "description": "Profile picture URL or path selected from gallery (flat fallback)"
-          },
           "profilePictureId": {
             "type": "number",
             "example": 12,
             "description": "Gallery image ID to select as primary profile swipe picture (flat fallback)"
           },
+          "profilePicture": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/images/gallery_1_123.webp",
+            "description": "Deprecated. No need to send in request; use profilePictureId or gallery.isProfilePicture instead.",
+            "deprecated": true
+          },
           "gallery": {
-            "description": "Gallery items to update (max 6 items in update API). Accepts list of items, URLs, or IDs.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+            "description": "Single gallery photo object containing image and/or isProfilePicture flag. Multiple gallery items in one request are not allowed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GalleryDto"
+              }
+            ]
           },
           "deleteGalleryIds": {
             "description": "List of gallery image IDs to delete/remove",
@@ -4242,160 +4373,82 @@
           "data"
         ]
       },
-      "AdminUserGalleryItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "number",
-            "example": 1,
-            "description": "Gallery photo ID"
-          },
-          "url": {
-            "type": "string",
-            "example": "http://localhost:3000/assets/images/gallery_101_1728000000000_abc.webp",
-            "description": "Resolved public image URL"
-          },
-          "description": {
-            "type": "string",
-            "example": "Weekend vibes",
-            "description": "Photo caption or description",
-            "nullable": true
-          },
-          "likesCount": {
-            "type": "number",
-            "example": 12,
-            "description": "Likes count"
-          },
-          "isProfilePicture": {
-            "type": "boolean",
-            "example": true,
-            "description": "Whether this photo is the active profile swipe photo"
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2026-10-04T12:00:00.000Z",
-            "description": "Upload timestamp"
-          }
-        },
-        "required": [
-          "id",
-          "url",
-          "likesCount",
-          "isProfilePicture"
-        ]
-      },
       "AdminUserListItemDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "number",
-            "example": 101
+            "example": 1
           },
           "email": {
             "type": "string",
-            "example": "Sarahemati@gmail.com"
+            "example": "user@example.com"
           },
           "fullName": {
             "type": "string",
-            "example": "سارا همتی"
-          },
-          "username": {
-            "type": "string",
-            "example": "sara_h",
-            "nullable": true
+            "example": "علی رضایی"
           },
           "avatarUrl": {
             "type": "string",
-            "example": "http://localhost:3000/assets/avatars/avatar_1.webp",
+            "example": "https://api-datemate.testdevvvv.site/uploads/avatars/user1.webp",
             "nullable": true
           },
-          "bio": {
+          "age": {
+            "type": "number",
+            "example": 28,
+            "nullable": true
+          },
+          "gender": {
             "type": "string",
-            "example": "علاقه‌مند به سفر و کتاب‌خوانی",
-            "nullable": true,
-            "description": "User biography / about me"
+            "example": "MALE",
+            "nullable": true
           },
           "isPremium": {
             "type": "boolean",
             "example": true
           },
-          "profileValidated": {
-            "type": "boolean",
-            "example": false
-          },
-          "selfieVerified": {
+          "hasPendingSelfie": {
             "type": "boolean",
             "example": false,
-            "description": "Whether the user selfie verification is confirmed/approved"
+            "description": "Whether user has a pending selfie submitted for verification"
           },
-          "isBanned": {
+          "profileValidated": {
             "type": "boolean",
-            "example": false
+            "example": true,
+            "description": "Whether user profile has been validated by admin"
+          },
+          "isOnline": {
+            "type": "boolean",
+            "example": true
           },
           "bannedUntil": {
             "type": "string",
             "example": null,
             "nullable": true
           },
-          "gender": {
+          "createdAt": {
             "type": "string",
-            "example": "FEMALE",
-            "nullable": true
-          },
-          "age": {
-            "type": "number",
-            "example": 23,
-            "nullable": true
+            "example": "2026-03-15T10:30:00.000Z"
           },
           "city": {
             "type": "string",
-            "example": "اسلامشهر",
+            "example": "تهران",
             "nullable": true
-          },
-          "registrationCompleted": {
-            "type": "boolean",
-            "example": true
-          },
-          "isOnline": {
-            "type": "boolean",
-            "example": true
-          },
-          "lastSeenAt": {
-            "type": "string",
-            "example": "2026-10-04T07:15:00.000Z",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "example": "2024-11-20T10:00:00.000Z"
-          },
-          "gallery": {
-            "description": "User photo gallery",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminUserGalleryItemDto"
-            }
           }
         },
         "required": [
           "id",
           "email",
           "fullName",
-          "username",
           "avatarUrl",
-          "isPremium",
-          "profileValidated",
-          "selfieVerified",
-          "isBanned",
-          "bannedUntil",
-          "gender",
           "age",
-          "city",
-          "registrationCompleted",
+          "gender",
+          "isPremium",
+          "hasPendingSelfie",
+          "profileValidated",
           "isOnline",
-          "lastSeenAt",
-          "createdAt",
-          "gallery"
+          "bannedUntil",
+          "createdAt"
         ]
       },
       "AdminUsersPaginatedDataDto": {
@@ -4440,6 +4493,340 @@
           },
           "data": {
             "$ref": "#/components/schemas/AdminUsersPaginatedDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
+      "AdminUserDemographicDetailsDto": {
+        "type": "object",
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "example": "1997-07-05",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "example": "FEMALE",
+            "nullable": true
+          },
+          "age": {
+            "type": "number",
+            "example": 29,
+            "nullable": true
+          },
+          "cityName": {
+            "type": "string",
+            "example": "تهران",
+            "nullable": true
+          },
+          "job": {
+            "type": "string",
+            "example": "طراح محصول",
+            "nullable": true
+          },
+          "degree": {
+            "type": "string",
+            "example": "کارشناسی ارشد",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "example": 168,
+            "nullable": true
+          },
+          "weight": {
+            "type": "number",
+            "example": 58,
+            "nullable": true
+          },
+          "religion": {
+            "type": "string",
+            "example": null,
+            "nullable": true
+          },
+          "relationStatus": {
+            "type": "string",
+            "example": "مجرد",
+            "nullable": true
+          }
+        }
+      },
+      "AdminUserGalleryDetailsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 101
+          },
+          "url": {
+            "type": "string",
+            "example": "https://api-datemate.testdevvvv.site/uploads/gallery/photo1.webp"
+          },
+          "likesCount": {
+            "type": "number",
+            "example": 24
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-01-10T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "likesCount",
+          "createdAt"
+        ]
+      },
+      "AdminUserTransactionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 501
+          },
+          "title": {
+            "type": "string",
+            "example": "خرید اشتراک طلایی دیتمیت ۳ ماهه"
+          },
+          "amount": {
+            "type": "number",
+            "example": 450000
+          },
+          "planName": {
+            "type": "string",
+            "example": "اشتراک ویژه طلایی"
+          },
+          "date": {
+            "type": "string",
+            "example": "۱۴۰۳/۱۱/۲۰"
+          },
+          "bank": {
+            "type": "string",
+            "example": "بانک ملت"
+          },
+          "cardNumber": {
+            "type": "string",
+            "example": "****۶۰۳۷"
+          },
+          "status": {
+            "type": "string",
+            "example": "SUCCESS"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "amount",
+          "planName",
+          "date",
+          "bank",
+          "cardNumber",
+          "status"
+        ]
+      },
+      "AdminUserChatRoomDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "کافهگردی و هنر"
+          },
+          "memberCount": {
+            "type": "number",
+            "example": 45
+          },
+          "imageUrl": {
+            "type": "string",
+            "example": "https://images.unsplash.com/photo-1511632765486-a01980e01a18"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "memberCount",
+          "imageUrl"
+        ]
+      },
+      "AdminUserDetailsDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12
+          },
+          "email": {
+            "type": "string",
+            "example": "sarah.smith@example.com"
+          },
+          "role": {
+            "type": "string",
+            "example": "USER"
+          },
+          "language": {
+            "type": "string",
+            "example": "FA"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "سارا محمدی"
+          },
+          "username": {
+            "type": "string",
+            "example": "sarah_m",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "09123456789",
+            "nullable": true
+          },
+          "bio": {
+            "type": "string",
+            "example": "علاقهمند به سفر، کوهنوردی و مطالعه کتابهای روانشناسی.",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "example": "https://api-datemate.testdevvvv.site/uploads/avatars/user12.webp",
+            "nullable": true
+          },
+          "selfieUrl": {
+            "type": "string",
+            "example": "https://api-datemate.testdevvvv.site/uploads/selfies/user12.webp",
+            "nullable": true
+          },
+          "profileValidated": {
+            "type": "boolean",
+            "example": true
+          },
+          "hasPendingSelfie": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether user has a pending selfie submitted for verification"
+          },
+          "bannedUntil": {
+            "type": "string",
+            "example": null,
+            "nullable": true
+          },
+          "wallet": {
+            "type": "number",
+            "example": 150000
+          },
+          "score": {
+            "type": "number",
+            "example": 420
+          },
+          "notificationsOn": {
+            "type": "boolean",
+            "example": true
+          },
+          "isPrivate": {
+            "type": "boolean",
+            "example": false
+          },
+          "isOnline": {
+            "type": "boolean",
+            "example": false
+          },
+          "isPremium": {
+            "type": "boolean",
+            "example": true
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "example": "2026-10-05T12:00:00.000Z",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-11-20T14:22:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "example": "2026-04-01T08:15:00.000Z"
+          },
+          "demographic": {
+            "$ref": "#/components/schemas/AdminUserDemographicDetailsDto"
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserGalleryDetailsDto"
+            }
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserTransactionDto"
+            }
+          },
+          "chatRooms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserChatRoomDto"
+            }
+          },
+          "interests": {
+            "example": [
+              "Traditional Cuisine",
+              "Hiking",
+              "Art & Design",
+              "Cinema",
+              "Coffee"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "language",
+          "fullName",
+          "profileValidated",
+          "hasPendingSelfie",
+          "wallet",
+          "score",
+          "notificationsOn",
+          "isPrivate",
+          "isOnline",
+          "isPremium",
+          "createdAt",
+          "updatedAt",
+          "demographic",
+          "gallery",
+          "transactions",
+          "chatRooms",
+          "interests"
+        ]
+      },
+      "AdminUserDetailsResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "User details retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminUserDetailsDataDto"
           }
         },
         "required": [
@@ -4576,6 +4963,56 @@
         },
         "required": [
           "status",
+          "message",
+          "data"
+        ]
+      },
+      "DeleteUserGalleryDataDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "example": 63,
+            "description": "User ID"
+          },
+          "galleryId": {
+            "type": "number",
+            "example": 68,
+            "description": "Deleted gallery photo ID"
+          },
+          "deleted": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "userId",
+          "galleryId",
+          "deleted"
+        ]
+      },
+      "DeleteGalleryResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Gallery image deleted successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeleteUserGalleryDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
           "message",
           "data"
         ]
@@ -4755,7 +5192,8 @@
           "reason": {
             "type": "string",
             "description": "Reason for rejecting identity selfie verification (max 255 characters)",
-            "example": "Image is blurry or does not match profile picture."
+            "example": "Image is blurry or does not match profile picture.",
+            "maxLength": 255
           }
         }
       },
@@ -4803,56 +5241,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/RejectVerificationDataDto"
-          }
-        },
-        "required": [
-          "status",
-          "success",
-          "message",
-          "data"
-        ]
-      },
-      "DeleteUserGalleryDataDto": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "number",
-            "example": 63,
-            "description": "User ID"
-          },
-          "galleryId": {
-            "type": "number",
-            "example": 68,
-            "description": "Deleted gallery photo ID"
-          },
-          "deleted": {
-            "type": "boolean",
-            "example": true
-          }
-        },
-        "required": [
-          "userId",
-          "galleryId",
-          "deleted"
-        ]
-      },
-      "DeleteGalleryResponseDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "example": "success"
-          },
-          "success": {
-            "type": "boolean",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "example": "Gallery image deleted successfully"
-          },
-          "data": {
-            "$ref": "#/components/schemas/DeleteUserGalleryDataDto"
           }
         },
         "required": [

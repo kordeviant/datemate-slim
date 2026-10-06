@@ -76,6 +76,8 @@ export class AdminUsersController {
       search: query.search,
       status: query.status,
       gender: query.gender,
+      minAge: query.minAge,
+      maxAge: query.maxAge,
       sortBy: query.sortBy,
       order: query.order,
     });

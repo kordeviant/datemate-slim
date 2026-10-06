@@ -289,6 +289,84 @@ describe('PrismaAdminRepository', () => {
         }),
       );
     });
+
+    it('should correctly filter users by minAge and maxAge', async () => {
+      mockPrisma.user.count.mockResolvedValue(0);
+      mockPrisma.user.findMany.mockResolvedValue([]);
+
+      const now = new Date();
+      await repository.getUsers({
+        page: 1,
+        limit: 9,
+        status: AdminUserStatusFilter.ALL,
+        gender: AdminGenderFilter.ALL,
+        minAge: 24,
+        maxAge: 27,
+      });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            demographic: expect.objectContaining({
+              birthDate: expect.objectContaining({
+                lte: expect.any(Date),
+                gte: expect.any(Date),
+              }),
+            }),
+          }),
+        }),
+      );
+
+      const lastCall = mockPrisma.user.findMany.mock.calls.slice(-1)[0][0];
+      const birthDateFilter = lastCall.where.demographic.birthDate;
+
+      // minAge = 24: max birthDate is (current year - 24)
+      expect(birthDateFilter.lte.getUTCFullYear()).toBe(
+        now.getFullYear() - 24,
+      );
+      // maxAge = 27: min birthDate is (current year - 28)
+      expect(birthDateFilter.gte.getUTCFullYear()).toBe(
+        now.getFullYear() - 28,
+      );
+    });
+
+    it('should correctly filter with only minAge or only maxAge combined with gender', async () => {
+      mockPrisma.user.count.mockResolvedValue(0);
+      mockPrisma.user.findMany.mockResolvedValue([]);
+
+      const now = new Date();
+
+      // Only minAge with specific gender
+      await repository.getUsers({
+        page: 1,
+        limit: 10,
+        gender: AdminGenderFilter.MALE,
+        minAge: 25,
+      });
+
+      const callWithMinAge = mockPrisma.user.findMany.mock.calls.slice(-1)[0][0];
+      expect(callWithMinAge.where.demographic.gender).toBe(AdminGenderFilter.MALE);
+      expect(callWithMinAge.where.demographic.birthDate.lte).toBeDefined();
+      expect(callWithMinAge.where.demographic.birthDate.gte).toBeUndefined();
+      expect(callWithMinAge.where.demographic.birthDate.lte.getUTCFullYear()).toBe(
+        now.getFullYear() - 25,
+      );
+
+      // Only maxAge
+      await repository.getUsers({
+        page: 1,
+        limit: 10,
+        gender: AdminGenderFilter.ALL,
+        maxAge: 30,
+      });
+
+      const callWithMaxAge = mockPrisma.user.findMany.mock.calls.slice(-1)[0][0];
+      expect(callWithMaxAge.where.demographic.birthDate.gte).toBeDefined();
+      expect(callWithMaxAge.where.demographic.birthDate.lte).toBeUndefined();
+      expect(callWithMaxAge.where.demographic.birthDate.gte.getUTCFullYear()).toBe(
+        now.getFullYear() - 31,
+      );
+    });
   });
 
   describe('banUser', () => {
@@ -426,7 +504,7 @@ describe('PrismaAdminRepository', () => {
       expect(result.data[0].avatarUrl).toBeNull();
     });
 
-    it('should query profileValidated true when status is APPROVED', async () => {
+    it('should query profileValidated true and selfieUrl exists when status is APPROVED', async () => {
       mockPrisma.user.count.mockResolvedValueOnce(0);
       mockPrisma.user.findMany.mockResolvedValueOnce([]);
 
@@ -434,11 +512,19 @@ describe('PrismaAdminRepository', () => {
 
       expect(result.data).toEqual([]);
       expect(mockPrisma.user.count).toHaveBeenCalledWith({
-        where: { profileValidated: true },
+        where: {
+          profileValidated: true,
+          profile: {
+            selfieUrl: {
+              not: null,
+              notIn: [''],
+            },
+          },
+        },
       });
     });
 
-    it('should query all verifications when status is ALL', async () => {
+    it('should query all verifications where selfieUrl exists when status is ALL', async () => {
       mockPrisma.user.count.mockResolvedValueOnce(0);
       mockPrisma.user.findMany.mockResolvedValueOnce([]);
 
@@ -447,19 +533,12 @@ describe('PrismaAdminRepository', () => {
       expect(result.data).toEqual([]);
       expect(mockPrisma.user.count).toHaveBeenCalledWith({
         where: {
-          OR: [
-            {
-              profile: {
-                selfieUrl: {
-                  not: null,
-                  notIn: [''],
-                },
-              },
+          profile: {
+            selfieUrl: {
+              not: null,
+              notIn: [''],
             },
-            {
-              profileValidated: true,
-            },
-          ],
+          },
         },
       });
     });

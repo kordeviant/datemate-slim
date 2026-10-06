@@ -133,6 +133,21 @@ describe('PrismaAdminRepository', () => {
         selfieUrl: 'http://localhost:3000/assets/selfies/selfie45.webp',
         createdAt: '2026-03-03T11:20:00.000Z',
       });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 4,
+          where: expect.objectContaining({
+            profileValidated: false,
+            profile: expect.objectContaining({
+              selfieUrl: {
+                not: null,
+                notIn: [''],
+              },
+            }),
+          }),
+        }),
+      );
     });
   });
 

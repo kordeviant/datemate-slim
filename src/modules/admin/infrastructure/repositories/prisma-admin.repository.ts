@@ -146,7 +146,7 @@ export class PrismaAdminRepository implements IAdminRepository {
       },
     ];
 
-    // 4. Users whose selfie is not confirmed (pending verification)
+    // 4. Users whose selfie is not confirmed (pending verification) - only last 4 who have selfieUrl and not validated
     const pendingWithSelfie = await this.prisma.user.findMany({
       where: {
         profileValidated: false,
@@ -157,40 +157,28 @@ export class PrismaAdminRepository implements IAdminRepository {
           },
         },
       },
-      take: 5,
+      take: 4,
       orderBy: { createdAt: 'desc' },
       include: { profile: true },
     });
 
-    let pendingUsers = [...pendingWithSelfie];
-    if (pendingUsers.length < 5) {
-      const existingIds = pendingUsers.map((u) => u.id);
-      const otherUnconfirmedUsers = await this.prisma.user.findMany({
-        where: {
-          profileValidated: false,
-          profile: { isNot: null },
-          id: { notIn: existingIds },
-        },
-        take: 5 - pendingUsers.length,
-        orderBy: { createdAt: 'desc' },
-        include: { profile: true },
-      });
-      pendingUsers = pendingUsers.concat(otherUnconfirmedUsers);
-    }
-
-    const recentSelfies = pendingUsers.map((u, index) => ({
-      id: index + 1,
-      userId: u.id,
-      fullName: u.profile?.fullName ?? '',
-      email: u.email,
-      avatar: u.profile?.avatarUrl
-        ? this.mediaUrlResolver.resolveUrl(u.profile.avatarUrl)
-        : null,
-      selfieUrl: u.profile?.selfieUrl
-        ? this.mediaUrlResolver.resolveUrl(u.profile.selfieUrl)
-        : null,
-      createdAt: u.createdAt.toISOString(),
-    }));
+    const recentSelfies = pendingWithSelfie
+      .filter(
+        (u) =>
+          Boolean(u.profile?.selfieUrl && u.profile.selfieUrl.trim() !== ''),
+      )
+      .slice(0, 4)
+      .map((u, index) => ({
+        id: index + 1,
+        userId: u.id,
+        fullName: u.profile?.fullName ?? '',
+        email: u.email,
+        avatar: u.profile?.avatarUrl
+          ? this.mediaUrlResolver.resolveUrl(u.profile.avatarUrl)
+          : null,
+        selfieUrl: this.mediaUrlResolver.resolveUrl(u.profile!.selfieUrl!),
+        createdAt: u.createdAt.toISOString(),
+      }));
 
     const effectiveStats: AdminDashboardStats = {
       ...stats,

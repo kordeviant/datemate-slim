@@ -59,4 +59,105 @@ export class UpdateAdminUserDto {
   @IsOptional()
   @IsNumber()
   wallet?: number;
+
+  @ApiPropertyOptional({ example: 'MALE', enum: ['MALE', 'FEMALE'] })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/avatar.webp' })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+
+  @ApiPropertyOptional({ example: 'alireza' })
+  @IsOptional()
+  @IsString()
+  username?: string | null;
+
+  @ApiPropertyOptional({ example: '09123456789' })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string | null;
+
+  @ApiPropertyOptional({ example: '1998-11-25' })
+  @IsOptional()
+  @IsString()
+  birthDate?: string;
+
+  @ApiPropertyOptional({ example: 26 })
+  @IsOptional()
+  @IsNumber()
+  age?: number;
+
+  @ApiPropertyOptional({ example: 178 })
+  @IsOptional()
+  @IsNumber()
+  height?: number;
+
+  @ApiPropertyOptional({ example: 72 })
+  @IsOptional()
+  @IsNumber()
+  weight?: number;
+
+  @ApiPropertyOptional({ example: 'BACHELOR_DEGREE' })
+  @IsOptional()
+  @IsString()
+  degree?: string | null;
+
+  @ApiPropertyOptional({ example: 'مهندس نرم‌افزار' })
+  @IsOptional()
+  @IsString()
+  job?: string | null;
+
+  @ApiPropertyOptional({ example: 'SINGLE' })
+  @IsOptional()
+  @IsString()
+  relationStatus?: string | null;
+
+  @ApiPropertyOptional({ example: 'ISLAM' })
+  @IsOptional()
+  @IsString()
+  religion?: string | null;
+
+  @ApiPropertyOptional({ example: 'تهران' })
+  @IsOptional()
+  @IsString()
+  city?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  profile?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  demographic?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  preferences?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  personality?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  Answers?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  answers?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  LikedActivities?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  likedActivities?: any;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  interests?: any;
 }

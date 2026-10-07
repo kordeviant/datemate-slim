@@ -44,6 +44,28 @@ export interface UpdateAdminUserParams {
   fullName?: string;
   isPremium?: boolean;
   wallet?: number;
+  gender?: string;
+  avatarUrl?: string;
+  username?: string | null;
+  phoneNumber?: string | null;
+  birthDate?: string;
+  age?: number;
+  height?: number;
+  weight?: number;
+  degree?: string | null;
+  job?: string | null;
+  relationStatus?: string | null;
+  religion?: string | null;
+  city?: string | null;
+  profile?: any;
+  demographic?: any;
+  preferences?: any;
+  personality?: any;
+  Answers?: any;
+  answers?: any;
+  LikedActivities?: any;
+  likedActivities?: any;
+  interests?: any;
 }
 
 export interface IAdminRepository {

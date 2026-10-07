@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { NotificationType, Prisma } from '@prisma/client';
+import { Gender, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 import { formatPersianRelativeTime } from '../../../../common/utils/persian-date.util';
@@ -369,7 +369,7 @@ export class PrismaAdminRepository implements IAdminRepository {
   ): Promise<AdminUserItem> {
     const existing = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
+      include: { profile: true, demographic: true },
     });
 
     if (!existing) {
@@ -403,6 +403,41 @@ export class PrismaAdminRepository implements IAdminRepository {
     if (params.fullName !== undefined) {
       profileData.fullName = params.fullName;
     }
+    if (params.username !== undefined) {
+      profileData.username = params.username;
+    }
+    if (params.phoneNumber !== undefined) {
+      profileData.phoneNumber = params.phoneNumber;
+    }
+    if (params.avatarUrl !== undefined && params.avatarUrl) {
+      profileData.avatarUrl = params.avatarUrl;
+    }
+
+    const targetGender = params.gender || params.demographic?.gender;
+    const targetBirthDate = params.birthDate || params.demographic?.birthDate;
+    const targetHeight = params.height ?? params.demographic?.height;
+    const targetWeight = params.weight ?? params.demographic?.weight;
+    const targetJob = params.job ?? params.demographic?.job;
+
+    const demographicData: any = {};
+    if (targetGender) {
+      demographicData.gender = targetGender.toUpperCase() === 'FEMALE' ? Gender.FEMALE : Gender.MALE;
+    }
+    if (targetBirthDate) {
+      const parsed = new Date(String(targetBirthDate).replace(/\//g, '-'));
+      if (!isNaN(parsed.getTime())) {
+        demographicData.birthDate = parsed;
+      }
+    }
+    if (targetHeight !== undefined && !isNaN(Number(targetHeight))) {
+      demographicData.height = Number(targetHeight);
+    }
+    if (targetWeight !== undefined && !isNaN(Number(targetWeight))) {
+      demographicData.weight = Number(targetWeight);
+    }
+    if (targetJob !== undefined) {
+      demographicData.job = targetJob;
+    }
 
     const operations: any[] = [];
 
@@ -430,12 +465,99 @@ export class PrismaAdminRepository implements IAdminRepository {
               userId,
               fullName: params.fullName || 'User',
               bio: params.bio ?? null,
-              avatarUrl: '',
+              avatarUrl: params.avatarUrl || '',
               latitude: 0,
               longitude: 0,
             },
           }),
         );
+      }
+    }
+
+    if (Object.keys(demographicData).length > 0) {
+      if (existing.demographic) {
+        operations.push(
+          this.prisma.demographic.update({
+            where: { userId },
+            data: demographicData,
+          }),
+        );
+      } else {
+        operations.push(
+          this.prisma.demographic.create({
+            data: {
+              userId,
+              gender: demographicData.gender || Gender.MALE,
+              birthDate: demographicData.birthDate || new Date('1998-01-01'),
+              ...demographicData,
+            },
+          }),
+        );
+      }
+    }
+
+    const answersObj = params.Answers || params.answers;
+    if (answersObj && typeof answersObj === 'object') {
+      const answerIds: number[] = [];
+      Object.values(answersObj).forEach((val) => {
+        if (Array.isArray(val)) {
+          val.forEach((id) => {
+            if (typeof id === 'number') answerIds.push(id);
+          });
+        } else if (typeof val === 'number') {
+          answerIds.push(val);
+        }
+      });
+
+      if (answerIds.length > 0) {
+        operations.push(
+          this.prisma.userQuestionAnswer.deleteMany({
+            where: { userId },
+          }),
+        );
+        for (const ansId of answerIds) {
+          operations.push(
+            this.prisma.userQuestionAnswer.create({
+              data: {
+                userId,
+                questionAnswerId: ansId,
+              },
+            }),
+          );
+        }
+      }
+    }
+
+    const activitiesObj = params.LikedActivities || params.likedActivities;
+    if (activitiesObj && typeof activitiesObj === 'object') {
+      const interestIds: number[] = [];
+      Object.values(activitiesObj).forEach((val) => {
+        if (Array.isArray(val)) {
+          val.forEach((id) => {
+            if (typeof id === 'number') interestIds.push(id);
+          });
+        } else if (typeof val === 'number') {
+          interestIds.push(val);
+        }
+      });
+
+      if (interestIds.length > 0) {
+        operations.push(
+          this.prisma.userInterest.deleteMany({
+            where: { userId },
+          }),
+        );
+        for (const intId of interestIds) {
+          operations.push(
+            this.prisma.userInterest.create({
+              data: {
+                userId,
+                interestId: intId,
+                isLiked: true,
+              },
+            }),
+          );
+        }
       }
     }
 

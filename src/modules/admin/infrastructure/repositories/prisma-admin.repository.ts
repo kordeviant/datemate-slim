@@ -1026,6 +1026,8 @@ export class PrismaAdminRepository implements IAdminRepository {
       username: user.profile?.username ?? null,
       phoneNumber: user.profile?.phoneNumber ?? null,
       bio: user.profile?.bio ?? null,
+      gender: user.demographic?.gender ?? null,
+      age,
       avatarUrl: user.profile?.avatarUrl
         ? this.mediaUrlResolver.resolveUrl(user.profile.avatarUrl)
         : null,

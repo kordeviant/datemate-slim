@@ -118,6 +118,12 @@ export class AdminUserDetailsDataDto {
   })
   bio: string | null;
 
+  @ApiPropertyOptional({ example: "MALE", nullable: true })
+  gender?: string | null;
+
+  @ApiPropertyOptional({ example: 25, nullable: true })
+  age?: number | null;
+
   @ApiPropertyOptional({
     example: 'https://api-datemate.testdevvvv.site/uploads/avatars/user12.webp',
     nullable: true,

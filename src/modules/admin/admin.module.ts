@@ -16,6 +16,9 @@ import { GetPendingVerificationsUseCase } from './application/use-cases/get-pend
 import { ApproveVerificationUseCase } from './application/use-cases/approve-verification.use-case';
 import { RejectVerificationUseCase } from './application/use-cases/reject-verification.use-case';
 import { DeleteUserGalleryItemUseCase } from './application/use-cases/delete-user-gallery-item.use-case';
+import { DeleteAdminUserUseCase } from './application/use-cases/delete-admin-user.use-case';
+import { GetPendingSelfiesCountUseCase } from './application/use-cases/get-pending-selfies-count.use-case';
+import { GetUsersCountUseCase } from './application/use-cases/get-users-count.use-case';
 import { AdminDashboardController } from './presentation/admin-dashboard.controller';
 import { AdminUsersController } from './presentation/admin-users.controller';
 import { AdminVerificationsController } from './presentation/admin-verifications.controller';
@@ -46,6 +49,9 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     ApproveVerificationUseCase,
     RejectVerificationUseCase,
     DeleteUserGalleryItemUseCase,
+    DeleteAdminUserUseCase,
+    GetPendingSelfiesCountUseCase,
+    GetUsersCountUseCase,
   ],
   exports: [
     ADMIN_REPOSITORY,
@@ -60,6 +66,9 @@ import { AdminVerificationsController } from './presentation/admin-verifications
     ApproveVerificationUseCase,
     RejectVerificationUseCase,
     DeleteUserGalleryItemUseCase,
+    DeleteAdminUserUseCase,
+    GetPendingSelfiesCountUseCase,
+    GetUsersCountUseCase,
   ],
 })
 export class AdminModule {}

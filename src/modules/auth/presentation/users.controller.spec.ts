@@ -4,12 +4,14 @@ import { UsersController } from "./users.controller";
 import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
+import { DeleteAccountUseCase } from "../application/use-cases/delete-account.use-case";
 
 describe("UsersController", () => {
   let controller: UsersController;
   let mockTokenService: any;
   let mockGetProfileUseCase: any;
   let mockUpdateProfileUseCase: any;
+  let mockDeleteAccountUseCase: any;
 
   beforeEach(async () => {
     mockTokenService = {
@@ -24,12 +26,17 @@ describe("UsersController", () => {
       execute: jest.fn(),
     };
 
+    mockDeleteAccountUseCase = {
+      execute: jest.fn().mockResolvedValue({ userId: 1, deleted: true }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
         { provide: TokenService, useValue: mockTokenService },
         { provide: GetProfileUseCase, useValue: mockGetProfileUseCase },
         { provide: UpdateProfileUseCase, useValue: mockUpdateProfileUseCase },
+        { provide: DeleteAccountUseCase, useValue: mockDeleteAccountUseCase },
       ],
     }).compile();
 
@@ -379,4 +386,25 @@ describe("UsersController", () => {
       );
     });
   });
+
+  describe("DELETE /users/me", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.deleteAccount("")).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should delete account and return success response", async () => {
+      const res = await controller.deleteAccount("Bearer valid_token");
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockDeleteAccountUseCase.execute).toHaveBeenCalledWith(1);
+      expect(res).toEqual({
+        status: "success",
+        message: "Account deleted successfully",
+        data: { userId: 1, deleted: true },
+      });
+    });
+  });
 });
+

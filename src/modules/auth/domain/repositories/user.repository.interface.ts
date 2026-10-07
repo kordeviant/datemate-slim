@@ -13,6 +13,8 @@ export interface IUserRepository {
   }): Promise<UserEntity>;
   updatePassword(userId: number, passwordHash: string): Promise<void>;
   hasCompletedProfile(userId: number): Promise<boolean>;
+  deleteUser(userId: number): Promise<{ userId: number; deleted: boolean }>;
 }
 
 export const USER_REPOSITORY = Symbol('IUserRepository');
+

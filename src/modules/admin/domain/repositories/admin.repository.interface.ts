@@ -77,6 +77,12 @@ export interface IAdminRepository {
     userId: number,
     galleryId: number,
   ): Promise<DeleteUserGalleryItemResult>;
+  deleteUser(
+    userId: number,
+  ): Promise<{ userId: number; deleted: boolean }>;
+  getUsersCount(status?: string): Promise<number>;
+  getPendingSelfiesCount(): Promise<number>;
 }
 
 export const ADMIN_REPOSITORY = Symbol('IAdminRepository');
+

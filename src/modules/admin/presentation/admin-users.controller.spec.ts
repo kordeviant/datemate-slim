@@ -6,6 +6,9 @@ import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-us
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { DeleteUserGalleryItemUseCase } from '../application/use-cases/delete-user-gallery-item.use-case';
+import { DeleteAdminUserUseCase } from '../application/use-cases/delete-admin-user.use-case';
+import { GetUsersCountUseCase } from '../application/use-cases/get-users-count.use-case';
+import { GetPendingSelfiesCountUseCase } from '../application/use-cases/get-pending-selfies-count.use-case';
 import { TokenService } from '../../auth/application/services/token.service';
 import {
   AdminGenderFilter,
@@ -23,6 +26,9 @@ describe('AdminUsersController', () => {
   let mockBanUserUseCase: Partial<BanUserUseCase>;
   let mockUnbanUserUseCase: Partial<UnbanUserUseCase>;
   let mockDeleteUserGalleryItemUseCase: Partial<DeleteUserGalleryItemUseCase>;
+  let mockDeleteAdminUserUseCase: Partial<DeleteAdminUserUseCase>;
+  let mockGetUsersCountUseCase: Partial<GetUsersCountUseCase>;
+  let mockGetPendingSelfiesCountUseCase: Partial<GetPendingSelfiesCountUseCase>;
 
   beforeEach(async () => {
     mockGetAdminUsersUseCase = {
@@ -41,6 +47,15 @@ describe('AdminUsersController', () => {
       execute: jest.fn(),
     };
     mockDeleteUserGalleryItemUseCase = {
+      execute: jest.fn(),
+    };
+    mockDeleteAdminUserUseCase = {
+      execute: jest.fn(),
+    };
+    mockGetUsersCountUseCase = {
+      execute: jest.fn(),
+    };
+    mockGetPendingSelfiesCountUseCase = {
       execute: jest.fn(),
     };
 
@@ -70,6 +85,18 @@ describe('AdminUsersController', () => {
         {
           provide: DeleteUserGalleryItemUseCase,
           useValue: mockDeleteUserGalleryItemUseCase,
+        },
+        {
+          provide: DeleteAdminUserUseCase,
+          useValue: mockDeleteAdminUserUseCase,
+        },
+        {
+          provide: GetUsersCountUseCase,
+          useValue: mockGetUsersCountUseCase,
+        },
+        {
+          provide: GetPendingSelfiesCountUseCase,
+          useValue: mockGetPendingSelfiesCountUseCase,
         },
         {
           provide: TokenService,
@@ -414,4 +441,77 @@ describe('AdminUsersController', () => {
       );
     });
   });
+
+  describe('GET /v1/admin/users/count', () => {
+    it('should return total users count', async () => {
+      (mockGetUsersCountUseCase.execute as jest.Mock).mockResolvedValue({
+        count: 6570,
+      });
+
+      const res = await controller.getUsersCount();
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'Users count retrieved successfully',
+        data: { count: 6570 },
+      });
+      expect(mockGetUsersCountUseCase.execute).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should pass status filter when provided in query', async () => {
+      (mockGetUsersCountUseCase.execute as jest.Mock).mockResolvedValue({
+        count: 42,
+      });
+
+      const res = await controller.getUsersCount('BLOCKED');
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'Users count retrieved successfully',
+        data: { count: 42 },
+      });
+      expect(mockGetUsersCountUseCase.execute).toHaveBeenCalledWith('BLOCKED');
+    });
+  });
+
+  describe('GET /v1/admin/users/pending-selfies/count', () => {
+    it('should return count of users with unvalidated selfies', async () => {
+      (mockGetPendingSelfiesCountUseCase.execute as jest.Mock).mockResolvedValue({
+        count: 7,
+      });
+
+      const res = await controller.getPendingSelfiesCount();
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'Pending selfies count retrieved successfully',
+        data: { count: 7 },
+      });
+      expect(mockGetPendingSelfiesCountUseCase.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe('DELETE /v1/admin/users/:id', () => {
+    it('should delete a single user and return success response', async () => {
+      const mockResult = {
+        userId: 101,
+        deleted: true,
+      };
+
+      (mockDeleteAdminUserUseCase.execute as jest.Mock).mockResolvedValue(
+        mockResult,
+      );
+
+      const res = await controller.deleteUser(101);
+
+      expect(res).toEqual({
+        status: 'success',
+        success: true,
+        message: 'User deleted successfully',
+        data: mockResult,
+      });
+      expect(mockDeleteAdminUserUseCase.execute).toHaveBeenCalledWith(101);
+    });
+  });
 });
+

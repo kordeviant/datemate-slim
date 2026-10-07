@@ -22,6 +22,7 @@ import { AdminAuthGuard } from '../application/guards/admin-auth.guard';
 import { GetPendingVerificationsUseCase } from '../application/use-cases/get-pending-verifications.use-case';
 import { ApproveVerificationUseCase } from '../application/use-cases/approve-verification.use-case';
 import { RejectVerificationUseCase } from '../application/use-cases/reject-verification.use-case';
+import { GetPendingSelfiesCountUseCase } from '../application/use-cases/get-pending-selfies-count.use-case';
 import { GetAdminVerificationsDto } from '../application/dtos/get-admin-verifications.dto';
 import {
   AdminVerificationsResponseDto,
@@ -29,6 +30,7 @@ import {
   RejectVerificationResponseDto,
 } from '../application/dtos/admin-verifications-response.dto';
 import { RejectVerificationDto } from '../application/dtos/reject-verification.dto';
+import { AdminCountResponseDto } from '../application/dtos/admin-count-response.dto';
 
 @ApiTags('Admin - Verifications')
 @ApiBearerAuth('JWT-auth')
@@ -39,7 +41,34 @@ export class AdminVerificationsController {
     private readonly getPendingVerificationsUseCase: GetPendingVerificationsUseCase,
     private readonly approveVerificationUseCase: ApproveVerificationUseCase,
     private readonly rejectVerificationUseCase: RejectVerificationUseCase,
+    private readonly getPendingSelfiesCountUseCase: GetPendingSelfiesCountUseCase,
   ) {}
+
+  @Get(['count', 'pending/count'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get count of unvalidated selfies awaiting review',
+    description:
+      'Retrieves count of users whose selfie is not validated, who have an existing selfie URL, and profileValidated is false.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pending selfies count retrieved successfully',
+    type: AdminCountResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async getPendingSelfiesCount(): Promise<AdminCountResponseDto> {
+    const result = await this.getPendingSelfiesCountUseCase.execute();
+
+    return {
+      status: 'success',
+      message: 'Pending selfies count retrieved successfully',
+      data: result,
+    };
+  }
 
   @Get()
   @HttpCode(HttpStatus.OK)

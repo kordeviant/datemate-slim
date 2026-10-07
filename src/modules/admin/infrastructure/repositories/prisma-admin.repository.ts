@@ -1019,4 +1019,93 @@ export class PrismaAdminRepository implements IAdminRepository {
       deleted: true,
     };
   }
+
+  async deleteUser(
+    userId: number,
+  ): Promise<{ userId: number; deleted: boolean }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        gallery: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('کاربر مورد نظر یافت نشد');
+    }
+
+    // Try deleting physical files from disk
+    const filesToDelete: (string | null | undefined)[] = [
+      user.profile?.avatarUrl,
+      user.profile?.selfieUrl,
+      user.profile?.profilePictureUrl,
+      ...(user.gallery?.map((g) => g.imageUrl) || []),
+    ];
+
+    for (const relPath of filesToDelete) {
+      if (relPath && typeof relPath === 'string') {
+        try {
+          const cleanRel = relPath.startsWith('/') ? relPath.slice(1) : relPath;
+          const fullPath = cleanRel.startsWith('uploads/')
+            ? path.join(process.cwd(), cleanRel)
+            : path.join(process.cwd(), 'uploads', cleanRel);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        } catch (err: any) {
+          this.logger.warn(`Failed to unlink file ${relPath}: ${err.message}`);
+        }
+      }
+    }
+
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+
+    this.logger.log(`Admin deleted user ${userId}`);
+
+    return {
+      userId,
+      deleted: true,
+    };
+  }
+
+  async getUsersCount(status?: string): Promise<number> {
+    const where: Prisma.UserWhereInput = {};
+    const normalizedStatus = status?.toUpperCase();
+
+    if (normalizedStatus === 'PENDING_VERIFICATION') {
+      where.profileValidated = false;
+      where.profile = {
+        selfieUrl: {
+          not: null,
+          notIn: [''],
+        },
+      };
+    } else if (normalizedStatus === 'BLOCKED') {
+      where.bannedUntil = { gt: new Date() };
+    } else if (normalizedStatus === 'ONLINE') {
+      where.profile = {
+        isOnline: true,
+      };
+    }
+
+    return this.prisma.user.count({ where });
+  }
+
+  async getPendingSelfiesCount(): Promise<number> {
+    return this.prisma.user.count({
+      where: {
+        profileValidated: false,
+        profile: {
+          selfieUrl: {
+            not: null,
+            notIn: [''],
+          },
+        },
+      },
+    });
+  }
 }
+

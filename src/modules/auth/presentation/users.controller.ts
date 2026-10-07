@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -25,8 +26,10 @@ import { FileFieldsInterceptor } from "@nestjs/platform-express";
 import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
+import { DeleteAccountUseCase } from "../application/use-cases/delete-account.use-case";
 import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
 import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
+import { DeleteAccountResponseDto } from "../application/dtos/delete-account-response.dto";
 
 @ApiTags("Users")
 @Controller({ path: "users", version: ["1", VERSION_NEUTRAL] })
@@ -35,7 +38,44 @@ export class UsersController {
     private readonly tokenService: TokenService,
     private readonly getProfileUseCase: GetProfileUseCase,
     private readonly updateProfileUseCase: UpdateProfileUseCase,
+    private readonly deleteAccountUseCase: DeleteAccountUseCase,
   ) {}
+
+  @Delete(["me", "account"])
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Delete user account",
+    description:
+      "Allows the authenticated user to permanently delete their own account and all associated profile, gallery, swipe, and session data.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Account deleted successfully",
+    type: DeleteAccountResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  async deleteAccount(
+    @Headers("authorization") authHeader: string,
+  ): Promise<DeleteAccountResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    const decoded = this.tokenService.verifyAccessToken(token);
+    const result = await this.deleteAccountUseCase.execute(decoded.sub);
+    return {
+      status: "success",
+      message: "Account deleted successfully",
+      data: result,
+    };
+  }
 
   @Get("me")
   @HttpCode(HttpStatus.OK)

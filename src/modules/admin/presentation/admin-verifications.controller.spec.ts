@@ -3,6 +3,7 @@ import { AdminVerificationsController } from './admin-verifications.controller';
 import { GetPendingVerificationsUseCase } from '../application/use-cases/get-pending-verifications.use-case';
 import { ApproveVerificationUseCase } from '../application/use-cases/approve-verification.use-case';
 import { RejectVerificationUseCase } from '../application/use-cases/reject-verification.use-case';
+import { GetPendingSelfiesCountUseCase } from '../application/use-cases/get-pending-selfies-count.use-case';
 import { TokenService } from '../../auth/application/services/token.service';
 import { AdminVerificationStatusFilter } from '../application/dtos/get-admin-verifications.dto';
 
@@ -11,6 +12,7 @@ describe('AdminVerificationsController', () => {
   let mockGetPendingVerificationsUseCase: Partial<GetPendingVerificationsUseCase>;
   let mockApproveVerificationUseCase: Partial<ApproveVerificationUseCase>;
   let mockRejectVerificationUseCase: Partial<RejectVerificationUseCase>;
+  let mockGetPendingSelfiesCountUseCase: Partial<GetPendingSelfiesCountUseCase>;
 
   beforeEach(async () => {
     mockGetPendingVerificationsUseCase = {
@@ -20,6 +22,9 @@ describe('AdminVerificationsController', () => {
       execute: jest.fn(),
     };
     mockRejectVerificationUseCase = {
+      execute: jest.fn(),
+    };
+    mockGetPendingSelfiesCountUseCase = {
       execute: jest.fn(),
     };
 
@@ -37,6 +42,10 @@ describe('AdminVerificationsController', () => {
         {
           provide: RejectVerificationUseCase,
           useValue: mockRejectVerificationUseCase,
+        },
+        {
+          provide: GetPendingSelfiesCountUseCase,
+          useValue: mockGetPendingSelfiesCountUseCase,
         },
         {
           provide: TokenService,
@@ -152,4 +161,22 @@ describe('AdminVerificationsController', () => {
       );
     });
   });
+
+  describe('GET /v1/admin/verifications/count', () => {
+    it('should return pending selfies count and response envelope', async () => {
+      (mockGetPendingSelfiesCountUseCase.execute as jest.Mock).mockResolvedValue({
+        count: 12,
+      });
+
+      const res = await controller.getPendingSelfiesCount();
+
+      expect(res).toEqual({
+        status: 'success',
+        message: 'Pending selfies count retrieved successfully',
+        data: { count: 12 },
+      });
+      expect(mockGetPendingSelfiesCountUseCase.execute).toHaveBeenCalled();
+    });
+  });
 });
+

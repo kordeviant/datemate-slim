@@ -1,10 +1,14 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import * as fs from "fs";
+import * as path from "path";
 import { PrismaService } from "../../../../infrastructure/database/prisma.service";
 import { IUserRepository } from "../../domain/repositories/user.repository.interface";
 import { UserEntity } from "../../domain/user.entity";
 
 @Injectable()
 export class PrismaUserRepository implements IUserRepository {
+  private readonly logger = new Logger(PrismaUserRepository.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findById(id: number): Promise<UserEntity | null> {
@@ -189,4 +193,53 @@ export class PrismaUserRepository implements IUserRepository {
 
     return true;
   }
+
+  async deleteUser(
+    userId: number,
+  ): Promise<{ userId: number; deleted: boolean }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        gallery: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    // Try deleting physical files from disk
+    const filesToDelete: (string | null | undefined)[] = [
+      user.profile?.avatarUrl,
+      user.profile?.selfieUrl,
+      user.profile?.profilePictureUrl,
+      ...(user.gallery?.map((g) => g.imageUrl) || []),
+    ];
+
+    for (const relPath of filesToDelete) {
+      if (relPath && typeof relPath === 'string') {
+        try {
+          const cleanRel = relPath.startsWith('/') ? relPath.slice(1) : relPath;
+          const fullPath = cleanRel.startsWith('uploads/')
+            ? path.join(process.cwd(), cleanRel)
+            : path.join(process.cwd(), 'uploads', cleanRel);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        } catch (err: any) {
+          this.logger.warn(`Failed to unlink file ${relPath}: ${err.message}`);
+        }
+      }
+    }
+
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+
+    this.logger.log(`User ${userId} deleted successfully`);
+
+    return { userId, deleted: true };
+  }
 }
+

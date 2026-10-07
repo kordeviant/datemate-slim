@@ -541,6 +541,44 @@
       }
     },
     "/users/me": {
+      "delete": {
+        "operationId": "UsersController_deleteAccount",
+        "summary": "Delete user account",
+        "description": "Allows the authenticated user to permanently delete their own account and all associated profile, gallery, swipe, and session data.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAccountResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
       "get": {
         "operationId": "UsersController_getMe",
         "summary": "Get current authenticated user profile",
@@ -562,6 +600,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/users/account": {
+      "delete": {
+        "operationId": "UsersController_deleteAccount",
+        "summary": "Delete user account",
+        "description": "Allows the authenticated user to permanently delete their own account and all associated profile, gallery, swipe, and session data.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAccountResponseDto"
                 }
               }
             }
@@ -1942,6 +2020,84 @@
         ]
       }
     },
+    "/admin/users/count": {
+      "get": {
+        "operationId": "AdminUsersController_getUsersCount",
+        "summary": "Get total count of platform users",
+        "description": "Retrieves total count of users registered in the platform, with optional status filter (e.g. ALL, PENDING_VERIFICATION, BLOCKED, ONLINE).",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Optional status filter for count",
+            "schema": {
+              "enum": [
+                "ALL",
+                "PENDING_VERIFICATION",
+                "BLOCKED",
+                "ONLINE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users count retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCountResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/admin/users/pending-selfies/count": {
+      "get": {
+        "operationId": "AdminUsersController_getPendingSelfiesCount",
+        "summary": "Get count of unvalidated selfies awaiting verification",
+        "description": "Retrieves count of users whose selfie is not validated, who have an existing selfie URL, and profileValidated is false.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Pending selfies count retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCountResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/admin/users/{id}": {
       "get": {
         "operationId": "AdminUsersController_getUserDetails",
@@ -2081,6 +2237,49 @@
           },
           "404": {
             "description": "User not found"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "AdminUsersController_deleteUser",
+        "summary": "Delete a single user by ID",
+        "description": "Allows administrators to delete a single user account and all associated profile, gallery, swipe, and session data. Strictly only for one user at a time (multi-user delete is not supported).",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Single user ID to delete",
+            "schema": {
+              "example": 101,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAdminUserResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found / کاربر مورد نظر یافت نشد"
           }
         },
         "tags": [
@@ -2240,6 +2439,68 @@
         },
         "tags": [
           "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/admin/verifications/count": {
+      "get": {
+        "operationId": "AdminVerificationsController_getPendingSelfiesCount",
+        "summary": "Get count of unvalidated selfies awaiting review",
+        "description": "Retrieves count of users whose selfie is not validated, who have an existing selfie URL, and profileValidated is false.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Pending selfies count retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCountResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          }
+        },
+        "tags": [
+          "Admin - Verifications"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/admin/verifications/pending/count": {
+      "get": {
+        "operationId": "AdminVerificationsController_getPendingSelfiesCount",
+        "summary": "Get count of unvalidated selfies awaiting review",
+        "description": "Retrieves count of users whose selfie is not validated, who have an existing selfie URL, and profileValidated is false.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Pending selfies count retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCountResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          }
+        },
+        "tags": [
+          "Admin - Verifications"
         ],
         "security": [
           {
@@ -2703,6 +2964,46 @@
         "required": [
           "device",
           "userAgent"
+        ]
+      },
+      "DeleteAccountDataDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "example": 12,
+            "description": "Deleted user ID"
+          },
+          "deleted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Account deletion status"
+          }
+        },
+        "required": [
+          "userId",
+          "deleted"
+        ]
+      },
+      "DeleteAccountResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Account deleted successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeleteAccountDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
         ]
       },
       "CityResponseDto": {
@@ -4501,6 +4802,40 @@
           "data"
         ]
       },
+      "AdminCountDataDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Total count value",
+            "example": 7
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "AdminCountResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Count retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminCountDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
       "AdminUserDemographicDetailsDto": {
         "type": "object",
         "properties": {
@@ -4963,6 +5298,51 @@
         },
         "required": [
           "status",
+          "message",
+          "data"
+        ]
+      },
+      "DeleteAdminUserDataDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "example": 101,
+            "description": "Deleted user ID"
+          },
+          "deleted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Deletion success flag"
+          }
+        },
+        "required": [
+          "userId",
+          "deleted"
+        ]
+      },
+      "DeleteAdminUserResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "User deleted successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeleteAdminUserDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
           "message",
           "data"
         ]

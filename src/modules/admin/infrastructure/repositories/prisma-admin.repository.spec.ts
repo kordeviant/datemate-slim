@@ -22,6 +22,7 @@ describe('PrismaAdminRepository', () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        delete: jest.fn(),
       },
       profile: {
         count: jest.fn(),
@@ -834,4 +835,97 @@ describe('PrismaAdminRepository', () => {
       });
     });
   });
+
+  describe('deleteUser', () => {
+    it('should throw NotFoundException if user does not exist', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(repository.deleteUser(999)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should delete existing user and return result', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 101,
+        profile: { avatarUrl: 'avatars/1.webp', selfieUrl: null },
+        gallery: [{ imageUrl: 'gallery/1.webp' }],
+      });
+      mockPrisma.user.delete.mockResolvedValueOnce({});
+
+      const result = await repository.deleteUser(101);
+
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({
+        where: { id: 101 },
+      });
+      expect(result).toEqual({ userId: 101, deleted: true });
+    });
+  });
+
+  describe('getUsersCount', () => {
+    it('should count all users when no status is provided', async () => {
+      mockPrisma.user.count.mockResolvedValueOnce(6570);
+
+      const count = await repository.getUsersCount();
+
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({ where: {} });
+      expect(count).toBe(6570);
+    });
+
+    it('should apply status filter when PENDING_VERIFICATION is given', async () => {
+      mockPrisma.user.count.mockResolvedValueOnce(14);
+
+      const count = await repository.getUsersCount('PENDING_VERIFICATION');
+
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({
+        where: {
+          profileValidated: false,
+          profile: {
+            selfieUrl: {
+              not: null,
+              notIn: [''],
+            },
+          },
+        },
+      });
+      expect(count).toBe(14);
+    });
+
+    it('should apply status filter when BLOCKED is given', async () => {
+      mockPrisma.user.count.mockResolvedValueOnce(8);
+
+      const count = await repository.getUsersCount('BLOCKED');
+
+      expect(mockPrisma.user.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            bannedUntil: expect.anything(),
+          }),
+        }),
+      );
+      expect(count).toBe(8);
+    });
+  });
+
+  describe('getPendingSelfiesCount', () => {
+    it('should count unvalidated users who have a non-empty selfieUrl', async () => {
+      mockPrisma.user.count.mockResolvedValueOnce(19);
+
+      const count = await repository.getPendingSelfiesCount();
+
+      expect(mockPrisma.user.count).toHaveBeenCalledWith({
+        where: {
+          profileValidated: false,
+          profile: {
+            selfieUrl: {
+              not: null,
+              notIn: [''],
+            },
+          },
+        },
+      });
+      expect(count).toBe(19);
+    });
+  });
 });
+

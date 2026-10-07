@@ -18,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -28,6 +29,9 @@ import { UpdateAdminUserUseCase } from '../application/use-cases/update-admin-us
 import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { DeleteUserGalleryItemUseCase } from '../application/use-cases/delete-user-gallery-item.use-case';
+import { DeleteAdminUserUseCase } from '../application/use-cases/delete-admin-user.use-case';
+import { GetUsersCountUseCase } from '../application/use-cases/get-users-count.use-case';
+import { GetPendingSelfiesCountUseCase } from '../application/use-cases/get-pending-selfies-count.use-case';
 import { GetAdminUsersDto } from '../application/dtos/get-admin-users.dto';
 import { AdminUsersResponseDto } from '../application/dtos/admin-users-response.dto';
 import { AdminUserDetailsResponseDto } from '../application/dtos/admin-user-details-response.dto';
@@ -36,6 +40,8 @@ import { UpdateAdminUserResponseDto } from '../application/dtos/update-admin-use
 import { BanUserDto } from '../application/dtos/ban-user.dto';
 import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
 import { DeleteGalleryResponseDto } from '../application/dtos/delete-gallery-response.dto';
+import { DeleteAdminUserResponseDto } from '../application/dtos/delete-admin-user-response.dto';
+import { AdminCountResponseDto } from '../application/dtos/admin-count-response.dto';
 
 @ApiTags('Admin - Users')
 @ApiBearerAuth('JWT-auth')
@@ -49,6 +55,9 @@ export class AdminUsersController {
     private readonly banUserUseCase: BanUserUseCase,
     private readonly unbanUserUseCase: UnbanUserUseCase,
     private readonly deleteUserGalleryItemUseCase: DeleteUserGalleryItemUseCase,
+    private readonly deleteAdminUserUseCase: DeleteAdminUserUseCase,
+    private readonly getUsersCountUseCase: GetUsersCountUseCase,
+    private readonly getPendingSelfiesCountUseCase: GetPendingSelfiesCountUseCase,
   ) {}
 
   @Get()
@@ -85,6 +94,66 @@ export class AdminUsersController {
     return {
       status: 'success',
       message: 'Users list retrieved',
+      data: result,
+    };
+  }
+
+  @Get('count')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get total count of platform users',
+    description:
+      'Retrieves total count of users registered in the platform, with optional status filter (e.g. ALL, PENDING_VERIFICATION, BLOCKED, ONLINE).',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['ALL', 'PENDING_VERIFICATION', 'BLOCKED', 'ONLINE'],
+    description: 'Optional status filter for count',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Users count retrieved successfully',
+    type: AdminCountResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async getUsersCount(
+    @Query('status') status?: string,
+  ): Promise<AdminCountResponseDto> {
+    const result = await this.getUsersCountUseCase.execute(status);
+
+    return {
+      status: 'success',
+      message: 'Users count retrieved successfully',
+      data: result,
+    };
+  }
+
+  @Get('pending-selfies/count')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get count of unvalidated selfies awaiting verification',
+    description:
+      'Retrieves count of users whose selfie is not validated, who have an existing selfie URL, and profileValidated is false.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pending selfies count retrieved successfully',
+    type: AdminCountResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async getPendingSelfiesCount(): Promise<AdminCountResponseDto> {
+    const result = await this.getPendingSelfiesCountUseCase.execute();
+
+    return {
+      status: 'success',
+      message: 'Pending selfies count retrieved successfully',
       data: result,
     };
   }
@@ -271,6 +340,44 @@ export class AdminUsersController {
     @Body() body: UpdateAdminUserDto,
   ): Promise<UpdateAdminUserResponseDto> {
     return this.updateUser(id, body);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete a single user by ID',
+    description:
+      'Allows administrators to delete a single user account and all associated profile, gallery, swipe, and session data. Strictly only for one user at a time (multi-user delete is not supported).',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Single user ID to delete',
+    example: 101,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User deleted successfully',
+    type: DeleteAdminUserResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found / کاربر مورد نظر یافت نشد',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async deleteUser(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DeleteAdminUserResponseDto> {
+    const result = await this.deleteAdminUserUseCase.execute(id);
+
+    return {
+      status: 'success',
+      success: true,
+      message: 'User deleted successfully',
+      data: result,
+    };
   }
 
   @Delete(':userId/gallery/:galleryId')

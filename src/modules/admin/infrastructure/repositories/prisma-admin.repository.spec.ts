@@ -42,6 +42,20 @@ describe('PrismaAdminRepository', () => {
         delete: jest.fn(),
         update: jest.fn(),
       },
+      question: {
+        findMany: jest.fn(),
+      },
+      userQuestionAnswer: {
+        deleteMany: jest.fn(),
+        createMany: jest.fn(),
+      },
+      interest: {
+        findMany: jest.fn(),
+      },
+      userInterest: {
+        deleteMany: jest.fn(),
+        createMany: jest.fn(),
+      },
       $transaction: jest.fn().mockImplementation(async (promises) => {
         return Promise.all(promises);
       }),

@@ -496,65 +496,267 @@ export class PrismaAdminRepository implements IAdminRepository {
       }
     }
 
-    const answersObj = params.Answers || params.answers;
-    if (answersObj && typeof answersObj === 'object') {
-      const answerIds: number[] = [];
-      Object.values(answersObj).forEach((val) => {
-        if (Array.isArray(val)) {
-          val.forEach((id) => {
-            if (typeof id === 'number') answerIds.push(id);
-          });
-        } else if (typeof val === 'number') {
-          answerIds.push(val);
-        }
+    // -------------------------------------------------------------------------
+    // Sync Question Answers (Resolves 0-based indices or DB IDs safely)
+    // -------------------------------------------------------------------------
+    const rawAnswers =
+      params.Answers ??
+      params.answers ??
+      params.profile?.Answers ??
+      params.profile?.answers ??
+      params.preferences?.Answers ??
+      params.preferences?.answers ??
+      params.personality?.Answers ??
+      params.personality?.answers;
+
+    let parsedAnswers = rawAnswers;
+    if (typeof parsedAnswers === 'string') {
+      try {
+        parsedAnswers = JSON.parse(parsedAnswers);
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+
+    if (
+      parsedAnswers !== undefined &&
+      parsedAnswers !== null &&
+      typeof parsedAnswers === 'object'
+    ) {
+      const allDbQuestions = await this.prisma.question.findMany({
+        include: {
+          answers: {
+            orderBy: { id: 'asc' },
+          },
+        },
+        orderBy: { id: 'asc' },
       });
 
-      if (answerIds.length > 0) {
-        operations.push(
-          this.prisma.userQuestionAnswer.deleteMany({
-            where: { userId },
-          }),
-        );
-        for (const ansId of answerIds) {
+      const questionMap = new Map<number, any[]>();
+      const dbIdToInfo = new Map<
+        number,
+        { questionId: number; answerIndex: number }
+      >();
+      for (const q of allDbQuestions) {
+        questionMap.set(q.id, q.answers || []);
+        (q.answers || []).forEach((ans: any, idx: number) => {
+          dbIdToInfo.set(ans.id, { questionId: q.id, answerIndex: idx });
+        });
+      }
+
+      const targetAnswerDbIds: number[] = [];
+      const questionIdsToUpdate = new Set<number>();
+
+      if (Array.isArray(parsedAnswers)) {
+        if (parsedAnswers.length === 0) {
+          // Explicitly empty array indicates clearing answers
           operations.push(
-            this.prisma.userQuestionAnswer.create({
-              data: {
+            this.prisma.userQuestionAnswer.deleteMany({
+              where: { userId },
+            }),
+          );
+        } else {
+          for (const item of parsedAnswers) {
+            if (
+              typeof item === 'number' ||
+              (typeof item === 'string' && !isNaN(Number(item)))
+            ) {
+              const num = Number(item);
+              if (num > 0 && dbIdToInfo.has(num)) {
+                targetAnswerDbIds.push(num);
+                questionIdsToUpdate.add(dbIdToInfo.get(num)!.questionId);
+              }
+            } else if (item && typeof item === 'object') {
+              const qId = Number(
+                item.questionId ?? item.questionid ?? item.qId,
+              );
+              const aId = Number(
+                item.answerId ?? item.answerid ?? item.aId ?? item.id,
+              );
+              if (!isNaN(qId) && !isNaN(aId) && questionMap.has(qId)) {
+                const qAnswers = questionMap.get(qId)!;
+                if (qAnswers[aId]) {
+                  targetAnswerDbIds.push(qAnswers[aId].id);
+                  questionIdsToUpdate.add(qId);
+                } else if (dbIdToInfo.has(aId)) {
+                  targetAnswerDbIds.push(aId);
+                  questionIdsToUpdate.add(qId);
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Key-value map: { "1": 0, "2": [0, 1], ... } (questionId -> answer index or answer DB ID)
+        for (const [qKey, aVal] of Object.entries(parsedAnswers)) {
+          const qId = Number(qKey);
+          if (!isNaN(qId) && questionMap.has(qId)) {
+            const qAnswers = questionMap.get(qId)!;
+            questionIdsToUpdate.add(qId);
+            const rawVals = Array.isArray(aVal) ? aVal : [aVal];
+            for (const rawVal of rawVals) {
+              if (rawVal === null || rawVal === undefined) continue;
+              const aNum = Number(rawVal);
+              if (isNaN(aNum)) continue;
+
+              if (qAnswers[aNum]) {
+                targetAnswerDbIds.push(qAnswers[aNum].id);
+              } else if (dbIdToInfo.has(aNum)) {
+                targetAnswerDbIds.push(aNum);
+              }
+            }
+          } else {
+            const rawVals = Array.isArray(aVal) ? aVal : [aVal];
+            for (const rawVal of rawVals) {
+              if (rawVal === null || rawVal === undefined) continue;
+              const aNum = Number(rawVal);
+              if (!isNaN(aNum) && dbIdToInfo.has(aNum)) {
+                targetAnswerDbIds.push(aNum);
+                questionIdsToUpdate.add(dbIdToInfo.get(aNum)!.questionId);
+              }
+            }
+          }
+        }
+      }
+
+      if (questionIdsToUpdate.size > 0) {
+        const answerIdsToDelete: number[] = [];
+        for (const qId of questionIdsToUpdate) {
+          const qAnswers = questionMap.get(qId) || [];
+          for (const ans of qAnswers) {
+            answerIdsToDelete.push(ans.id);
+          }
+        }
+
+        if (answerIdsToDelete.length > 0) {
+          operations.push(
+            this.prisma.userQuestionAnswer.deleteMany({
+              where: {
                 userId,
-                questionAnswerId: ansId,
+                questionAnswerId: { in: answerIdsToDelete },
               },
             }),
           );
         }
       }
+
+      if (targetAnswerDbIds.length > 0) {
+        const uniqueAnswerIds = Array.from(new Set(targetAnswerDbIds));
+        operations.push(
+          this.prisma.userQuestionAnswer.createMany({
+            data: uniqueAnswerIds.map((questionAnswerId) => ({
+              userId,
+              questionAnswerId,
+            })),
+            skipDuplicates: true,
+          }),
+        );
+      }
     }
 
-    const activitiesObj = params.LikedActivities || params.likedActivities;
-    if (activitiesObj && typeof activitiesObj === 'object') {
-      const interestIds: number[] = [];
-      Object.values(activitiesObj).forEach((val) => {
-        if (Array.isArray(val)) {
-          val.forEach((id) => {
-            if (typeof id === 'number') interestIds.push(id);
-          });
-        } else if (typeof val === 'number') {
-          interestIds.push(val);
-        }
-      });
+    // -------------------------------------------------------------------------
+    // Sync Liked Activities / Interests (Validates against DB interests)
+    // -------------------------------------------------------------------------
+    const rawActivities =
+      params.LikedActivities ??
+      params.likedActivities ??
+      params.interests ??
+      params.profile?.LikedActivities ??
+      params.profile?.likedActivities ??
+      params.profile?.interests;
 
-      if (interestIds.length > 0) {
+    let parsedActivities = rawActivities;
+    if (typeof parsedActivities === 'string') {
+      try {
+        parsedActivities = JSON.parse(parsedActivities);
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+
+    if (
+      parsedActivities !== undefined &&
+      parsedActivities !== null &&
+      typeof parsedActivities === 'object'
+    ) {
+      const candidateNumericIds: number[] = [];
+      const candidateNames: string[] = [];
+
+      const extractActivity = (val: any) => {
+        if (typeof val === 'number') {
+          candidateNumericIds.push(val);
+        } else if (typeof val === 'string') {
+          const trimmed = val.trim();
+          if (trimmed !== '') {
+            const num = Number(trimmed);
+            if (!isNaN(num)) {
+              candidateNumericIds.push(num);
+            } else {
+              candidateNames.push(trimmed);
+            }
+          }
+        }
+      };
+
+      if (Array.isArray(parsedActivities)) {
+        parsedActivities.forEach((val) => {
+          if (Array.isArray(val)) {
+            val.forEach(extractActivity);
+          } else {
+            extractActivity(val);
+          }
+        });
+      } else {
+        Object.values(parsedActivities).forEach((val) => {
+          if (Array.isArray(val)) {
+            val.forEach(extractActivity);
+          } else {
+            extractActivity(val);
+          }
+        });
+      }
+
+      const validInterestIds = new Set<number>();
+
+      if (candidateNumericIds.length > 0) {
+        const foundByIds = await this.prisma.interest.findMany({
+          where: { id: { in: candidateNumericIds } },
+          select: { id: true },
+        });
+        foundByIds.forEach((item) => validInterestIds.add(item.id));
+      }
+
+      if (candidateNames.length > 0) {
+        const foundByNames = await this.prisma.interest.findMany({
+          where: {
+            OR: [
+              { nameEn: { in: candidateNames, mode: 'insensitive' } },
+              { nameFa: { in: candidateNames } },
+            ],
+          },
+          select: { id: true },
+        });
+        foundByNames.forEach((item) => validInterestIds.add(item.id));
+      }
+
+      if (
+        validInterestIds.size > 0 ||
+        (Array.isArray(parsedActivities) && parsedActivities.length === 0)
+      ) {
         operations.push(
           this.prisma.userInterest.deleteMany({
             where: { userId },
           }),
         );
-        for (const intId of interestIds) {
+        if (validInterestIds.size > 0) {
           operations.push(
-            this.prisma.userInterest.create({
-              data: {
+            this.prisma.userInterest.createMany({
+              data: Array.from(validInterestIds).map((interestId) => ({
                 userId,
-                interestId: intId,
+                interestId,
                 isLiked: true,
-              },
+              })),
+              skipDuplicates: true,
             }),
           );
         }

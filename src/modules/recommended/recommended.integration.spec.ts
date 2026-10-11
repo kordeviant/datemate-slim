@@ -18,6 +18,7 @@ describe('Recommended Endpoints (Integration)', () => {
     mockGetRecommendedUseCase = {
       execute: jest.fn().mockResolvedValue([
         {
+          id: 205,
           avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
           age: 24,
           city: 'Tehran',
@@ -59,6 +60,7 @@ describe('Recommended Endpoints (Integration)', () => {
       expect(res.body.message).toBe('Recommended profiles retrieved successfully');
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0]).toEqual({
+        id: 205,
         avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
         age: 24,
         city: 'Tehran',

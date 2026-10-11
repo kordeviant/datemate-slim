@@ -31,8 +31,8 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
         candidates: [
           {
             id: 205,
-            firstName: 'Sara',
             fullName: 'Sara Connor',
+            username: 'sarah_c',
             age: 24,
             gender: 'FEMALE',
             bio: 'Love hiking',

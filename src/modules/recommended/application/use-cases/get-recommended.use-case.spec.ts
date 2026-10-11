@@ -157,6 +157,7 @@ describe('GetRecommendedUseCase', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
+      id: 4,
       avatarUrl: 'https://example.com/valid.jpg',
       age: expect.any(Number),
       city: 'Tehran',
@@ -220,6 +221,7 @@ describe('GetRecommendedUseCase', () => {
     expect(result).toHaveLength(2);
     // highMatch should be ranked first
     expect(result[0]).toEqual({
+      id: 10,
       avatarUrl: 'https://example.com/high.jpg',
       age: expect.any(Number),
       city: 'Tehran',
@@ -229,6 +231,7 @@ describe('GetRecommendedUseCase', () => {
 
     // lowMatch should be ranked second
     expect(result[1]).toEqual({
+      id: 20,
       avatarUrl: 'https://example.com/low.jpg',
       age: expect.any(Number),
       city: 'Shiraz',

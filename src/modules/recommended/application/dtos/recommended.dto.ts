@@ -17,6 +17,9 @@ export class RecommendedQueryDto {
 }
 
 export class RecommendedCandidateDto {
+  @ApiProperty({ example: 102 })
+  id: number;
+
   @ApiProperty({
     example: 'http://localhost:3000/assets/avatars/avatar_102.webp',
     nullable: true,

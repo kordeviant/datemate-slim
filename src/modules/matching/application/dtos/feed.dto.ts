@@ -20,8 +20,8 @@ export class FeedCandidateDto {
   @ApiProperty({ example: 205 })
   id: number;
 
-  @ApiProperty({ example: 'Sara', nullable: true })
-  firstName: string | null;
+  @ApiProperty({ example: 'sara_c', nullable: true })
+  username: string | null;
 
   @ApiProperty({ example: 'Sara Connor', nullable: true })
   fullName: string | null;

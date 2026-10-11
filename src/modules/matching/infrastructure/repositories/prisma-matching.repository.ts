@@ -193,13 +193,10 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         .map((ui) => ui.interest?.nameEn || ui.interest?.nameFa || '')
         .filter((name) => name.trim().length > 0);
 
-      const fullName = c.profile?.fullName || null;
-      const firstName = fullName ? fullName.split(' ')[0] : null;
-
       results.push({
         id: c.id,
-        firstName,
-        fullName,
+        fullName: c.profile?.fullName || null,
+        username: c.profile?.username || null,
         age,
         gender: c.demographic?.gender || null,
         bio: c.profile?.bio || null,

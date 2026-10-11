@@ -20,7 +20,7 @@ describe('GetFeedUseCase', () => {
 
   const sampleCandidate: FeedCandidateEntity = {
     id: 205,
-    firstName: 'Sara',
+    username: 'sara_c',
     fullName: 'Sara Connor',
     age: 24,
     gender: 'FEMALE',

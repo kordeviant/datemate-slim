@@ -47,3 +47,6 @@
 - Do NOT add aliases for APIs (e.g. do NOT register multiple route paths like `['gallery/:galleryId', 'me/gallery/:galleryId']` for the same endpoint).
 - Route aliases confuse client usage. Maintain one and only one canonical, unambiguous route per endpoint.
 
+## 9. Commit & Push Policy
+- **Never Commit or Push Automatically**: Do NOT run `git commit` or `git push` unless the user explicitly instructs to commit or push. Always keep changes in the working directory and wait for the user to explicitly request a commit/push.
+

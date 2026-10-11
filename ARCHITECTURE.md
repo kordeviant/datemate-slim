@@ -347,13 +347,14 @@ Tie-breakers sort by user activity (`isOnline` descending), recent presence (`la
 - `GET /v1/recommended` (and `/recommended`):
   - **Query Params**: `limit` (default: 20, min: 1, max: 50).
   - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
-  - **Response Payload**: Strictly returns `avatarUrl`, `age`, `city`, `username`, and `fullName`:
+  - **Response Payload**: Returns `id`, `avatarUrl`, `age`, `city`, `username`, and `fullName`:
     ```json
     {
       "status": "success",
       "message": "Recommended profiles retrieved successfully",
       "data": [
         {
+          "id": 102,
           "avatarUrl": "http://localhost:3000/assets/avatars/avatar_102.webp",
           "age": 25,
           "city": "Tehran",

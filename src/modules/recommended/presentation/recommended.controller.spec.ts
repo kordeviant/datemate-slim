@@ -26,6 +26,7 @@ describe('RecommendedController', () => {
   it('fetches recommended candidates for authenticated user with req.user', async () => {
     mockGetRecommendedUseCase.execute.mockResolvedValue([
       {
+        id: 102,
         avatarUrl: 'http://cdn/avatar.webp',
         age: 25,
         city: 'Tehran',
@@ -44,6 +45,7 @@ describe('RecommendedController', () => {
     });
     expect(result.data).toHaveLength(1);
     expect(result.data[0]).toEqual({
+      id: 102,
       avatarUrl: 'http://cdn/avatar.webp',
       age: 25,
       city: 'Tehran',

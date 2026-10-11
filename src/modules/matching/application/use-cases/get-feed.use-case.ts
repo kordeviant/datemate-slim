@@ -47,8 +47,8 @@ export class GetFeedUseCase {
     return {
       candidates: candidates.map((c) => ({
         id: c.id,
-        firstName: c.firstName,
         fullName: c.fullName,
+        username: c.username,
         age: c.age,
         gender: c.gender,
         bio: c.bio,

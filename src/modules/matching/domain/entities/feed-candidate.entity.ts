@@ -1,7 +1,7 @@
 export interface FeedCandidateEntity {
   id: number;
-  firstName: string | null;
   fullName: string | null;
+  username: string | null;
   age: number | null;
   gender: string | null;
   bio: string | null;

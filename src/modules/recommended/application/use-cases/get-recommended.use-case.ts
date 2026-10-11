@@ -197,8 +197,9 @@ export class GetRecommendedUseCase {
       return a.id - b.id;
     });
 
-    // Return strictly only: avatarUrl, age, city, username, fullName
+    // Return: id, avatarUrl, age, city, username, fullName
     return scoredCandidates.slice(0, limit).map((c) => ({
+      id: c.id,
       avatarUrl: c.avatarUrl,
       age: c.age,
       city: c.city,

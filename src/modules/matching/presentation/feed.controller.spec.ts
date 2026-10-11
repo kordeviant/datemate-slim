@@ -24,8 +24,8 @@ describe('FeedController', () => {
       candidates: [
         {
           id: 102,
-          firstName: 'Sara',
           fullName: 'Sara Connor',
+          username: 'sara_c',
           age: 25,
           gender: 'FEMALE',
           bio: 'Bio',

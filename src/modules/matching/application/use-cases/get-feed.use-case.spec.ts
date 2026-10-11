@@ -20,18 +20,11 @@ describe('GetFeedUseCase', () => {
 
   const sampleCandidate: FeedCandidateEntity = {
     id: 205,
-    username: 'sara_c',
     fullName: 'Sara Connor',
-    age: 24,
-    gender: 'FEMALE',
-    bio: 'Love hiking and photography',
-    avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
-    profileValidated: true,
-    gallery: ['http://localhost:3000/assets/images/gallery_1.webp'],
-    interests: ['Hiking', 'Photography'],
     city: 'Tehran',
-    isOnline: true,
-    lastSeenAt: new Date('2026-10-11T12:00:00Z'),
+    age: 24,
+    avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+    username: 'sara_c',
   };
 
   it('throws BadRequestException if user has no demographic gender configured', async () => {
@@ -54,8 +47,14 @@ describe('GetFeedUseCase', () => {
       20,
     );
     expect(result.count).toBe(1);
-    expect(result.candidates[0].id).toBe(205);
-    expect(result.candidates[0].gender).toBe('FEMALE');
+    expect(result.candidates[0]).toEqual({
+      id: 205,
+      fullName: 'Sara Connor',
+      city: 'Tehran',
+      age: 24,
+      avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+      username: 'sara_c',
+    });
   });
 
   it('queries MALE candidates when current user is FEMALE', async () => {
@@ -84,13 +83,12 @@ describe('GetFeedUseCase', () => {
     );
   });
 
-  it('resolves relative avatarUrl and gallery paths into full public URLs', async () => {
+  it('resolves relative avatarUrl paths into full public URLs', async () => {
     mockMatchingRepository.getUserDemographicGender.mockResolvedValue('MALE');
     mockMatchingRepository.findCandidateProfiles.mockResolvedValue([
       {
         ...sampleCandidate,
         avatarUrl: 'avatars/avatarbe9c29b29330.webp',
-        gallery: ['images/img1.webp'],
       },
     ]);
 
@@ -99,8 +97,5 @@ describe('GetFeedUseCase', () => {
     expect(result.candidates[0].avatarUrl).toBe(
       'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
     );
-    expect(result.candidates[0].gallery).toEqual([
-      'http://localhost:3000/assets/images/img1.webp',
-    ]);
   });
 });

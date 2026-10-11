@@ -155,12 +155,12 @@ describe('PrismaMatchingRepository', () => {
 
       expect(result.length).toBe(1);
       expect(result[0].id).toBe(5);
-      expect(result[0].avatarUrl).toBe('http://cdn/avatar.webp');
+      expect(result[0].fullName).toBe('Sara Connor');
       expect(result[0].city).toBe('Tehran');
-      expect(result[0].interests).toEqual(['Music']);
+      expect(result[0].avatarUrl).toBe('http://cdn/avatar.webp');
     });
 
-    it('resolves relative avatarUrl and gallery images into full public URLs', async () => {
+    it('resolves relative avatarUrl into full public URLs', async () => {
       mockPrisma.swipe.findMany.mockResolvedValue([]);
       mockRedisClient.smembers.mockResolvedValue([]);
 
@@ -190,9 +190,8 @@ describe('PrismaMatchingRepository', () => {
       expect(result[0].avatarUrl).toBe(
         'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
       );
-      expect(result[0].gallery).toEqual([
-        'http://localhost:3000/assets/images/gal1.webp',
-      ]);
+      expect(result[0].fullName).toBe('Relative Candidate');
+      expect(result[0].city).toBe('Tehran');
     });
   });
 

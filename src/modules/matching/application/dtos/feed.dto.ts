@@ -20,20 +20,14 @@ export class FeedCandidateDto {
   @ApiProperty({ example: 205 })
   id: number;
 
-  @ApiProperty({ example: 'sara_c', nullable: true })
-  username: string | null;
-
   @ApiProperty({ example: 'Sara Connor', nullable: true })
   fullName: string | null;
 
+  @ApiProperty({ example: 'Tehran', nullable: true })
+  city: string | null;
+
   @ApiProperty({ example: 24, nullable: true })
   age: number | null;
-
-  @ApiProperty({ example: 'FEMALE', nullable: true })
-  gender: string | null;
-
-  @ApiProperty({ example: 'Love photography and coffee.', nullable: true })
-  bio: string | null;
 
   @ApiProperty({
     example: 'http://localhost:3000/assets/avatars/avatar_205.webp',
@@ -41,26 +35,8 @@ export class FeedCandidateDto {
   })
   avatarUrl: string | null;
 
-  @ApiProperty({ example: true })
-  profileValidated: boolean;
-
-  @ApiProperty({
-    example: ['http://localhost:3000/assets/images/gallery_1.webp'],
-    type: [String],
-  })
-  gallery: string[];
-
-  @ApiProperty({ example: ['Photography', 'Hiking'], type: [String] })
-  interests: string[];
-
-  @ApiProperty({ example: 'Tehran', nullable: true })
-  city: string | null;
-
-  @ApiProperty({ example: true })
-  isOnline: boolean;
-
-  @ApiProperty({ example: '2026-10-11T12:00:00.000Z', nullable: true })
-  lastSeenAt: Date | null;
+  @ApiProperty({ example: 'sara_c', nullable: true })
+  username: string | null;
 }
 
 export class FeedDataDto {

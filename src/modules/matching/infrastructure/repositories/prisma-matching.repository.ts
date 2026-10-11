@@ -195,30 +195,13 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         ? calculateAge(c.demographic.birthDate)
         : null;
 
-      const galleryUrls = c.gallery
-        .map((g) => this.mediaUrlResolver.resolveUrl(g.imageUrl))
-        .filter((url) => !!url && url.trim().length > 0);
-
-      const interestNames = c.interests
-        .map((ui) => ui.interest?.nameEn || ui.interest?.nameFa || '')
-        .filter((name) => name.trim().length > 0);
-
       results.push({
         id: c.id,
         fullName: c.profile?.fullName || null,
-        username: c.profile?.username || null,
-        age,
-        gender: c.demographic?.gender || null,
-        bio: c.profile?.bio || null,
-        avatarUrl: primaryPhoto,
-        profileValidated: c.profileValidated,
-        gallery: galleryUrls,
-        interests: interestNames,
         city: c.demographic?.city?.name || null,
-        isOnline: (c.email?.endsWith('@datemate.com') ?? false)
-          ? (c.profile?.isOnline || false)
-          : (c.profile?.isOnline ?? true),
-        lastSeenAt: c.profile?.lastSeenAt || null,
+        age,
+        avatarUrl: primaryPhoto,
+        username: c.profile?.username || null,
       });
     }
 

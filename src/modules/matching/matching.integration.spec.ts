@@ -32,17 +32,10 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
           {
             id: 205,
             fullName: 'Sara Connor',
-            username: 'sarah_c',
-            age: 24,
-            gender: 'FEMALE',
-            bio: 'Love hiking',
-            avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
-            profileValidated: true,
-            gallery: [],
-            interests: ['Hiking'],
             city: 'Tehran',
-            isOnline: true,
-            lastSeenAt: null,
+            age: 24,
+            avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+            username: 'sarah_c',
           },
         ],
         count: 1,
@@ -126,7 +119,14 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('success');
       expect(res.body.data.candidates.length).toBe(1);
-      expect(res.body.data.candidates[0].id).toBe(205);
+      expect(res.body.data.candidates[0]).toEqual({
+        id: 205,
+        fullName: 'Sara Connor',
+        city: 'Tehran',
+        age: 24,
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+        username: 'sarah_c',
+      });
       expect(mockGetFeedUseCase.execute).toHaveBeenCalledWith(
         1,
         expect.objectContaining({ limit: 20 }),

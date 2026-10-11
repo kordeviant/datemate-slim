@@ -4,7 +4,9 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   IRecommendedRepository,
   RECOMMENDED_REPOSITORY,
@@ -14,6 +16,7 @@ import {
   RecommendedQueryDto,
 } from '../dtos/recommended.dto';
 import { calculateAge } from '../../../auth/application/validators/dob.validator';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 
 interface ScoredCandidateInternal {
   id: number;
@@ -29,10 +32,17 @@ interface ScoredCandidateInternal {
 
 @Injectable()
 export class GetRecommendedUseCase {
+  private readonly mediaUrlResolver: MediaUrlResolverService;
+
   constructor(
     @Inject(RECOMMENDED_REPOSITORY)
     private readonly recommendedRepository: IRecommendedRepository,
-  ) {}
+    @Optional()
+    mediaUrlResolver?: MediaUrlResolverService,
+  ) {
+    this.mediaUrlResolver =
+      mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
+  }
 
   async execute(
     currentUserId: number,
@@ -168,9 +178,11 @@ export class GetRecommendedUseCase {
         ),
       );
 
+      const resolvedAvatarUrl = this.mediaUrlResolver.resolveUrl(primaryPhoto);
+
       scoredCandidates.push({
         id: c.id,
-        avatarUrl: primaryPhoto,
+        avatarUrl: resolvedAvatarUrl,
         age: candidateAge,
         city: c.cityName,
         username: c.username,

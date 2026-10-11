@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/database/prisma.module';
 import { RedisModule } from '../../infrastructure/redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from '../media/media.module';
 import { SwipesController } from './presentation/swipes.controller';
 import { FeedController } from './presentation/feed.controller';
 import { LikesController } from './presentation/likes.controller';
@@ -14,7 +15,7 @@ import { GetLikesReceivedUseCase } from './application/use-cases/get-likes-recei
 import { UserAuthGuard } from './application/guards/user-auth.guard';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule],
+  imports: [AuthModule, PrismaModule, RedisModule, MediaModule],
   controllers: [
     SwipesController,
     FeedController,

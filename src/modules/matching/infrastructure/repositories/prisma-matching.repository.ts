@@ -1,19 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
 import { IMatchingRepository } from '../../domain/repositories/matching.repository.interface';
 import { FeedCandidateEntity } from '../../domain/entities/feed-candidate.entity';
 import { LikeReceivedEntity } from '../../domain/entities/like-received.entity';
 import { calculateAge } from '../../../auth/application/validators/dob.validator';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 
 @Injectable()
 export class PrismaMatchingRepository implements IMatchingRepository {
   private readonly logger = new Logger(PrismaMatchingRepository.name);
+  private readonly mediaUrlResolver: MediaUrlResolverService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
-  ) {}
+    @Optional()
+    mediaUrlResolver?: MediaUrlResolverService,
+  ) {
+    this.mediaUrlResolver =
+      mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
+  }
 
   async getUserDemographicGender(
     userId: number,
@@ -170,23 +178,25 @@ export class PrismaMatchingRepository implements IMatchingRepository {
       }
 
       // Rule 4: Must have an active profile picture
-      const primaryPhoto =
+      const rawPrimaryPhoto =
         c.profile?.avatarUrl ||
         c.profile?.profilePictureUrl ||
         c.gallery.find((g) => g.isProfilePicture)?.imageUrl ||
         c.gallery[0]?.imageUrl ||
         null;
 
-      if (!primaryPhoto || !primaryPhoto.trim()) {
+      if (!rawPrimaryPhoto || !rawPrimaryPhoto.trim()) {
         continue; // Skip profiles without an active picture
       }
+
+      const primaryPhoto = this.mediaUrlResolver.resolveUrl(rawPrimaryPhoto);
 
       const age = c.demographic?.birthDate
         ? calculateAge(c.demographic.birthDate)
         : null;
 
       const galleryUrls = c.gallery
-        .map((g) => g.imageUrl)
+        .map((g) => this.mediaUrlResolver.resolveUrl(g.imageUrl))
         .filter((url) => !!url && url.trim().length > 0);
 
       const interestNames = c.interests

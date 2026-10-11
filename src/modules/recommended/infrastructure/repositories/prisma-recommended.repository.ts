@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 import {
   CandidatePoolItem,
   IRecommendedRepository,
@@ -10,11 +12,17 @@ import {
 @Injectable()
 export class PrismaRecommendedRepository implements IRecommendedRepository {
   private readonly logger = new Logger(PrismaRecommendedRepository.name);
+  private readonly mediaUrlResolver: MediaUrlResolverService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
-  ) {}
+    @Optional()
+    mediaUrlResolver?: MediaUrlResolverService,
+  ) {
+    this.mediaUrlResolver =
+      mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
+  }
 
   async getUserProfile(
     userId: number,
@@ -155,8 +163,12 @@ export class PrismaRecommendedRepository implements IRecommendedRepository {
         gender: c.demographic?.gender || null,
         birthDate: c.demographic?.birthDate || null,
         bio: c.profile?.bio || null,
-        avatarUrl: c.profile?.avatarUrl || null,
-        profilePictureUrl: c.profile?.profilePictureUrl || null,
+        avatarUrl: c.profile?.avatarUrl
+          ? this.mediaUrlResolver.resolveUrl(c.profile.avatarUrl)
+          : null,
+        profilePictureUrl: c.profile?.profilePictureUrl
+          ? this.mediaUrlResolver.resolveUrl(c.profile.profilePictureUrl)
+          : null,
         profileValidated: c.profileValidated,
         cityId: c.demographic?.cityId || null,
         cityName: c.demographic?.city?.name || null,
@@ -167,7 +179,7 @@ export class PrismaRecommendedRepository implements IRecommendedRepository {
         lastSeenAt: c.profile?.lastSeenAt || null,
         gallery: c.gallery.map((g) => ({
           id: g.id,
-          imageUrl: g.imageUrl,
+          imageUrl: this.mediaUrlResolver.resolveUrl(g.imageUrl),
           isProfilePicture: g.isProfilePicture,
         })),
         interestNames,

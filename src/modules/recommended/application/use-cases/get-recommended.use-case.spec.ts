@@ -270,4 +270,38 @@ describe('GetRecommendedUseCase', () => {
     const result = await useCase.execute(1, { limit: 10 });
     expect(result).toHaveLength(10);
   });
+
+  it('should resolve relative avatar paths into full public URLs', async () => {
+    mockRepository.getUserProfile.mockResolvedValue(baseCurrentUser);
+    mockRepository.getSwipedUserIds.mockResolvedValue([]);
+
+    const candidateRelativeAvatar: CandidatePoolItem = {
+      id: 50,
+      fullName: 'Relative Avatar User',
+      username: 'rel_user',
+      gender: 'FEMALE',
+      birthDate: new Date('1998-05-15'),
+      bio: null,
+      avatarUrl: 'avatars/avatarbe9c29b29330.webp',
+      profilePictureUrl: null,
+      profileValidated: true,
+      cityId: 10,
+      cityName: 'Tehran',
+      relationPreference: 'LONG',
+      isOnline: true,
+      lastSeenAt: new Date(),
+      gallery: [],
+      interestNames: [],
+      interestIds: [],
+      answerIds: [],
+    };
+
+    mockRepository.getCandidatePool.mockResolvedValue([candidateRelativeAvatar]);
+
+    const result = await useCase.execute(1, { limit: 10 });
+    expect(result).toHaveLength(1);
+    expect(result[0].avatarUrl).toBe(
+      'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
+    );
+  });
 });

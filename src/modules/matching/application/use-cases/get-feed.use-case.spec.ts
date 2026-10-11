@@ -83,4 +83,24 @@ describe('GetFeedUseCase', () => {
       20,
     );
   });
+
+  it('resolves relative avatarUrl and gallery paths into full public URLs', async () => {
+    mockMatchingRepository.getUserDemographicGender.mockResolvedValue('MALE');
+    mockMatchingRepository.findCandidateProfiles.mockResolvedValue([
+      {
+        ...sampleCandidate,
+        avatarUrl: 'avatars/avatarbe9c29b29330.webp',
+        gallery: ['images/img1.webp'],
+      },
+    ]);
+
+    const result = await useCase.execute(1);
+
+    expect(result.candidates[0].avatarUrl).toBe(
+      'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
+    );
+    expect(result.candidates[0].gallery).toEqual([
+      'http://localhost:3000/assets/images/img1.webp',
+    ]);
+  });
 });

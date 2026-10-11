@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/database/prisma.module';
 import { RedisModule } from '../../infrastructure/redis/redis.module';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from '../media/media.module';
 import { RecommendedController } from './presentation/recommended.controller';
 import { RECOMMENDED_REPOSITORY } from './domain/repositories/recommended.repository.interface';
 import { PrismaRecommendedRepository } from './infrastructure/repositories/prisma-recommended.repository';
@@ -9,7 +10,7 @@ import { GetRecommendedUseCase } from './application/use-cases/get-recommended.u
 import { UserAuthGuard } from './application/guards/user-auth.guard';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule],
+  imports: [AuthModule, PrismaModule, RedisModule, MediaModule],
   controllers: [RecommendedController],
   providers: [
     UserAuthGuard,

@@ -2,19 +2,29 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   IMatchingRepository,
   MATCHING_REPOSITORY,
 } from '../../domain/repositories/matching.repository.interface';
 import { FeedDataDto, FeedQueryDto } from '../dtos/feed.dto';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
 
 @Injectable()
 export class GetFeedUseCase {
+  private readonly mediaUrlResolver: MediaUrlResolverService;
+
   constructor(
     @Inject(MATCHING_REPOSITORY)
     private readonly matchingRepository: IMatchingRepository,
-  ) {}
+    @Optional()
+    mediaUrlResolver?: MediaUrlResolverService,
+  ) {
+    this.mediaUrlResolver =
+      mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
+  }
 
   async execute(
     currentUserId: number,
@@ -52,9 +62,9 @@ export class GetFeedUseCase {
         age: c.age,
         gender: c.gender,
         bio: c.bio,
-        avatarUrl: c.avatarUrl,
+        avatarUrl: c.avatarUrl ? this.mediaUrlResolver.resolveUrl(c.avatarUrl) : null,
         profileValidated: c.profileValidated,
-        gallery: c.gallery,
+        gallery: (c.gallery || []).map((url) => this.mediaUrlResolver.resolveUrl(url)),
         interests: c.interests,
         city: c.city,
         isOnline: c.isOnline,

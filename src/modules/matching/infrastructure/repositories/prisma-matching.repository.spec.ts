@@ -159,6 +159,41 @@ describe('PrismaMatchingRepository', () => {
       expect(result[0].city).toBe('Tehran');
       expect(result[0].interests).toEqual(['Music']);
     });
+
+    it('resolves relative avatarUrl and gallery images into full public URLs', async () => {
+      mockPrisma.swipe.findMany.mockResolvedValue([]);
+      mockRedisClient.smembers.mockResolvedValue([]);
+
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 10,
+          profileValidated: true,
+          profile: {
+            fullName: 'Relative Candidate',
+            avatarUrl: 'avatars/avatarbe9c29b29330.webp',
+            isOnline: true,
+            lastSeenAt: new Date(),
+          },
+          demographic: {
+            gender: 'FEMALE',
+            birthDate: new Date('1998-05-10'),
+            city: { name: 'Tehran' },
+          },
+          gallery: [{ imageUrl: 'images/gal1.webp', isProfilePicture: true }],
+          interests: [],
+        },
+      ]);
+
+      const result = await repository.findCandidateProfiles(1, 'FEMALE', 20);
+
+      expect(result.length).toBe(1);
+      expect(result[0].avatarUrl).toBe(
+        'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
+      );
+      expect(result[0].gallery).toEqual([
+        'http://localhost:3000/assets/images/gal1.webp',
+      ]);
+    });
   });
 
   describe('findLikesReceived', () => {

@@ -156,5 +156,47 @@ describe('PrismaRecommendedRepository', () => {
         }),
       );
     });
+
+    it('resolves relative avatarUrl, profilePictureUrl, and gallery imageUrl into full public URLs', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 3,
+          profileValidated: true,
+          profile: {
+            fullName: 'Jane Doe',
+            username: 'janedoe',
+            avatarUrl: 'avatars/avatarbe9c29b29330.webp',
+            profilePictureUrl: 'avatars/profile_pic.webp',
+            isOnline: true,
+            lastSeenAt: new Date(),
+          },
+          demographic: {
+            gender: 'FEMALE',
+            birthDate: new Date('1998-05-15'),
+            cityId: 10,
+            city: { name: 'Tehran' },
+          },
+          preferences: null,
+          gallery: [
+            { id: 1, imageUrl: 'images/gallery_1.webp', isProfilePicture: true },
+          ],
+          interests: [],
+          questionAnswers: [],
+        },
+      ]);
+
+      const candidates = await repository.getCandidatePool('FEMALE', [], 10);
+
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].avatarUrl).toBe(
+        'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
+      );
+      expect(candidates[0].profilePictureUrl).toBe(
+        'http://localhost:3000/assets/avatars/profile_pic.webp',
+      );
+      expect(candidates[0].gallery[0].imageUrl).toBe(
+        'http://localhost:3000/assets/images/gallery_1.webp',
+      );
+    });
   });
 });

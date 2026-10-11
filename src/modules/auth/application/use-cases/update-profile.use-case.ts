@@ -216,12 +216,33 @@ export class UpdateProfileUseCase {
       ? candidateDeleteGalleryIdsInput.map(Number).filter((n) => !isNaN(n) && n > 0)
       : [];
 
+    const candidateTargetGalleryId =
+      galleryObj?.id !== undefined && galleryObj?.id !== null && !isNaN(Number(galleryObj.id))
+        ? Number(galleryObj.id)
+        : null;
+
+    let existingTargetGallery: any = null;
+    if (candidateTargetGalleryId) {
+      if (typeof (this.prisma as any).userGallery?.findFirst === 'function') {
+        existingTargetGallery = await (this.prisma as any).userGallery.findFirst({
+          where: { id: candidateTargetGalleryId, userId },
+        });
+      }
+      if (galleryFiles && galleryFiles.length > 0 && !existingTargetGallery) {
+        throw new BadRequestException('Gallery image with specified id not found.');
+      }
+    }
+
+    const isReplacingGalleryImage = Boolean(
+      existingTargetGallery && galleryFiles && galleryFiles.length > 0,
+    );
+
     // Rule: Limit for total uploaded image gallery: 10
     const currentGalleryCount =
       typeof (this.prisma as any).userGallery?.count === 'function'
         ? await (this.prisma as any).userGallery.count({ where: { userId } })
         : 0;
-    const newUploadsCount = galleryFiles ? Math.min(galleryFiles.length, 1) : 0;
+    const newUploadsCount = (galleryFiles && !isReplacingGalleryImage) ? Math.min(galleryFiles.length, 1) : 0;
     const deleteCount = deleteGalleryIds.length;
     const projectedGalleryCount = Math.max(0, currentGalleryCount - deleteCount) + newUploadsCount;
     if (projectedGalleryCount > 10) {
@@ -757,54 +778,91 @@ export class UpdateProfileUseCase {
         });
       }
 
-      // Newly uploaded gallery images (max 1)
+      // Newly uploaded gallery images (max 1) or in-place replacement
       let newlyCreatedGallery: any = null;
-      if (processedGalleryImages.length > 0 && typeof (tx as any).userGallery?.create === 'function') {
+      let updatedGalleryRecord: any = null;
+
+      if (processedGalleryImages.length > 0) {
         const img = processedGalleryImages[0];
 
-        // Determine if new image should be profilePicture:
-        // 1. If isProfilePicture flag was explicitly sent, use it.
-        // 2. If isProfilePicture was NOT sent (undefined), set the first gallery as isProfilePicture by default:
-        //    (i.e. if user has no existing gallery, or no existing gallery has isProfilePicture: true).
-        let newIsProfilePicture = false;
-        if (isProfilePictureFlag === true) {
-          newIsProfilePicture = true;
-        } else if (isProfilePictureFlag === false) {
-          newIsProfilePicture = false;
-        } else {
-          const existingActive = typeof (tx as any).userGallery?.findFirst === 'function'
-            ? await (tx as any).userGallery.findFirst({
-                where: { userId, isProfilePicture: true },
-              })
-            : null;
-          if (!existingActive) {
+        if (existingTargetGallery && typeof (tx as any).userGallery?.update === 'function') {
+          // Replace existing gallery image file with new uploaded file
+          let newIsProfilePicture = existingTargetGallery.isProfilePicture;
+          if (isProfilePictureFlag === true) {
             newIsProfilePicture = true;
+          } else if (isProfilePictureFlag === false) {
+            newIsProfilePicture = false;
           }
-        }
 
-        newlyCreatedGallery = await (tx as any).userGallery.create({
-          data: {
-            userId,
+          const updateData: any = {
             imageUrl: img.relativeUrl,
-            description: galleryObj?.description ?? null,
-            likesCount: 0,
-            isProfilePicture: newIsProfilePicture,
-          },
-        });
-
-        if (newIsProfilePicture) {
-          if (typeof (tx as any).userGallery?.updateMany === 'function') {
-            await (tx as any).userGallery.updateMany({
-              where: { userId, id: { not: newlyCreatedGallery.id } },
-              data: { isProfilePicture: false },
-            });
+          };
+          if (galleryObj?.description !== undefined) {
+            updateData.description = galleryObj.description;
           }
-          profilePictureUrl = newlyCreatedGallery.imageUrl;
+          if (isProfilePictureFlag !== undefined) {
+            updateData.isProfilePicture = newIsProfilePicture;
+          }
+
+          updatedGalleryRecord = await (tx as any).userGallery.update({
+            where: { id: existingTargetGallery.id },
+            data: updateData,
+          });
+
+          if (newIsProfilePicture) {
+            if (typeof (tx as any).userGallery?.updateMany === 'function') {
+              await (tx as any).userGallery.updateMany({
+                where: { userId, id: { not: existingTargetGallery.id } },
+                data: { isProfilePicture: false },
+              });
+            }
+            profilePictureUrl = img.relativeUrl;
+          }
+        } else if (typeof (tx as any).userGallery?.create === 'function') {
+          // Determine if new image should be profilePicture:
+          // 1. If isProfilePicture flag was explicitly sent, use it.
+          // 2. If isProfilePicture was NOT sent (undefined), set the first gallery as isProfilePicture by default:
+          //    (i.e. if user has no existing gallery, or no existing gallery has isProfilePicture: true).
+          let newIsProfilePicture = false;
+          if (isProfilePictureFlag === true) {
+            newIsProfilePicture = true;
+          } else if (isProfilePictureFlag === false) {
+            newIsProfilePicture = false;
+          } else {
+            const existingActive = typeof (tx as any).userGallery?.findFirst === 'function'
+              ? await (tx as any).userGallery.findFirst({
+                  where: { userId, isProfilePicture: true },
+                })
+              : null;
+            if (!existingActive) {
+              newIsProfilePicture = true;
+            }
+          }
+
+          newlyCreatedGallery = await (tx as any).userGallery.create({
+            data: {
+              userId,
+              imageUrl: img.relativeUrl,
+              description: galleryObj?.description ?? null,
+              likesCount: 0,
+              isProfilePicture: newIsProfilePicture,
+            },
+          });
+
+          if (newIsProfilePicture) {
+            if (typeof (tx as any).userGallery?.updateMany === 'function') {
+              await (tx as any).userGallery.updateMany({
+                where: { userId, id: { not: newlyCreatedGallery.id } },
+                data: { isProfilePicture: false },
+              });
+            }
+            profilePictureUrl = newlyCreatedGallery.imageUrl;
+          }
         }
       }
 
-      // Update description of existing gallery item if specified
-      if (galleryObj?.id && typeof (tx as any).userGallery?.updateMany === 'function') {
+      // Update description of existing gallery item if specified (when not already replaced above)
+      if (!isReplacingGalleryImage && galleryObj?.id && typeof (tx as any).userGallery?.updateMany === 'function') {
         const galleryId = Number(galleryObj.id);
         if (!isNaN(galleryId) && galleryObj.description !== undefined) {
           await (tx as any).userGallery.updateMany({
@@ -829,7 +887,12 @@ export class UpdateProfileUseCase {
         selectedGalleryId = newlyCreatedGallery.id;
       }
 
-      if (selectedGalleryId && (!newlyCreatedGallery || selectedGalleryId !== newlyCreatedGallery.id)) {
+      if (updatedGalleryRecord && (updatedGalleryRecord.isProfilePicture || isProfilePictureFlag === true)) {
+        selectedGalleryId = updatedGalleryRecord.id;
+      }
+
+      const handledGalleryId = newlyCreatedGallery?.id ?? updatedGalleryRecord?.id;
+      if (selectedGalleryId && (!handledGalleryId || selectedGalleryId !== handledGalleryId)) {
         if (typeof (tx as any).userGallery?.findFirst === 'function') {
           const chosen = await (tx as any).userGallery.findFirst({
             where: { id: selectedGalleryId, userId },
@@ -848,7 +911,7 @@ export class UpdateProfileUseCase {
             throw new BadRequestException('Gallery image with specified profilePictureId not found.');
           }
         }
-      } else if (!newlyCreatedGallery && candidateProfilePictureInput && typeof candidateProfilePictureInput === 'string') {
+      } else if (!newlyCreatedGallery && !updatedGalleryRecord && candidateProfilePictureInput && typeof candidateProfilePictureInput === 'string') {
         const filename = path.basename(candidateProfilePictureInput.trim());
         const chosen = typeof (tx as any).userGallery?.findFirst === 'function'
           ? await (tx as any).userGallery.findFirst({
@@ -872,7 +935,7 @@ export class UpdateProfileUseCase {
         } else {
           profilePictureUrl = candidateProfilePictureInput.trim();
         }
-      } else if (!newlyCreatedGallery) {
+      } else if (!newlyCreatedGallery && !updatedGalleryRecord) {
         // Fallback or maintain existing profile picture
         if (profilePictureUrl && typeof (tx as any).userGallery?.findFirst === 'function') {
           const stillExists = await (tx as any).userGallery.findFirst({

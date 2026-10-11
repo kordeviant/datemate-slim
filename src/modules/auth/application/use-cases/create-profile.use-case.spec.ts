@@ -1270,6 +1270,210 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       expect(res.Profile.profilePicture).toBe("images/gallery_42.webp");
       expect(res.Profile.profilePictureId).toBe(42);
     });
+
+    it("should replace an existing gallery image when gallery id and a new file are provided", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue({
+        id: 10,
+        userId: 1,
+        imageUrl: "images/gallery_10_old.webp",
+        description: "Old description",
+        isProfilePicture: false,
+      });
+      mockPrisma.userGallery.update.mockResolvedValue({
+        id: 10,
+        userId: 1,
+        imageUrl: "images/gallery_1_first.webp",
+        description: "New description",
+        isProfilePicture: false,
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 10,
+          userId: 1,
+          imageUrl: "images/gallery_1_first.webp",
+          description: "New description",
+          isProfilePicture: false,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+      ]);
+
+      const dummyFile: any = {
+        fieldname: "gallery",
+        originalname: "gallery.webp",
+        encoding: "7bit",
+        mimetype: "image/webp",
+        buffer: Buffer.from("fake-image-bytes"),
+        size: 100000,
+      };
+
+      const res = await useCase.execute(
+        1,
+        {
+          gallery: {
+            id: 10,
+            description: "New description",
+          },
+        } as any,
+        undefined,
+        undefined,
+        [dummyFile],
+      );
+
+      // Must update existing record, NOT create a new one
+      expect(mockPrisma.userGallery.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: expect.objectContaining({
+          imageUrl: "images/gallery_1_first.webp",
+          description: "New description",
+        }),
+      });
+      expect(mockPrisma.userGallery.create).not.toHaveBeenCalled();
+      expect(res.gallery![0].id).toBe(10);
+      expect(res.gallery![0].url).toBe("images/gallery_1_first.webp");
+    });
+
+    it("should throw BadRequestException if gallery id does not exist when uploading a file to replace it", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue(null);
+
+      const dummyFile: any = {
+        fieldname: "gallery",
+        originalname: "gallery.webp",
+        encoding: "7bit",
+        mimetype: "image/webp",
+        buffer: Buffer.from("fake-image-bytes"),
+        size: 100000,
+      };
+
+      await expect(
+        useCase.execute(
+          1,
+          {
+            gallery: {
+              id: 9999,
+            },
+          } as any,
+          undefined,
+          undefined,
+          [dummyFile],
+        ),
+      ).rejects.toThrow(
+        new BadRequestException("Gallery image with specified id not found."),
+      );
+    });
+
+    it("should allow replacing an existing gallery image even if user already has 10 gallery photos (projected count does not exceed limit)", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue({
+        id: 5,
+        userId: 1,
+        imageUrl: "images/gallery_5_old.webp",
+        isProfilePicture: false,
+      });
+      mockPrisma.userGallery.count.mockResolvedValue(10); // user already has max 10 photos
+      mockPrisma.userGallery.update.mockResolvedValue({
+        id: 5,
+        userId: 1,
+        imageUrl: "images/gallery_1_first.webp",
+        isProfilePicture: false,
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 5,
+          userId: 1,
+          imageUrl: "images/gallery_1_first.webp",
+          isProfilePicture: false,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+      ]);
+
+      const dummyFile: any = {
+        fieldname: "gallery",
+        originalname: "gallery.webp",
+        encoding: "7bit",
+        mimetype: "image/webp",
+        buffer: Buffer.from("fake-image-bytes"),
+        size: 100000,
+      };
+
+      const res = await useCase.execute(
+        1,
+        {
+          gallery: {
+            id: 5,
+          },
+        } as any,
+        undefined,
+        undefined,
+        [dummyFile],
+      );
+
+      // Replaces in place without throwing limit exceeded
+      expect(mockPrisma.userGallery.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 5 },
+          data: expect.objectContaining({
+            imageUrl: "images/gallery_1_first.webp",
+          }),
+        }),
+      );
+      expect(mockPrisma.userGallery.create).not.toHaveBeenCalled();
+      expect(res.gallery![0].id).toBe(5);
+    });
+
+    it("should update profilePicture when replacing the gallery photo that is currently the active profile picture", async () => {
+      mockPrisma.userGallery.findFirst.mockResolvedValue({
+        id: 7,
+        userId: 1,
+        imageUrl: "images/gallery_7_old.webp",
+        isProfilePicture: true,
+      });
+      mockPrisma.userGallery.update.mockResolvedValue({
+        id: 7,
+        userId: 1,
+        imageUrl: "images/gallery_1_first.webp",
+        isProfilePicture: true,
+      });
+      mockPrisma.userGallery.findMany.mockResolvedValue([
+        {
+          id: 7,
+          userId: 1,
+          imageUrl: "images/gallery_1_first.webp",
+          isProfilePicture: true,
+          createdAt: new Date("2026-10-04T12:00:00Z"),
+        },
+      ]);
+
+      const dummyFile: any = {
+        fieldname: "gallery",
+        originalname: "gallery.webp",
+        encoding: "7bit",
+        mimetype: "image/webp",
+        buffer: Buffer.from("fake-image-bytes"),
+        size: 100000,
+      };
+
+      const res = await useCase.execute(
+        1,
+        {
+          gallery: {
+            id: 7,
+          },
+        } as any,
+        undefined,
+        undefined,
+        [dummyFile],
+      );
+
+      expect(mockPrisma.userGallery.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 7 },
+          data: expect.objectContaining({
+            imageUrl: "images/gallery_1_first.webp",
+          }),
+        }),
+      );
+      expect(res.Profile.profilePicture).toBe("images/gallery_1_first.webp");
+      expect(res.Profile.profilePictureId).toBe(7);
+    });
   });
 });
 

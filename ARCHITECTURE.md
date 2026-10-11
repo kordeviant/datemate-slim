@@ -185,6 +185,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Gallery Object & Profile Picture Updating**:
   - `gallery` in request body is a single object: `{ isProfilePicture?: boolean, image?: string, description?: string, id?: number }`.
   - `isProfilePicture` is optional: if omitted, the backend sets the user's first gallery image as `isProfilePicture: true` by default.
+  - **In-place Gallery Update by ID**: When both a gallery image file and `gallery.id` are sent in the request, the backend replaces the existing gallery item's photo and description in-place without creating a duplicate record or counting towards the 10-image limit.
   - `profilePictureId`: integer gallery ID passed in request to select an existing or uploaded gallery photo as active profile picture.
   - **Single Canonical Contract**: `gallery` and `profilePictureId` are strictly sent outside the `Profile` object at the root level (no duplicated fields across root and nested objects). There is **no need** for `profilePicture` string URL in the request.
 

@@ -172,37 +172,90 @@ export class PrismaMatchingRepository implements IMatchingRepository {
 
     const results: FeedCandidateEntity[] = [];
 
-    for (const c of candidates) {
-      if (results.length >= limit) {
-        break;
-      }
-
+    const processCandidate = (c: any): FeedCandidateEntity | null => {
       // Rule 4: Must have an active profile picture
       const rawPrimaryPhoto =
         c.profile?.avatarUrl ||
         c.profile?.profilePictureUrl ||
-        c.gallery.find((g) => g.isProfilePicture)?.imageUrl ||
+        c.gallery.find((g: any) => g.isProfilePicture)?.imageUrl ||
         c.gallery[0]?.imageUrl ||
         null;
 
       if (!rawPrimaryPhoto || !rawPrimaryPhoto.trim()) {
-        continue; // Skip profiles without an active picture
+        return null; // Skip profiles without an active picture
       }
 
       const primaryPhoto = this.mediaUrlResolver.resolveUrl(rawPrimaryPhoto);
-
       const age = c.demographic?.birthDate
         ? calculateAge(c.demographic.birthDate)
         : null;
 
-      results.push({
+      return {
         id: c.id,
         fullName: c.profile?.fullName || null,
         city: c.demographic?.city?.name || null,
         age,
         avatarUrl: primaryPhoto,
         username: c.profile?.username || null,
+      };
+    };
+
+    for (const c of candidates) {
+      if (results.length >= limit) {
+        break;
+      }
+      const processed = processCandidate(c);
+      if (processed) {
+        results.push(processed);
+      }
+    }
+
+    // Fallback: If no unswiped candidates are available (deck exhausted / 0 results),
+    // loop back through candidates (excluding only the user themselves)
+    if (results.length === 0 && swipedIds.size > 0) {
+      const fallbackCandidates = await this.prisma.user.findMany({
+        where: {
+          id: { not: userId },
+          profileValidated: true,
+          OR: [
+            { bannedUntil: null },
+            { bannedUntil: { lt: new Date() } },
+          ],
+          demographic: {
+            gender: targetGender,
+          },
+          profile: {
+            isNot: null,
+          },
+        },
+        include: {
+          profile: true,
+          demographic: {
+            include: {
+              city: true,
+            },
+          },
+          gallery: {
+            orderBy: { id: 'asc' },
+          },
+        },
+        take: limit * 2,
+        orderBy: [
+          { profile: { isOnline: 'desc' } },
+          { profile: { lastSeenAt: 'desc' } },
+          { id: 'asc' },
+        ],
       });
+
+      for (const fc of fallbackCandidates) {
+        if (results.length >= limit) {
+          break;
+        }
+        const processed = processCandidate(fc);
+        if (processed) {
+          results.push(processed);
+        }
+      }
     }
 
     return results;

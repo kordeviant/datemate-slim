@@ -305,35 +305,63 @@ describe('GetRecommendedUseCase', () => {
     );
   });
 
-  it('should include candidate with profileValidated: true even if they have no selfie photo', async () => {
+  it('should backfill swiped candidates when unswiped candidates are fewer than limit, ranking unswiped candidates first', async () => {
     mockRepository.getUserProfile.mockResolvedValue(baseCurrentUser);
-    mockRepository.getSwipedUserIds.mockResolvedValue([]);
+    mockRepository.getSwipedUserIds.mockResolvedValue([99]);
 
-    const candidateWithoutSelfie: CandidatePoolItem = {
-      id: 60,
-      fullName: 'No Selfie User',
-      username: 'noselfie',
+    const unswipedCandidate: CandidatePoolItem = {
+      id: 70,
+      fullName: 'Unswiped User',
+      username: 'unswiped',
       gender: 'FEMALE',
       birthDate: new Date('1998-05-15'),
       bio: null,
-      avatarUrl: 'https://example.com/avatar.jpg',
-      profilePictureUrl: null,
+      avatarUrl: 'https://example.com/unswiped.jpg',
+      profilePictureUrl: 'https://example.com/unswiped.jpg',
       profileValidated: true,
-      cityId: 10,
-      cityName: 'Tehran',
-      relationPreference: 'LONG',
-      isOnline: true,
-      lastSeenAt: new Date(),
+      cityId: 99, // low match
+      cityName: 'Shiraz',
+      relationPreference: 'FUN',
+      isOnline: false,
+      lastSeenAt: null,
       gallery: [],
       interestNames: [],
       interestIds: [],
       answerIds: [],
     };
 
-    mockRepository.getCandidatePool.mockResolvedValue([candidateWithoutSelfie]);
+    const swipedCandidate: CandidatePoolItem = {
+      id: 99,
+      fullName: 'Swiped User',
+      username: 'swiped',
+      gender: 'FEMALE',
+      birthDate: new Date('1998-05-15'),
+      bio: null,
+      avatarUrl: 'https://example.com/swiped.jpg',
+      profilePictureUrl: 'https://example.com/swiped.jpg',
+      profileValidated: true,
+      cityId: 10, // high match
+      cityName: 'Tehran',
+      relationPreference: 'LONG',
+      isOnline: true,
+      lastSeenAt: new Date(),
+      gallery: [],
+      interestNames: ['Music', 'Art', 'Coffee'],
+      interestIds: [1, 2, 3],
+      answerIds: [101, 102, 103],
+    };
+
+    // First call: excluding [1, 99] returns unswipedCandidate (count = 1 < limit 10)
+    // Second call: excluding [1] returns [swipedCandidate]
+    mockRepository.getCandidatePool
+      .mockResolvedValueOnce([unswipedCandidate])
+      .mockResolvedValueOnce([swipedCandidate]);
 
     const result = await useCase.execute(1, { limit: 10 });
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(60);
+
+    expect(result).toHaveLength(2);
+    // Unswiped candidate must come first even if swiped candidate has higher compatibility
+    expect(result[0].id).toBe(70);
+    expect(result[1].id).toBe(99);
   });
 });

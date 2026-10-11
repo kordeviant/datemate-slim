@@ -285,7 +285,7 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
 - **Strict 6 Feed Selection Invariants (`GET /v1/feed`)**:
   The candidate feed deck (default 20 cards) is strictly filtered by:
   1. **Exclude Self**: `candidate.id != currentUserId`.
-  2. **Exclude Already Swiped**: Excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma#L399) records.
+  2. **Exclude Already Swiped (with Loop Fallback)**: By default, excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma#L399) records. If the unswiped candidate pool reaches 0 (deck exhausted), the feed automatically loops back through the candidate pool excluding only the user themselves so the user can continue viewing candidates.
   3. **Account Status**: `bannedUntil IS NULL` (user is not banned or suspended).
   4. **Has Photo**: Candidate must possess an active profile picture (`profile.avatarUrl`, `profile.profilePictureUrl`, or `gallery` item with `isProfilePicture: true`).
   5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
@@ -321,7 +321,7 @@ The Recommended module computes personalized, high-compatibility profile recomme
 ### 10.1 Hygiene Invariants & Filters
 Before scoring, candidates must satisfy the 6 discovery baseline hygiene rules:
 1. **Exclude Self**: Candidate `id != currentUserId`.
-2. **Exclude Already Swiped**: Excludes candidates already swiped (`RIGHT` or `LEFT`) recorded in Redis (`swiped:{userId}`) and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) table.
+2. **Exclude Already Swiped (with Backfill Fallback)**: Excludes candidates already swiped (`RIGHT` or `LEFT`) recorded in Redis (`swiped:{userId}`) and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) table. If there are not enough unswiped candidates to satisfy the requested `limit`, swiped users are retrieved to backfill remaining slots (unswiped candidates are strictly prioritized first, followed by swiped candidates sorted from highest compatibility score to lowest).
 3. **Account Status**: Active account (`bannedUntil IS NULL` or in the past).
 4. **Has Active Photo**: Must have a valid, non-empty profile picture (`profilePictureUrl`, `avatarUrl`, or active gallery photo).
 5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
@@ -341,7 +341,10 @@ Candidates are ranked in descending order of a multi-factor compatibility score 
 5. **Age Proximity (Weight: up to 10 pts)**:
    - Evaluates age difference: $\le 3$ years: $+10$ pts; $\le 6$ years: $+6$ pts; $\le 10$ years: $+3$ pts.
 
-Tie-breakers sort by user activity (`isOnline` descending), recent presence (`lastSeenAt` descending), and user ID.
+Ranking order:
+- Unswiped candidates appear first; swiped fallback candidates appear second.
+- Within each tier, candidates sort in descending order of compatibility score (from highest match to lowest filter/match).
+- Tie-breakers sort by user activity (`isOnline` descending), recent presence (`lastSeenAt` descending), and user ID.
 
 ### 10.3 API Endpoint
 - `GET /v1/recommended` (and `/recommended`):

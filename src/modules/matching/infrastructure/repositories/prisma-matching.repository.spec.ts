@@ -231,6 +231,51 @@ describe('PrismaMatchingRepository', () => {
       expect(result.length).toBe(1);
       expect(result[0].id).toBe(20);
     });
+
+    it('loops back through candidates excluding only self when all candidates are already swiped', async () => {
+      mockPrisma.swipe.findMany.mockResolvedValue([{ toUserId: 30 }]);
+      mockRedisClient.smembers.mockResolvedValue([]);
+
+      // First query (with notIn: [1, 30]) returns empty array (deck exhausted)
+      // Fallback query (with not: 1) returns candidate 30
+      mockPrisma.user.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 30,
+            profileValidated: true,
+            profile: {
+              fullName: 'Looped Candidate',
+              avatarUrl: 'http://cdn/avatar.webp',
+              isOnline: true,
+              lastSeenAt: new Date(),
+            },
+            demographic: {
+              gender: 'FEMALE',
+              birthDate: new Date('1998-05-10'),
+              city: { name: 'Tehran' },
+            },
+            gallery: [],
+            interests: [],
+          },
+        ]);
+
+      const result = await repository.findCandidateProfiles(1, 'FEMALE', 20);
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.user.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { not: 1 },
+            profileValidated: true,
+          }),
+        }),
+      );
+      expect(result.length).toBe(1);
+      expect(result[0].id).toBe(30);
+      expect(result[0].fullName).toBe('Looped Candidate');
+    });
   });
 
   describe('findLikesReceived', () => {

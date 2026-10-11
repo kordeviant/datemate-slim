@@ -28,6 +28,7 @@ interface ScoredCandidateInternal {
   compatibilityScore: number;
   isOnline: boolean;
   lastSeenAt: Date | null;
+  isSwiped: boolean;
 }
 
 @Injectable()
@@ -77,13 +78,46 @@ export class GetRecommendedUseCase {
       await this.recommendedRepository.getSwipedUserIds(currentUserId);
     const excludedIds = Array.from(new Set([currentUserId, ...swipedIds]));
 
-    // Fetch candidate pool (fetch enough candidates to score and rank)
+    // Fetch primary candidate pool (excluding self and swiped candidates)
     const poolFetchLimit = Math.max(limit * 5, 100);
-    const candidates = await this.recommendedRepository.getCandidatePool(
+    let candidates = await this.recommendedRepository.getCandidatePool(
       targetGender,
       excludedIds,
       poolFetchLimit,
     );
+
+    // Filter valid primary candidates (must have photo and profileValidated)
+    const hasActivePhoto = (c: any) => {
+      const photo =
+        c.profilePictureUrl ||
+        c.avatarUrl ||
+        c.gallery.find((g: any) => g.isProfilePicture)?.imageUrl ||
+        c.gallery[0]?.imageUrl ||
+        null;
+      return Boolean(photo && photo.trim().length > 0);
+    };
+
+    let validPrimaryCount = candidates.filter(
+      (c) => c.profileValidated && hasActivePhoto(c),
+    ).length;
+
+    // Fallback: If not enough unswiped candidates to satisfy limit, fetch swiped candidates to backfill
+    if (validPrimaryCount < limit && swipedIds.length > 0) {
+      const existingCandidateIds = new Set(candidates.map((c) => c.id));
+      const neededCount = (limit - validPrimaryCount) * 5;
+      const swipedCandidates = await this.recommendedRepository.getCandidatePool(
+        targetGender,
+        [currentUserId], // only exclude self
+        Math.max(neededCount, 50),
+      );
+
+      for (const sc of swipedCandidates) {
+        if (!existingCandidateIds.has(sc.id) && swipedIds.includes(sc.id)) {
+          candidates.push(sc);
+          existingCandidateIds.add(sc.id);
+        }
+      }
+    }
 
     const scoredCandidates: ScoredCandidateInternal[] = [];
 
@@ -180,6 +214,8 @@ export class GetRecommendedUseCase {
 
       const resolvedAvatarUrl = this.mediaUrlResolver.resolveUrl(primaryPhoto);
 
+      const isCandidateSwiped = swipedIds.includes(c.id);
+
       scoredCandidates.push({
         id: c.id,
         avatarUrl: resolvedAvatarUrl,
@@ -190,11 +226,16 @@ export class GetRecommendedUseCase {
         compatibilityScore,
         isOnline: c.isOnline,
         lastSeenAt: c.lastSeenAt,
+        isSwiped: isCandidateSwiped,
       });
     }
 
-    // Rank candidates by compatibility score descending, then activity, then id
+    // Rank candidates: unswiped candidates first, then by compatibility score descending, then activity, then id
     scoredCandidates.sort((a, b) => {
+      // Prioritize unswiped candidates over swiped fallback candidates
+      if (a.isSwiped !== b.isSwiped) {
+        return a.isSwiped ? 1 : -1;
+      }
       if (b.compatibilityScore !== a.compatibilityScore) {
         return b.compatibilityScore - a.compatibilityScore;
       }

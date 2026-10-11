@@ -312,4 +312,70 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
   ```
 - `GET /v1/matches` (and `/matches`): Canonical compatibility endpoint returning the exact same likes list (`data: LikedUserDto[]`).
 
+---
+
+## 10. Recommended Module (`src/modules/recommended`)
+
+The Recommended module computes personalized, high-compatibility profile recommendations (default: 20 candidates per request) using dynamic similarity scoring without hardcoded lifestyle or question rules.
+
+### 10.1 Hygiene Invariants & Filters
+Before scoring, candidates must satisfy the 6 discovery baseline hygiene rules:
+1. **Exclude Self**: Candidate `id != currentUserId`.
+2. **Exclude Already Swiped**: Excludes candidates already swiped (`RIGHT` or `LEFT`) recorded in Redis (`swiped:{userId}`) and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) table.
+3. **Account Status**: Active account (`bannedUntil IS NULL` or in the past).
+4. **Has Active Photo**: Must have a valid, non-empty profile picture (`profilePictureUrl`, `avatarUrl`, or active gallery photo).
+5. **Profile Validated**: Candidate has `profileValidated == true`.
+6. **Gender**: Strictly opposite gender (`MALE` $\leftrightarrow$ `FEMALE`).
+
+### 10.2 Dynamic Compatibility Scoring Algorithm
+Candidates are ranked in descending order of a multi-factor compatibility score ($0 \dots 100$):
+1. **Dynamic Lifestyle & Personality Questions (Weight: up to 35 pts)**:
+   - Evaluates shared question answers from [`UserQuestionAnswer`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) across all dynamic question types (`LIFESTYLE`, `PERSONALITY`, `VALUES`, `PREFERENCES`).
+   - Zero hardcoding of question texts or IDs; computed as the ratio of overlapping answers to total answered questions.
+2. **Shared Interests (Weight: up to 25 pts)**:
+   - Evaluates overlap across user interest tags ([`UserInterest`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma)).
+3. **Same City Proximity (Weight: 20 pts)**:
+   - $+20$ points when candidate's `cityId` matches current user's `cityId`.
+4. **Relationship Goal Alignment (Weight: 10 pts)**:
+   - $+10$ points when candidate's [`Preferences.relation`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) matches user's relationship goal (`LONG`, `FUN`, `OPEN`).
+5. **Age Proximity (Weight: up to 10 pts)**:
+   - Evaluates age difference: $\le 3$ years: $+10$ pts; $\le 6$ years: $+6$ pts; $\le 10$ years: $+3$ pts.
+
+Tie-breakers sort by user activity (`isOnline` descending), recent presence (`lastSeenAt` descending), and user ID.
+
+### 10.3 API Endpoint
+- `GET /v1/recommended` (and `/recommended`):
+  - **Query Params**: `limit` (default: 20, min: 1, max: 50).
+  - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
+  - **Response Payload**:
+    ```json
+    {
+      "status": "success",
+      "message": "Recommended profiles retrieved successfully",
+      "data": [
+        {
+          "id": 102,
+          "firstName": "Sara",
+          "fullName": "Sara Connor",
+          "username": "sarah_c",
+          "age": 25,
+          "gender": "FEMALE",
+          "bio": "Art enthusiast and coffee lover.",
+          "avatarUrl": "http://localhost:3000/assets/avatars/avatar_102.webp",
+          "profileValidated": true,
+          "gallery": ["http://localhost:3000/assets/images/gallery_102.webp"],
+          "interests": ["Music", "Art", "Coffee"],
+          "city": "Tehran",
+          "isOnline": true,
+          "lastSeenAt": "2026-10-11T12:00:00.000Z",
+          "compatibilityScore": 92,
+          "sharedInterests": ["Coffee", "Music"],
+          "sharedAnswersCount": 3,
+          "sameCity": true,
+          "sameRelationGoal": true
+        }
+      ]
+    }
+    ```
+
 

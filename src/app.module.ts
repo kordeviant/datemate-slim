@@ -9,6 +9,7 @@ import { MediaModule } from './modules/media/media.module';
 import { InterestsModule } from './modules/interests/interests.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MatchingModule } from './modules/matching/matching.module';
+import { RecommendedModule } from './modules/recommended/recommended.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -27,6 +28,7 @@ import { AppService } from './app.service';
     InterestsModule,
     AdminModule,
     MatchingModule,
+    RecommendedModule,
   ],
   controllers: [AppController],
   providers: [AppService],

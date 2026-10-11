@@ -994,6 +994,8 @@ export class UpdateProfileUseCase {
           profilePictureUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
+          isOnline: true,
+          lastSeenAt: new Date(),
           ...(cleanRelationType !== undefined ? { relationType: cleanRelationType } : {}),
         } as any,
         update: {
@@ -1007,6 +1009,8 @@ export class UpdateProfileUseCase {
           profilePictureUrl,
           latitude: cleanLatitude,
           longitude: cleanLongitude,
+          isOnline: existingProfile?.isOnline ?? true,
+          lastSeenAt: new Date(),
           ...(cleanRelationType !== undefined ? { relationType: cleanRelationType } : {}),
         } as any,
       });

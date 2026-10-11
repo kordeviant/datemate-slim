@@ -658,6 +658,59 @@
         ]
       }
     },
+    "/users/gallery/{galleryId}": {
+      "delete": {
+        "operationId": "UsersController_deleteGalleryImage",
+        "summary": "Delete user gallery image",
+        "description": "Allows the authenticated user to delete a specific photo from their gallery by galleryId. If the deleted photo was the active profile picture, the backend automatically falls back to another gallery photo or clears profilePictureUrl.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "galleryId",
+            "required": true,
+            "in": "path",
+            "description": "ID of the gallery image to delete",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Gallery image deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteGalleryImageResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "404": {
+            "description": "Gallery image not found or does not belong to the user"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/users/profile": {
       "get": {
         "operationId": "UsersController_checkProfileStatus",
@@ -2679,6 +2732,256 @@
           }
         ]
       }
+    },
+    "/swipes": {
+      "post": {
+        "operationId": "SwipesController_swipe",
+        "summary": "Record a swipe (Like or Pass)",
+        "description": "Records a swipe action (RIGHT or LEFT) on a target user. Returns a fast 200 OK without extra payload for maximum throughput and sub-50ms latency.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwipeRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swipe recorded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwipeResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (self swipe, invalid direction, or banned user)"
+          },
+          "401": {
+            "description": "Unauthorized access"
+          },
+          "404": {
+            "description": "Target user not found"
+          }
+        },
+        "tags": [
+          "Swipes"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/feed": {
+      "get": {
+        "operationId": "FeedController_getFeed",
+        "summary": "Get candidate profiles feed",
+        "description": "Retrieves candidate profiles for swiping deck (default: 20 cards), filtered strictly by the 6 rules: Exclude Self, Exclude Already Swiped, Not Banned, Has Active Photo, Profile Validated, and Opposite Gender.",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of profile cards to retrieve (1 to 50, default: 20)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feed retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (missing gender demographics)"
+          },
+          "401": {
+            "description": "Unauthorized access"
+          }
+        },
+        "tags": [
+          "Feed"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/likes": {
+      "get": {
+        "operationId": "LikesController_getLikes",
+        "summary": "List all users who liked the current user",
+        "description": "Retrieves all profiles that swiped right (liked) on the authenticated user. No mutual match required; displays everyone who expressed interest.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Likes retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikesListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized access"
+          }
+        },
+        "tags": [
+          "Likes"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/matches": {
+      "get": {
+        "operationId": "MatchesController_getMatches",
+        "summary": "List users who liked the current user (alias route for matches screen)",
+        "description": "Retrieves all profiles that swiped right on the authenticated user. Displays everyone who liked the user with full profile cards.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matches/Likes retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikesListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized access"
+          }
+        },
+        "tags": [
+          "Matches"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/recommended": {
+      "get": {
+        "operationId": "RecommendedController_getRecommended",
+        "summary": "Get recommended profiles",
+        "description": "Retrieves top recommended candidate profiles (default limit: 20) filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity).",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of recommended profiles to retrieve (1 to 50, default: 20)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recommended profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendedResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (gender demographic not completed)"
+          },
+          "401": {
+            "description": "Unauthorized access"
+          },
+          "403": {
+            "description": "Account suspended"
+          },
+          "404": {
+            "description": "User profile not found"
+          }
+        },
+        "tags": [
+          "Recommended"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
     }
   },
   "info": {
@@ -3006,6 +3309,57 @@
           "data"
         ]
       },
+      "DeleteGalleryImageDataDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "example": 1,
+            "description": "User ID"
+          },
+          "galleryId": {
+            "type": "number",
+            "example": 12,
+            "description": "Deleted gallery image ID"
+          },
+          "deleted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Gallery image deletion status"
+          }
+        },
+        "required": [
+          "userId",
+          "galleryId",
+          "deleted"
+        ]
+      },
+      "DeleteGalleryImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Gallery image deleted successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeleteGalleryImageDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
+          "message",
+          "data"
+        ]
+      },
       "CityResponseDto": {
         "type": "object",
         "properties": {
@@ -3235,11 +3589,6 @@
             "description": "Photo caption or description",
             "nullable": true
           },
-          "likesCount": {
-            "type": "number",
-            "example": 0,
-            "description": "Likes count"
-          },
           "isProfilePicture": {
             "type": "boolean",
             "example": true,
@@ -3254,7 +3603,6 @@
         "required": [
           "id",
           "url",
-          "likesCount",
           "isProfilePicture"
         ]
       },
@@ -5030,6 +5378,16 @@
             "example": "علاقهمند به سفر، کوهنوردی و مطالعه کتابهای روانشناسی.",
             "nullable": true
           },
+          "gender": {
+            "type": "string",
+            "example": "MALE",
+            "nullable": true
+          },
+          "age": {
+            "type": "number",
+            "example": 25,
+            "nullable": true
+          },
           "avatarUrl": {
             "type": "string",
             "example": "https://api-datemate.testdevvvv.site/uploads/avatars/user12.webp",
@@ -5278,6 +5636,89 @@
             "type": "number",
             "example": 50,
             "description": "User wallet balance"
+          },
+          "gender": {
+            "type": "string",
+            "example": "MALE",
+            "enum": [
+              "MALE",
+              "FEMALE"
+            ]
+          },
+          "avatarUrl": {
+            "type": "string",
+            "example": "https://example.com/avatar.webp"
+          },
+          "username": {
+            "type": "string",
+            "example": "alireza"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "09123456789"
+          },
+          "birthDate": {
+            "type": "string",
+            "example": "1998-11-25"
+          },
+          "age": {
+            "type": "number",
+            "example": 26
+          },
+          "height": {
+            "type": "number",
+            "example": 178
+          },
+          "weight": {
+            "type": "number",
+            "example": 72
+          },
+          "degree": {
+            "type": "string",
+            "example": "BACHELOR_DEGREE"
+          },
+          "job": {
+            "type": "string",
+            "example": "مهندس نرم‌افزار"
+          },
+          "relationStatus": {
+            "type": "string",
+            "example": "SINGLE"
+          },
+          "religion": {
+            "type": "string",
+            "example": "ISLAM"
+          },
+          "city": {
+            "type": "string",
+            "example": "تهران"
+          },
+          "profile": {
+            "type": "object"
+          },
+          "demographic": {
+            "type": "object"
+          },
+          "preferences": {
+            "type": "object"
+          },
+          "personality": {
+            "type": "object"
+          },
+          "Answers": {
+            "type": "object"
+          },
+          "answers": {
+            "type": "object"
+          },
+          "LikedActivities": {
+            "type": "object"
+          },
+          "likedActivities": {
+            "type": "object"
+          },
+          "interests": {
+            "type": "object"
           }
         }
       },
@@ -5626,6 +6067,303 @@
         "required": [
           "status",
           "success",
+          "message",
+          "data"
+        ]
+      },
+      "SwipeRequestDto": {
+        "type": "object",
+        "properties": {
+          "targetUserId": {
+            "type": "number",
+            "example": 205,
+            "description": "Target user ID to swipe on"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RIGHT",
+              "LEFT"
+            ],
+            "example": "RIGHT",
+            "description": "Swipe direction: RIGHT (Like) or LEFT (Pass)"
+          }
+        },
+        "required": [
+          "targetUserId",
+          "direction"
+        ]
+      },
+      "SwipeResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Swipe recorded successfully"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ]
+      },
+      "FeedCandidateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 205
+          },
+          "username": {
+            "type": "string",
+            "example": "sara_c",
+            "nullable": true
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Sara Connor",
+            "nullable": true
+          },
+          "age": {
+            "type": "number",
+            "example": 24,
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "example": "FEMALE",
+            "nullable": true
+          },
+          "bio": {
+            "type": "string",
+            "example": "Love photography and coffee.",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/avatars/avatar_205.webp",
+            "nullable": true
+          },
+          "profileValidated": {
+            "type": "boolean",
+            "example": true
+          },
+          "gallery": {
+            "example": [
+              "http://localhost:3000/assets/images/gallery_1.webp"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interests": {
+            "example": [
+              "Photography",
+              "Hiking"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "city": {
+            "type": "string",
+            "example": "Tehran",
+            "nullable": true
+          },
+          "isOnline": {
+            "type": "boolean",
+            "example": true
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-10-11T12:00:00.000Z",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "fullName",
+          "age",
+          "gender",
+          "bio",
+          "avatarUrl",
+          "profileValidated",
+          "gallery",
+          "interests",
+          "city",
+          "isOnline",
+          "lastSeenAt"
+        ]
+      },
+      "FeedDataDto": {
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedCandidateDto"
+            }
+          },
+          "count": {
+            "type": "number",
+            "example": 20
+          }
+        },
+        "required": [
+          "candidates",
+          "count"
+        ]
+      },
+      "FeedResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Feed retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FeedDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
+      "LikedUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 205
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Sara Connor",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "example": "sarah_c",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "example": "Tehran",
+            "nullable": true
+          },
+          "isOnline": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "username",
+          "city",
+          "isOnline"
+        ]
+      },
+      "LikesListResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Likes retrieved successfully"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LikedUserDto"
+            }
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
+      "RecommendedCandidateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 102
+          },
+          "avatarUrl": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/avatars/avatar_102.webp",
+            "nullable": true
+          },
+          "age": {
+            "type": "number",
+            "example": 25,
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "example": "Tehran",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "example": "sarah_c",
+            "nullable": true
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Sara Connor",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "avatarUrl",
+          "age",
+          "city",
+          "username",
+          "fullName"
+        ]
+      },
+      "RecommendedResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Recommended profiles retrieved successfully"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecommendedCandidateDto"
+            }
+          }
+        },
+        "required": [
+          "status",
           "message",
           "data"
         ]

@@ -205,7 +205,9 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         gallery: galleryUrls,
         interests: interestNames,
         city: c.demographic?.city?.name || null,
-        isOnline: c.profile?.isOnline || false,
+        isOnline: (c.email?.endsWith('@datemate.com') ?? false)
+          ? (c.profile?.isOnline || false)
+          : (c.profile?.isOnline ?? true),
         lastSeenAt: c.profile?.lastSeenAt || null,
       });
     }
@@ -244,12 +246,19 @@ export class PrismaMatchingRepository implements IMatchingRepository {
       orderBy: { createdAt: 'desc' },
     });
 
-    return swipes.map((s) => ({
-      id: s.fromUser.id,
-      fullName: s.fromUser.profile?.fullName || null,
-      username: s.fromUser.profile?.username || null,
-      city: s.fromUser.demographic?.city?.name || null,
-      isOnline: s.fromUser.profile?.isOnline || false,
-    }));
+    return swipes.map((s) => {
+      const isMockUser = s.fromUser?.email?.endsWith('@datemate.com') ?? false;
+      const isOnline = isMockUser
+        ? (s.fromUser.profile?.isOnline || false)
+        : (s.fromUser.profile?.isOnline ?? true);
+
+      return {
+        id: s.fromUser.id,
+        fullName: s.fromUser.profile?.fullName || null,
+        username: s.fromUser.profile?.username || null,
+        city: s.fromUser.demographic?.city?.name || null,
+        isOnline,
+      };
+    });
   }
 }

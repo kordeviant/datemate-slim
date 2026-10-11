@@ -161,7 +161,9 @@ export class PrismaRecommendedRepository implements IRecommendedRepository {
         cityId: c.demographic?.cityId || null,
         cityName: c.demographic?.city?.name || null,
         relationPreference: c.preferences?.relation || null,
-        isOnline: c.profile?.isOnline || false,
+        isOnline: (c.email?.endsWith('@datemate.com') ?? false)
+          ? (c.profile?.isOnline || false)
+          : (c.profile?.isOnline ?? true),
         lastSeenAt: c.profile?.lastSeenAt || null,
         gallery: c.gallery.map((g) => ({
           id: g.id,

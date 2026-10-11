@@ -304,4 +304,36 @@ describe('GetRecommendedUseCase', () => {
       'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
     );
   });
+
+  it('should include candidate with profileValidated: true even if they have no selfie photo', async () => {
+    mockRepository.getUserProfile.mockResolvedValue(baseCurrentUser);
+    mockRepository.getSwipedUserIds.mockResolvedValue([]);
+
+    const candidateWithoutSelfie: CandidatePoolItem = {
+      id: 60,
+      fullName: 'No Selfie User',
+      username: 'noselfie',
+      gender: 'FEMALE',
+      birthDate: new Date('1998-05-15'),
+      bio: null,
+      avatarUrl: 'https://example.com/avatar.jpg',
+      profilePictureUrl: null,
+      profileValidated: true,
+      cityId: 10,
+      cityName: 'Tehran',
+      relationPreference: 'LONG',
+      isOnline: true,
+      lastSeenAt: new Date(),
+      gallery: [],
+      interestNames: [],
+      interestIds: [],
+      answerIds: [],
+    };
+
+    mockRepository.getCandidatePool.mockResolvedValue([candidateWithoutSelfie]);
+
+    const result = await useCase.execute(1, { limit: 10 });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(60);
+  });
 });

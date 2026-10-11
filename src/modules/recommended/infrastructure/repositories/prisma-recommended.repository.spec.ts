@@ -198,5 +198,45 @@ describe('PrismaRecommendedRepository', () => {
         'http://localhost:3000/assets/images/gallery_1.webp',
       );
     });
+
+    it('does not require selfieUrl but enforces profileValidated: true', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 30,
+          profileValidated: true,
+          profile: {
+            fullName: 'Validated Without Selfie',
+            username: 'valid_noselfie',
+            avatarUrl: 'https://example.com/avatar.jpg',
+            profilePictureUrl: null,
+            selfieUrl: null,
+            isOnline: true,
+            lastSeenAt: new Date(),
+          },
+          demographic: {
+            gender: 'FEMALE',
+            birthDate: new Date('1998-05-15'),
+            cityId: 10,
+            city: { name: 'Tehran' },
+          },
+          preferences: null,
+          gallery: [],
+          interests: [],
+          questionAnswers: [],
+        },
+      ]);
+
+      const candidates = await repository.getCandidatePool('FEMALE', [], 10);
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            profileValidated: true,
+          }),
+        }),
+      );
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].id).toBe(30);
+    });
   });
 });

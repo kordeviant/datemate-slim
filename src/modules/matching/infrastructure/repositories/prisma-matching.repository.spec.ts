@@ -193,6 +193,44 @@ describe('PrismaMatchingRepository', () => {
       expect(result[0].fullName).toBe('Relative Candidate');
       expect(result[0].city).toBe('Tehran');
     });
+
+    it('does not require selfieUrl but requires profileValidated: true', async () => {
+      mockPrisma.swipe.findMany.mockResolvedValue([]);
+      mockRedisClient.smembers.mockResolvedValue([]);
+
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 20,
+          profileValidated: true,
+          profile: {
+            fullName: 'Validated Without Selfie',
+            avatarUrl: 'http://cdn/avatar.webp',
+            selfieUrl: null,
+            isOnline: true,
+            lastSeenAt: new Date(),
+          },
+          demographic: {
+            gender: 'FEMALE',
+            birthDate: new Date('1998-05-10'),
+            city: { name: 'Tehran' },
+          },
+          gallery: [],
+          interests: [],
+        },
+      ]);
+
+      const result = await repository.findCandidateProfiles(1, 'FEMALE', 20);
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            profileValidated: true,
+          }),
+        }),
+      );
+      expect(result.length).toBe(1);
+      expect(result[0].id).toBe(20);
+    });
   });
 
   describe('findLikesReceived', () => {

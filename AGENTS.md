@@ -50,3 +50,7 @@
 ## 9. Commit & Push Policy
 - **Never Commit or Push Automatically**: Do NOT run `git commit` or `git push` unless the user explicitly instructs to commit or push. Always keep changes in the working directory and wait for the user to explicitly request a commit/push.
 
+## 10. Feed & Recommended Discovery Invariants (`profileValidated` vs `selfieUrl`)
+- For candidate discovery in both Feed (`GET /v1/feed`) and Recommended (`GET /v1/recommended`), strictly enforce `User.profileValidated == true`.
+- Do NOT check or require an existing `selfieUrl` on candidate profiles. Users with `profileValidated == true` must be eligible regardless of whether `selfieUrl` is present or null.
+

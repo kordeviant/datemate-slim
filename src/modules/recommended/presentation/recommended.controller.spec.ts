@@ -26,25 +26,11 @@ describe('RecommendedController', () => {
   it('fetches recommended candidates for authenticated user with req.user', async () => {
     mockGetRecommendedUseCase.execute.mockResolvedValue([
       {
-        id: 102,
-        firstName: 'Sara',
-        fullName: 'Sara Connor',
-        username: 'sara_c',
-        age: 25,
-        gender: 'FEMALE',
-        bio: 'Art enthusiast',
         avatarUrl: 'http://cdn/avatar.webp',
-        profileValidated: true,
-        gallery: [],
-        interests: ['Music', 'Coffee'],
+        age: 25,
         city: 'Tehran',
-        isOnline: true,
-        lastSeenAt: null,
-        compatibilityScore: 92,
-        sharedInterests: ['Coffee'],
-        sharedAnswersCount: 3,
-        sameCity: true,
-        sameRelationGoal: true,
+        username: 'sara_c',
+        fullName: 'Sara Connor',
       },
     ]);
 
@@ -57,7 +43,13 @@ describe('RecommendedController', () => {
       data: expect.any(Array),
     });
     expect(result.data).toHaveLength(1);
-    expect(result.data[0].compatibilityScore).toBe(92);
+    expect(result.data[0]).toEqual({
+      avatarUrl: 'http://cdn/avatar.webp',
+      age: 25,
+      city: 'Tehran',
+      username: 'sara_c',
+      fullName: 'Sara Connor',
+    });
     expect(mockGetRecommendedUseCase.execute).toHaveBeenCalledWith(50, {
       limit: 20,
     });

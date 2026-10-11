@@ -80,7 +80,7 @@ describe('GetRecommendedUseCase', () => {
     );
   });
 
-  it('should filter out candidates without photos or unvalidated profiles', async () => {
+  it('should filter out candidates without photos or unvalidated profiles and return only the 5 fields', async () => {
     mockRepository.getUserProfile.mockResolvedValue(baseCurrentUser);
     mockRepository.getSwipedUserIds.mockResolvedValue([]);
 
@@ -156,10 +156,13 @@ describe('GetRecommendedUseCase', () => {
     const result = await useCase.execute(1, { limit: 20 });
 
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(4);
-    expect(result[0].avatarUrl).toBe('https://example.com/valid.jpg');
-    expect(result[0].sameCity).toBe(true);
-    expect(result[0].sameRelationGoal).toBe(true);
+    expect(result[0]).toEqual({
+      avatarUrl: 'https://example.com/valid.jpg',
+      age: expect.any(Number),
+      city: 'Tehran',
+      username: 'valid',
+      fullName: 'Valid User',
+    });
   });
 
   it('should dynamically score candidates by question answers, interests, city, goal and age, ranking top candidates first', async () => {
@@ -216,19 +219,22 @@ describe('GetRecommendedUseCase', () => {
 
     expect(result).toHaveLength(2);
     // highMatch should be ranked first
-    expect(result[0].id).toBe(10);
-    expect(result[0].compatibilityScore).toBeGreaterThan(result[1].compatibilityScore);
-    expect(result[0].compatibilityScore).toBe(100); // 35 (questions) + 25 (interests) + 20 (city) + 10 (relation) + 10 (age)
-    expect(result[0].sharedAnswersCount).toBe(3);
-    expect(result[0].sharedInterests).toEqual(['Music', 'Art', 'Coffee']);
-    expect(result[0].sameCity).toBe(true);
-    expect(result[0].sameRelationGoal).toBe(true);
+    expect(result[0]).toEqual({
+      avatarUrl: 'https://example.com/high.jpg',
+      age: expect.any(Number),
+      city: 'Tehran',
+      username: 'high',
+      fullName: 'High Match',
+    });
 
-    // lowMatch should have significantly lower score
-    expect(result[1].id).toBe(20);
-    expect(result[1].compatibilityScore).toBe(0);
-    expect(result[1].sameCity).toBe(false);
-    expect(result[1].sameRelationGoal).toBe(false);
+    // lowMatch should be ranked second
+    expect(result[1]).toEqual({
+      avatarUrl: 'https://example.com/low.jpg',
+      age: expect.any(Number),
+      city: 'Shiraz',
+      username: 'low',
+      fullName: 'Low Match',
+    });
   });
 
   it('should respect requested limit parameter', async () => {

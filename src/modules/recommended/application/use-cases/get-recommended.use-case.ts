@@ -8,14 +8,24 @@ import {
 import {
   IRecommendedRepository,
   RECOMMENDED_REPOSITORY,
-  CandidatePoolItem,
 } from '../../domain/repositories/recommended.repository.interface';
-import { RecommendedCandidateEntity } from '../../domain/entities/recommended-candidate.entity';
 import {
   RecommendedCandidateDto,
   RecommendedQueryDto,
 } from '../dtos/recommended.dto';
 import { calculateAge } from '../../../auth/application/validators/dob.validator';
+
+interface ScoredCandidateInternal {
+  id: number;
+  avatarUrl: string | null;
+  age: number | null;
+  city: string | null;
+  username: string | null;
+  fullName: string | null;
+  compatibilityScore: number;
+  isOnline: boolean;
+  lastSeenAt: Date | null;
+}
 
 @Injectable()
 export class GetRecommendedUseCase {
@@ -65,7 +75,7 @@ export class GetRecommendedUseCase {
       poolFetchLimit,
     );
 
-    const scoredCandidates: RecommendedCandidateEntity[] = [];
+    const scoredCandidates: ScoredCandidateInternal[] = [];
 
     const currentUserAge = currentUser.birthDate
       ? calculateAge(currentUser.birthDate)
@@ -107,15 +117,10 @@ export class GetRecommendedUseCase {
       }
 
       // 2. Shared Interests Overlap (Weight: 25)
-      const sharedInterests: string[] = [];
       let sharedInterestsCount = 0;
-      for (let i = 0; i < c.interestIds.length; i++) {
-        const intId = c.interestIds[i];
+      for (const intId of c.interestIds) {
         if (userInterestSet.has(intId)) {
           sharedInterestsCount++;
-          if (c.interestNames[i]) {
-            sharedInterests.push(c.interestNames[i]);
-          }
         }
       }
       let interestScore = 10; // baseline when current user has no interests yet
@@ -163,32 +168,16 @@ export class GetRecommendedUseCase {
         ),
       );
 
-      const galleryUrls = c.gallery
-        .map((g) => g.imageUrl)
-        .filter((url) => !!url && url.trim().length > 0);
-
-      const firstName = c.fullName ? c.fullName.split(' ')[0] : null;
-
       scoredCandidates.push({
         id: c.id,
-        firstName,
-        fullName: c.fullName,
-        username: c.username,
-        age: candidateAge,
-        gender: c.gender,
-        bio: c.bio,
         avatarUrl: primaryPhoto,
-        profileValidated: c.profileValidated,
-        gallery: galleryUrls,
-        interests: c.interestNames,
+        age: candidateAge,
         city: c.cityName,
+        username: c.username,
+        fullName: c.fullName,
+        compatibilityScore,
         isOnline: c.isOnline,
         lastSeenAt: c.lastSeenAt,
-        compatibilityScore,
-        sharedInterests,
-        sharedAnswersCount,
-        sameCity,
-        sameRelationGoal,
       });
     }
 
@@ -208,6 +197,13 @@ export class GetRecommendedUseCase {
       return a.id - b.id;
     });
 
-    return scoredCandidates.slice(0, limit);
+    // Return strictly only: avatarUrl, age, city, username, fullName
+    return scoredCandidates.slice(0, limit).map((c) => ({
+      avatarUrl: c.avatarUrl,
+      age: c.age,
+      city: c.city,
+      username: c.username,
+      fullName: c.fullName,
+    }));
   }
 }

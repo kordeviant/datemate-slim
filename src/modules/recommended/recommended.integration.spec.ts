@@ -18,25 +18,11 @@ describe('Recommended Endpoints (Integration)', () => {
     mockGetRecommendedUseCase = {
       execute: jest.fn().mockResolvedValue([
         {
-          id: 205,
-          firstName: 'Sara',
-          fullName: 'Sara Connor',
-          username: 'sarah_c',
-          age: 24,
-          gender: 'FEMALE',
-          bio: 'Love hiking and art',
           avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
-          profileValidated: true,
-          gallery: ['http://localhost:3000/assets/images/g_205.webp'],
-          interests: ['Hiking', 'Art'],
+          age: 24,
           city: 'Tehran',
-          isOnline: true,
-          lastSeenAt: new Date(),
-          compatibilityScore: 95,
-          sharedInterests: ['Hiking'],
-          sharedAnswersCount: 4,
-          sameCity: true,
-          sameRelationGoal: true,
+          username: 'sarah_c',
+          fullName: 'Sara Connor',
         },
       ]),
     };
@@ -63,7 +49,7 @@ describe('Recommended Endpoints (Integration)', () => {
   });
 
   describe('GET /v1/recommended', () => {
-    it('returns 200 OK with recommended list for authenticated user', async () => {
+    it('returns 200 OK with recommended list for authenticated user with strictly 5 fields', async () => {
       const res = await request(app.getHttpServer())
         .get('/v1/recommended?limit=20')
         .set('Authorization', 'Bearer valid_token');
@@ -72,9 +58,13 @@ describe('Recommended Endpoints (Integration)', () => {
       expect(res.body.status).toBe('success');
       expect(res.body.message).toBe('Recommended profiles retrieved successfully');
       expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].id).toBe(205);
-      expect(res.body.data[0].compatibilityScore).toBe(95);
-      expect(res.body.data[0].sameCity).toBe(true);
+      expect(res.body.data[0]).toEqual({
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+        age: 24,
+        city: 'Tehran',
+        username: 'sarah_c',
+        fullName: 'Sara Connor',
+      });
       expect(mockGetRecommendedUseCase.execute).toHaveBeenCalledWith(1, {
         limit: 20,
       });

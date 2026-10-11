@@ -347,32 +347,18 @@ Tie-breakers sort by user activity (`isOnline` descending), recent presence (`la
 - `GET /v1/recommended` (and `/recommended`):
   - **Query Params**: `limit` (default: 20, min: 1, max: 50).
   - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
-  - **Response Payload**:
+  - **Response Payload**: Strictly returns `avatarUrl`, `age`, `city`, `username`, and `fullName`:
     ```json
     {
       "status": "success",
       "message": "Recommended profiles retrieved successfully",
       "data": [
         {
-          "id": 102,
-          "firstName": "Sara",
-          "fullName": "Sara Connor",
-          "username": "sarah_c",
-          "age": 25,
-          "gender": "FEMALE",
-          "bio": "Art enthusiast and coffee lover.",
           "avatarUrl": "http://localhost:3000/assets/avatars/avatar_102.webp",
-          "profileValidated": true,
-          "gallery": ["http://localhost:3000/assets/images/gallery_102.webp"],
-          "interests": ["Music", "Art", "Coffee"],
+          "age": 25,
           "city": "Tehran",
-          "isOnline": true,
-          "lastSeenAt": "2026-10-11T12:00:00.000Z",
-          "compatibilityScore": 92,
-          "sharedInterests": ["Coffee", "Music"],
-          "sharedAnswersCount": 3,
-          "sameCity": true,
-          "sameRelationGoal": true
+          "username": "sarah_c",
+          "fullName": "Sara Connor"
         }
       ]
     }

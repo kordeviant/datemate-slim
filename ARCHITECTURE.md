@@ -269,3 +269,47 @@ The Authentication module supports consumer mobile applications and web administ
     }
     ```
 - **Admin Seeding**: Seeded admin user can be provisioned via `npm run seed:users` (`admin` / `admin@datemate.com`).
+
+---
+
+## 9. Matching & Swipes Module (`src/modules/matching`)
+
+The Matching module provides candidate discovery (feed deck), high-throughput atomic swiping, and likes-received inspection designed for high scale and low latency.
+
+### 9.1 Core Domain Philosophy & Business Rules
+- **No Mutual Match Gate**: Unlike traditional dating apps that require a mutual right-swipe before revealing interest, DateMate allows users to directly inspect everyone who liked them (`GET /v1/likes`).
+- **Sub-50ms Fast Swiping (`POST /v1/swipes`)**:
+  - The client submits `{ targetUserId: number, direction: 'RIGHT' | 'LEFT' }`.
+  - The backend executes an in-memory Redis update and persists to PostgreSQL.
+  - Returns a minimal HTTP 200 OK (`{ status: "success", message: "Swipe recorded successfully" }`) **without hydrating matched user details**, ensuring maximum write throughput and sub-50ms response times.
+- **Strict 6 Feed Selection Invariants (`GET /v1/feed`)**:
+  The candidate feed deck (default 20 cards) is strictly filtered by:
+  1. **Exclude Self**: `candidate.id != currentUserId`.
+  2. **Exclude Already Swiped**: Excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma#L399) records.
+  3. **Account Status**: `bannedUntil IS NULL` (user is not banned or suspended).
+  4. **Has Photo**: Candidate must possess an active profile picture (`profile.avatarUrl`, `profile.profilePictureUrl`, or `gallery` item with `isProfilePicture: true`).
+  5. **Profile Validated**: Candidate has `profileValidated == true`.
+  6. **Gender Matching**: Strictly serves the opposite gender (if user is `MALE`, sends `FEMALE`; if `FEMALE`, sends `MALE`).
+
+### 9.2 API Endpoints
+- `POST /v1/swipes` (and `/swipes`): Records swipe action (`RIGHT` or `LEFT`) on a target user. Returns fast 200 OK without extra payload.
+- `GET /v1/feed` (and `/feed`): Retrieves candidate profiles for the swipe deck (supports query parameter `limit`, default: 20, max: 50).
+- `GET /v1/likes` (and `/likes`): Retrieves all profiles that swiped right (liked) on the authenticated user. Returns only `id`, `fullName`, `username`, `city`, `isOnline`:
+  ```json
+  {
+    "status": "success",
+    "message": "Likes retrieved successfully",
+    "data": [
+      {
+        "id": 205,
+        "fullName": "Sara Connor",
+        "username": "sarah_c",
+        "city": "Tehran",
+        "isOnline": true
+      }
+    ]
+  }
+  ```
+- `GET /v1/matches` (and `/matches`): Canonical compatibility endpoint returning the exact same likes list (`data: LikedUserDto[]`).
+
+

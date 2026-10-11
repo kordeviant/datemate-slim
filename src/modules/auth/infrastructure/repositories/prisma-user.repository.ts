@@ -241,5 +241,86 @@ export class PrismaUserRepository implements IUserRepository {
 
     return { userId, deleted: true };
   }
+
+  async deleteGalleryItem(
+    userId: number,
+    galleryId: number,
+  ): Promise<{ userId: number; galleryId: number; deleted: boolean }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const galleryItem = await this.prisma.userGallery.findFirst({
+      where: { id: galleryId, userId },
+    });
+
+    if (!galleryItem) {
+      throw new NotFoundException(
+        `Gallery image with ID ${galleryId} for user ${userId} not found`,
+      );
+    }
+
+    // Delete database record
+    await this.prisma.userGallery.delete({
+      where: { id: galleryId },
+    });
+
+    // If the deleted photo was the active profile picture, fallback to next gallery photo or null
+    if (
+      galleryItem.isProfilePicture ||
+      user.profile?.profilePictureUrl === galleryItem.imageUrl
+    ) {
+      const nextGallery = await this.prisma.userGallery.findFirst({
+        where: { userId },
+        orderBy: { id: 'asc' },
+      });
+
+      if (nextGallery) {
+        await this.prisma.userGallery.update({
+          where: { id: nextGallery.id },
+          data: { isProfilePicture: true },
+        });
+        await this.prisma.profile.update({
+          where: { userId },
+          data: { profilePictureUrl: nextGallery.imageUrl },
+        });
+      } else {
+        await this.prisma.profile.update({
+          where: { userId },
+          data: { profilePictureUrl: null },
+        });
+      }
+    }
+
+    // Attempt physical file deletion from disk
+    try {
+      const cleanRel = galleryItem.imageUrl.startsWith('/')
+        ? galleryItem.imageUrl.slice(1)
+        : galleryItem.imageUrl;
+      const fullPath = cleanRel.startsWith('uploads/')
+        ? path.join(process.cwd(), cleanRel)
+        : path.join(process.cwd(), 'uploads', cleanRel);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    } catch (err: any) {
+      this.logger.warn(
+        `Failed to unlink physical gallery image file for user ${userId} (${galleryItem.imageUrl}): ${err.message}`,
+      );
+    }
+
+    this.logger.log(`User ${userId} deleted gallery image ${galleryId}`);
+
+    return {
+      userId,
+      galleryId,
+      deleted: true,
+    };
+  }
 }
 

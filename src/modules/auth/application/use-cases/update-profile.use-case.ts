@@ -1420,7 +1420,6 @@ export class UpdateProfileUseCase {
       id: g.id,
       url: this.mediaUrlResolver ? this.mediaUrlResolver.resolveUrl(g.imageUrl) : g.imageUrl,
       description: g.description,
-      likesCount: g.likesCount || 0,
       isProfilePicture: Boolean(g.isProfilePicture),
       createdAt: g.createdAt ? g.createdAt.toISOString() : undefined,
     }));

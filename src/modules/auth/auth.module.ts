@@ -13,6 +13,7 @@ import { AppleAuthUseCase } from "./application/use-cases/apple-auth.use-case";
 import { UpdateProfileUseCase } from "./application/use-cases/update-profile.use-case";
 import { GetProfileUseCase } from "./application/use-cases/get-profile.use-case";
 import { DeleteAccountUseCase } from "./application/use-cases/delete-account.use-case";
+import { DeleteGalleryImageUseCase } from "./application/use-cases/delete-gallery-image.use-case";
 import { PasswordHasherService } from "./application/services/password-hasher.service";
 import { TokenService } from "./application/services/token.service";
 import { AppleAuthService } from "./application/services/apple-auth.service";
@@ -55,6 +56,7 @@ import { MediaModule } from "../media/media.module";
     GetProfileUseCase,
     UpdateProfileUseCase,
     DeleteAccountUseCase,
+    DeleteGalleryImageUseCase,
   ],
   exports: [
     USER_REPOSITORY,
@@ -64,6 +66,7 @@ import { MediaModule } from "../media/media.module";
     GetProfileUseCase,
     UpdateProfileUseCase,
     DeleteAccountUseCase,
+    DeleteGalleryImageUseCase,
   ],
 })
 export class AuthModule {}

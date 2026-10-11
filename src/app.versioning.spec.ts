@@ -17,6 +17,7 @@ import { TokenService } from "./modules/auth/application/services/token.service"
 import { GetProfileUseCase } from "./modules/auth/application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "./modules/auth/application/use-cases/update-profile.use-case";
 import { DeleteAccountUseCase } from "./modules/auth/application/use-cases/delete-account.use-case";
+import { DeleteGalleryImageUseCase } from "./modules/auth/application/use-cases/delete-gallery-image.use-case";
 
 describe("API Versioning (v1)", () => {
   let app: INestApplication;
@@ -38,6 +39,7 @@ describe("API Versioning (v1)", () => {
         { provide: GetProfileUseCase, useValue: { execute: jest.fn() } },
         { provide: UpdateProfileUseCase, useValue: { execute: jest.fn() } },
         { provide: DeleteAccountUseCase, useValue: { execute: jest.fn() } },
+        { provide: DeleteGalleryImageUseCase, useValue: { execute: jest.fn() } },
       ],
     }).compile();
 

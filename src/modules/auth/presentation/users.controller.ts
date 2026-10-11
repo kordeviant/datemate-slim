@@ -7,6 +7,8 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
   Post,
   Put,
   UploadedFiles,
@@ -17,6 +19,7 @@ import {
 import {
   ApiTags,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiBearerAuth,
   ApiConsumes,
@@ -27,9 +30,11 @@ import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
 import { DeleteAccountUseCase } from "../application/use-cases/delete-account.use-case";
+import { DeleteGalleryImageUseCase } from "../application/use-cases/delete-gallery-image.use-case";
 import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
 import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
 import { DeleteAccountResponseDto } from "../application/dtos/delete-account-response.dto";
+import { DeleteGalleryImageResponseDto } from "../application/dtos/delete-gallery-image-response.dto";
 
 @ApiTags("Users")
 @Controller({ path: "users", version: ["1", VERSION_NEUTRAL] })
@@ -39,6 +44,7 @@ export class UsersController {
     private readonly getProfileUseCase: GetProfileUseCase,
     private readonly updateProfileUseCase: UpdateProfileUseCase,
     private readonly deleteAccountUseCase: DeleteAccountUseCase,
+    private readonly deleteGalleryImageUseCase: DeleteGalleryImageUseCase,
   ) {}
 
   @Delete(["me", "account"])
@@ -73,6 +79,57 @@ export class UsersController {
     return {
       status: "success",
       message: "Account deleted successfully",
+      data: result,
+    };
+  }
+
+  @Delete("gallery/:galleryId")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Delete user gallery image",
+    description:
+      "Allows the authenticated user to delete a specific photo from their gallery by galleryId. If the deleted photo was the active profile picture, the backend automatically falls back to another gallery photo or clears profilePictureUrl.",
+  })
+  @ApiParam({
+    name: "galleryId",
+    description: "ID of the gallery image to delete",
+    type: Number,
+    example: 12,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Gallery image deleted successfully",
+    type: DeleteGalleryImageResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Gallery image not found or does not belong to the user",
+  })
+  async deleteGalleryImage(
+    @Headers("authorization") authHeader: string,
+    @Param("galleryId", ParseIntPipe) galleryId: number,
+  ): Promise<DeleteGalleryImageResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    const decoded = this.tokenService.verifyAccessToken(token);
+    const result = await this.deleteGalleryImageUseCase.execute(
+      decoded.sub,
+      galleryId,
+    );
+    return {
+      status: "success",
+      success: true,
+      message: "Gallery image deleted successfully",
       data: result,
     };
   }

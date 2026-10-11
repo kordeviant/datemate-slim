@@ -39,5 +39,11 @@
 - **Default `isProfilePicture`**: The `isProfilePicture` field can be omitted by the client. If not provided, the backend must automatically default `isProfilePicture: true` for the first gallery image upload.
 - **Updating Existing Gallery Image by ID**: When both a gallery image file and `gallery.id` (or `id`) are provided in a request, the backend replaces the existing gallery item's image file and description with the new uploaded image instead of creating a new gallery item.
 - **Selecting Existing Profile Picture via `profilePictureId`**: To select an existing gallery photo as the active profile picture, the client sends `profilePictureId` (integer ID) at the root level. No `profilePicture` string URL key is needed or accepted in the request.
+- **Deleting Gallery Image by ID**: Authenticated users can delete an individual gallery photo via `DELETE /v1/users/gallery/:galleryId`. If the deleted photo was the active profile picture, the backend automatically falls back to another existing gallery photo or clears `profilePictureUrl`.
+- **No `likesCount` in Gallery Response**: Gallery response objects returned to clients (`gallery`) do NOT include `likesCount`.
 - **Strictly Outside `Profile`**: Both `gallery` and `profilePictureId` must strictly reside at the root level outside the `Profile` object. Never accept or duplicate them inside `Profile`.
+
+## 8. No Route Aliases for APIs
+- Do NOT add aliases for APIs (e.g. do NOT register multiple route paths like `['gallery/:galleryId', 'me/gallery/:galleryId']` for the same endpoint).
+- Route aliases confuse client usage. Maintain one and only one canonical, unambiguous route per endpoint.
 

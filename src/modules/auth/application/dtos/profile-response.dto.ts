@@ -88,9 +88,6 @@ export class GalleryItemResponseDto {
   })
   description?: string | null;
 
-  @ApiProperty({ example: 0, description: 'Likes count' })
-  likesCount: number;
-
   @ApiProperty({
     example: true,
     description: 'Whether this photo is the active profile swipe photo',

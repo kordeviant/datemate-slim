@@ -211,7 +211,6 @@ Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
       "id": 12,
       "url": "http://localhost:3000/assets/images/gallery_1_123.webp",
       "description": "Weekend trip",
-      "likesCount": 10,
       "isProfilePicture": true,
       "createdAt": "2026-10-04T12:00:00.000Z"
     }
@@ -219,7 +218,14 @@ Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
 }
 ```
 
-### 7.4 User Account Deletion (`DELETE /v1/users/me` & `/v1/users/account`)
+### 7.4 Gallery Image Deletion (`DELETE /v1/users/gallery/:galleryId`)
+- **Self-Service Gallery Photo Delete**: Authenticated users can delete a specific photo from their gallery by `galleryId`.
+- **Active Profile Picture Fallback**: If the deleted photo was the active profile picture, the backend automatically falls back to another existing gallery photo or sets `profilePictureUrl: null`.
+- **Physical File Cleanup**: Attempts physical file deletion from disk (`uploads/` directory).
+- **Response Contract**: Returns `{ status: "success", success: true, message: "Gallery image deleted successfully", data: { userId, galleryId, deleted: true } }`.
+- **Bulk Deletion**: Bulk removals can also be executed in `PUT /v1/users/profile` via `deleteGalleryIds: [id1, id2]`.
+
+### 7.5 User Account Deletion (`DELETE /v1/users/me` & `/v1/users/account`)
 - **Self-Service Account Purge**: Authenticated users can permanently delete their own account.
 - **Cascading Purge**: Removes user sessions, profiles, demographics, preferences, personalities, galleries, swipes, matches, and messages. Cleans up associated media files from local storage.
 - **Response Contract**: Returns `{ status: "success", message: "Account deleted successfully", data: { userId, deleted: true } }`.

@@ -5,6 +5,7 @@ import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
 import { DeleteAccountUseCase } from "../application/use-cases/delete-account.use-case";
+import { DeleteGalleryImageUseCase } from "../application/use-cases/delete-gallery-image.use-case";
 
 describe("UsersController", () => {
   let controller: UsersController;
@@ -12,6 +13,7 @@ describe("UsersController", () => {
   let mockGetProfileUseCase: any;
   let mockUpdateProfileUseCase: any;
   let mockDeleteAccountUseCase: any;
+  let mockDeleteGalleryImageUseCase: any;
 
   beforeEach(async () => {
     mockTokenService = {
@@ -30,6 +32,10 @@ describe("UsersController", () => {
       execute: jest.fn().mockResolvedValue({ userId: 1, deleted: true }),
     };
 
+    mockDeleteGalleryImageUseCase = {
+      execute: jest.fn().mockResolvedValue({ userId: 1, galleryId: 10, deleted: true }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -37,6 +43,7 @@ describe("UsersController", () => {
         { provide: GetProfileUseCase, useValue: mockGetProfileUseCase },
         { provide: UpdateProfileUseCase, useValue: mockUpdateProfileUseCase },
         { provide: DeleteAccountUseCase, useValue: mockDeleteAccountUseCase },
+        { provide: DeleteGalleryImageUseCase, useValue: mockDeleteGalleryImageUseCase },
       ],
     }).compile();
 
@@ -403,6 +410,27 @@ describe("UsersController", () => {
         status: "success",
         message: "Account deleted successfully",
         data: { userId: 1, deleted: true },
+      });
+    });
+  });
+
+  describe("DELETE /users/gallery/:galleryId", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.deleteGalleryImage("", 10)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should delete gallery image and return success response", async () => {
+      const res = await controller.deleteGalleryImage("Bearer valid_token", 10);
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockDeleteGalleryImageUseCase.execute).toHaveBeenCalledWith(1, 10);
+      expect(res).toEqual({
+        status: "success",
+        success: true,
+        message: "Gallery image deleted successfully",
+        data: { userId: 1, galleryId: 10, deleted: true },
       });
     });
   });

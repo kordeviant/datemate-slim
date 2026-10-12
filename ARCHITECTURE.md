@@ -287,7 +287,7 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
   1. **Exclude Self**: `candidate.id != currentUserId`.
   2. **Exclude Already Swiped (with Loop Fallback)**: By default, excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma#L399) records. If the unswiped candidate pool reaches 0 (deck exhausted), the feed automatically loops back through the candidate pool excluding only the user themselves so the user can continue viewing candidates.
   3. **Account Status**: `bannedUntil IS NULL` (user is not banned or suspended).
-  4. **Has Photo**: Candidate must possess an active profile picture (`profile.avatarUrl`, `profile.profilePictureUrl`, or `gallery` item with `isProfilePicture: true`).
+  4. **Has Photo**: Candidate must possess an active profile picture (prioritizing the `gallery` item with `isProfilePicture: true`, falling back to first gallery photo, `profile.profilePictureUrl`, or `profile.avatarUrl`). The feed candidate `avatarUrl` field provides the resolved public URL of the gallery image marked with `isProfilePicture: true`.
   5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
   6. **Gender Matching**: Strictly serves the opposite gender (if user is `MALE`, sends `FEMALE`; if `FEMALE`, sends `MALE`).
 

@@ -55,15 +55,25 @@ export class GetFeedUseCase {
     );
 
     return {
-      candidates: candidates.map((c) => ({
-        id: c.id,
-        fullName: c.fullName,
-        city: c.city,
-        age: c.age,
-        avatarUrl: c.avatarUrl ? this.mediaUrlResolver.resolveUrl(c.avatarUrl) : null,
-        username: c.username,
-      })),
+      candidates: candidates.map((c) => {
+        const profilePictureGallery = c.gallery?.find(
+          (g) => g.isProfilePicture,
+        );
+        const candidatePhoto = profilePictureGallery?.imageUrl || c.avatarUrl;
+
+        return {
+          id: c.id,
+          fullName: c.fullName,
+          city: c.city,
+          age: c.age,
+          avatarUrl: candidatePhoto
+            ? this.mediaUrlResolver.resolveUrl(candidatePhoto)
+            : null,
+          username: c.username,
+        };
+      }),
       count: candidates.length,
     };
+
   }
 }

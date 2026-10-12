@@ -157,10 +157,10 @@ describe('PrismaMatchingRepository', () => {
       expect(result[0].id).toBe(5);
       expect(result[0].fullName).toBe('Sara Connor');
       expect(result[0].city).toBe('Tehran');
-      expect(result[0].avatarUrl).toBe('http://cdn/avatar.webp');
+      expect(result[0].avatarUrl).toBe('http://cdn/gallery.webp');
     });
 
-    it('resolves relative avatarUrl into full public URLs', async () => {
+    it('resolves relative avatarUrl from gallery with isProfilePicture into full public URLs', async () => {
       mockPrisma.swipe.findMany.mockResolvedValue([]);
       mockRedisClient.smembers.mockResolvedValue([]);
 
@@ -188,10 +188,42 @@ describe('PrismaMatchingRepository', () => {
 
       expect(result.length).toBe(1);
       expect(result[0].avatarUrl).toBe(
-        'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
+        'http://localhost:3000/assets/images/gal1.webp',
       );
       expect(result[0].fullName).toBe('Relative Candidate');
       expect(result[0].city).toBe('Tehran');
+    });
+
+    it('falls back to profile.avatarUrl when no gallery photo exists', async () => {
+      mockPrisma.swipe.findMany.mockResolvedValue([]);
+      mockRedisClient.smembers.mockResolvedValue([]);
+
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: 11,
+          profileValidated: true,
+          profile: {
+            fullName: 'Fallback Candidate',
+            avatarUrl: 'avatars/avatar_fallback.webp',
+            isOnline: true,
+            lastSeenAt: new Date(),
+          },
+          demographic: {
+            gender: 'FEMALE',
+            birthDate: new Date('1998-05-10'),
+            city: { name: 'Tehran' },
+          },
+          gallery: [],
+          interests: [],
+        },
+      ]);
+
+      const result = await repository.findCandidateProfiles(1, 'FEMALE', 20);
+
+      expect(result.length).toBe(1);
+      expect(result[0].avatarUrl).toBe(
+        'http://localhost:3000/assets/avatars/avatar_fallback.webp',
+      );
     });
 
     it('does not require selfieUrl but requires profileValidated: true', async () => {

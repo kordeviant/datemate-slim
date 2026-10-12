@@ -1,3 +1,9 @@
+export interface FeedCandidateGalleryItem {
+  id?: number;
+  imageUrl: string;
+  isProfilePicture: boolean;
+}
+
 export interface FeedCandidateEntity {
   id: number;
   fullName: string | null;
@@ -5,4 +11,6 @@ export interface FeedCandidateEntity {
   age: number | null;
   avatarUrl: string | null;
   username: string | null;
+  gallery?: FeedCandidateGalleryItem[];
 }
+

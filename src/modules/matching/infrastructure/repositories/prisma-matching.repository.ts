@@ -173,12 +173,13 @@ export class PrismaMatchingRepository implements IMatchingRepository {
     const results: FeedCandidateEntity[] = [];
 
     const processCandidate = (c: any): FeedCandidateEntity | null => {
-      // Rule 4: Must have an active profile picture
+      // Rule 4: Must have an active profile picture (prioritize gallery photo where isProfilePicture is true)
+      const profilePicGallery = c.gallery?.find((g: any) => g.isProfilePicture);
       const rawPrimaryPhoto =
-        c.profile?.avatarUrl ||
+        profilePicGallery?.imageUrl ||
+        c.gallery?.[0]?.imageUrl ||
         c.profile?.profilePictureUrl ||
-        c.gallery.find((g: any) => g.isProfilePicture)?.imageUrl ||
-        c.gallery[0]?.imageUrl ||
+        c.profile?.avatarUrl ||
         null;
 
       if (!rawPrimaryPhoto || !rawPrimaryPhoto.trim()) {
@@ -190,6 +191,12 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         ? calculateAge(c.demographic.birthDate)
         : null;
 
+      const galleryItems = (c.gallery || []).map((g: any) => ({
+        id: g.id,
+        imageUrl: g.imageUrl,
+        isProfilePicture: Boolean(g.isProfilePicture),
+      }));
+
       return {
         id: c.id,
         fullName: c.profile?.fullName || null,
@@ -197,6 +204,7 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         age,
         avatarUrl: primaryPhoto,
         username: c.profile?.username || null,
+        gallery: galleryItems,
       };
     };
 

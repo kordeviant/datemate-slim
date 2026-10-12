@@ -98,4 +98,25 @@ describe('GetFeedUseCase', () => {
       'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
     );
   });
+
+  it('sends url of gallery which is isProfilePicture: true for avatarUrl', async () => {
+    mockMatchingRepository.getUserDemographicGender.mockResolvedValue('MALE');
+    mockMatchingRepository.findCandidateProfiles.mockResolvedValue([
+      {
+        ...sampleCandidate,
+        avatarUrl: 'avatars/old_avatar.webp',
+        gallery: [
+          { imageUrl: 'gallery/photo1.webp', isProfilePicture: false },
+          { imageUrl: 'gallery/profile_pic.webp', isProfilePicture: true },
+        ],
+      },
+    ]);
+
+    const result = await useCase.execute(1);
+
+    expect(result.candidates[0].avatarUrl).toBe(
+      'http://localhost:3000/assets/gallery/profile_pic.webp',
+    );
+  });
 });
+

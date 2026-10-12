@@ -30,6 +30,7 @@ describe('LikesController', () => {
         username: 'alex_r',
         city: 'Tehran',
         isOnline: false,
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_202.webp',
       },
     ]);
 
@@ -46,6 +47,7 @@ describe('LikesController', () => {
           username: 'alex_r',
           city: 'Tehran',
           isOnline: false,
+          avatarUrl: 'http://localhost:3000/assets/avatars/avatar_202.webp',
         },
       ],
     });

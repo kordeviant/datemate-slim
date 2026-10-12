@@ -52,7 +52,7 @@ describe('GetFeedUseCase', () => {
       fullName: 'Sara Connor',
       city: 'Tehran',
       age: 24,
-      avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+      profilePicture: 'http://localhost:3000/assets/avatars/avatar_205.webp',
       username: 'sara_c',
     });
   });
@@ -83,7 +83,7 @@ describe('GetFeedUseCase', () => {
     );
   });
 
-  it('resolves relative avatarUrl paths into full public URLs', async () => {
+  it('resolves relative avatarUrl paths into full public URLs for profilePicture', async () => {
     mockMatchingRepository.getUserDemographicGender.mockResolvedValue('MALE');
     mockMatchingRepository.findCandidateProfiles.mockResolvedValue([
       {
@@ -94,12 +94,12 @@ describe('GetFeedUseCase', () => {
 
     const result = await useCase.execute(1);
 
-    expect(result.candidates[0].avatarUrl).toBe(
+    expect(result.candidates[0].profilePicture).toBe(
       'http://localhost:3000/assets/avatars/avatarbe9c29b29330.webp',
     );
   });
 
-  it('sends url of gallery which is isProfilePicture: true for avatarUrl', async () => {
+  it('sends url of gallery which is isProfilePicture: true for profilePicture', async () => {
     mockMatchingRepository.getUserDemographicGender.mockResolvedValue('MALE');
     mockMatchingRepository.findCandidateProfiles.mockResolvedValue([
       {
@@ -114,7 +114,7 @@ describe('GetFeedUseCase', () => {
 
     const result = await useCase.execute(1);
 
-    expect(result.candidates[0].avatarUrl).toBe(
+    expect(result.candidates[0].profilePicture).toBe(
       'http://localhost:3000/assets/gallery/profile_pic.webp',
     );
   });

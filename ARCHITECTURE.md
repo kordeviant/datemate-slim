@@ -287,14 +287,14 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
   1. **Exclude Self**: `candidate.id != currentUserId`.
   2. **Exclude Already Swiped (with Loop Fallback)**: By default, excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma#L399) records. If the unswiped candidate pool reaches 0 (deck exhausted), the feed automatically loops back through the candidate pool excluding only the user themselves so the user can continue viewing candidates.
   3. **Account Status**: `bannedUntil IS NULL` (user is not banned or suspended).
-  4. **Has Photo**: Candidate must possess an active profile picture (prioritizing the `gallery` item with `isProfilePicture: true`, falling back to first gallery photo, `profile.profilePictureUrl`, or `profile.avatarUrl`). The feed candidate `avatarUrl` field provides the resolved public URL of the gallery image marked with `isProfilePicture: true`.
+  4. **Has Photo**: Candidate must possess an active profile picture (prioritizing the `gallery` item with `isProfilePicture: true`, falling back to first gallery photo, `profile.profilePictureUrl`, or `profile.avatarUrl`). The feed candidate `profilePicture` field provides the resolved public URL of the gallery image marked with `isProfilePicture: true`.
   5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
   6. **Gender Matching**: Strictly serves the opposite gender (if user is `MALE`, sends `FEMALE`; if `FEMALE`, sends `MALE`).
 
 ### 9.2 API Endpoints
 - `POST /v1/swipes` (and `/swipes`): Records swipe action (`RIGHT` or `LEFT`) on a target user. Returns fast 200 OK without extra payload.
 - `GET /v1/feed` (and `/feed`): Retrieves candidate profiles for the swipe deck (supports query parameter `limit`, default: 20, max: 50).
-- `GET /v1/likes` (and `/likes`): Retrieves all profiles that swiped right (liked) on the authenticated user. Returns only `id`, `fullName`, `username`, `city`, `isOnline`:
+- `GET /v1/likes` (and `/likes`): Retrieves all profiles that swiped right (liked) on the authenticated user. Returns `id`, `fullName`, `username`, `city`, `isOnline`, `avatarUrl`:
   ```json
   {
     "status": "success",
@@ -305,7 +305,8 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
         "fullName": "Sara Connor",
         "username": "sarah_c",
         "city": "Tehran",
-        "isOnline": true
+        "isOnline": true,
+        "avatarUrl": "http://localhost:3000/assets/gallery/profile_pic.webp"
       }
     ]
   }

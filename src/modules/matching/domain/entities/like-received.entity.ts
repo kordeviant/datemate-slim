@@ -4,4 +4,6 @@ export interface LikeReceivedEntity {
   username: string | null;
   city: string | null;
   isOnline: boolean;
+  avatarUrl: string | null;
 }
+

@@ -15,6 +15,9 @@ export class LikedUserDto {
 
   @ApiProperty({ example: true })
   isOnline: boolean;
+
+  @ApiProperty({ example: 'http://localhost:3000/assets/avatars/avatar_205.webp', nullable: true })
+  avatarUrl: string | null;
 }
 
 export class LikesListResponseDto {

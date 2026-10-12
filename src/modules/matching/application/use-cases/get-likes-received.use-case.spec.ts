@@ -25,6 +25,7 @@ describe('GetLikesReceivedUseCase', () => {
         username: 'sarah_c',
         city: 'Tehran',
         isOnline: true,
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
       },
     ];
 
@@ -40,9 +41,9 @@ describe('GetLikesReceivedUseCase', () => {
       username: 'sarah_c',
       city: 'Tehran',
       isOnline: true,
+      avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
     });
     // Ensure no additional fields
-    expect(result[0]).not.toHaveProperty('avatarUrl');
     expect(result[0]).not.toHaveProperty('bio');
     expect(result[0]).not.toHaveProperty('age');
     expect(result[0]).not.toHaveProperty('gender');

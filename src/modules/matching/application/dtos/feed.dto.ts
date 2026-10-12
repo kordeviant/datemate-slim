@@ -33,7 +33,7 @@ export class FeedCandidateDto {
     example: 'http://localhost:3000/assets/avatars/avatar_205.webp',
     nullable: true,
   })
-  avatarUrl: string | null;
+  profilePicture: string | null;
 
   @ApiProperty({ example: 'sara_c', nullable: true })
   username: string | null;

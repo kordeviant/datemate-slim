@@ -34,7 +34,7 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
             fullName: 'Sara Connor',
             city: 'Tehran',
             age: 24,
-            avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+            profilePicture: 'http://localhost:3000/assets/avatars/avatar_205.webp',
             username: 'sarah_c',
           },
         ],
@@ -50,6 +50,7 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
           username: 'sarah_c',
           city: 'Tehran',
           isOnline: true,
+          avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
         },
       ]),
     };
@@ -124,7 +125,7 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
         fullName: 'Sara Connor',
         city: 'Tehran',
         age: 24,
-        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
+        profilePicture: 'http://localhost:3000/assets/avatars/avatar_205.webp',
         username: 'sarah_c',
       });
       expect(mockGetFeedUseCase.execute).toHaveBeenCalledWith(
@@ -149,6 +150,7 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
         username: 'sarah_c',
         city: 'Tehran',
         isOnline: true,
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
       });
     });
   });
@@ -168,6 +170,7 @@ describe('Matching & Swipes Endpoints (Integration)', () => {
         username: 'sarah_c',
         city: 'Tehran',
         isOnline: true,
+        avatarUrl: 'http://localhost:3000/assets/avatars/avatar_205.webp',
       });
     });
   });

@@ -27,7 +27,7 @@ describe('FeedController', () => {
           fullName: 'Sara Connor',
           city: 'Tehran',
           age: 25,
-          avatarUrl: 'http://cdn/avatar.webp',
+          profilePicture: 'http://cdn/avatar.webp',
           username: 'sara_c',
         },
       ],

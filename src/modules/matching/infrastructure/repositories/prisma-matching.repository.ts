@@ -283,6 +283,8 @@ export class PrismaMatchingRepository implements IMatchingRepository {
                 fullName: true,
                 username: true,
                 isOnline: true,
+                avatarUrl: true,
+                profilePictureUrl: true,
               },
             },
             demographic: {
@@ -293,6 +295,9 @@ export class PrismaMatchingRepository implements IMatchingRepository {
                   },
                 },
               },
+            },
+            gallery: {
+              orderBy: { id: 'asc' },
             },
           },
         },
@@ -306,12 +311,27 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         ? (s.fromUser.profile?.isOnline || false)
         : (s.fromUser.profile?.isOnline ?? true);
 
+      const profilePicGallery = s.fromUser?.gallery?.find(
+        (g: any) => g.isProfilePicture,
+      );
+      const rawPrimaryPhoto =
+        profilePicGallery?.imageUrl ||
+        s.fromUser?.gallery?.[0]?.imageUrl ||
+        s.fromUser?.profile?.profilePictureUrl ||
+        s.fromUser?.profile?.avatarUrl ||
+        null;
+
+      const avatarUrl = rawPrimaryPhoto
+        ? this.mediaUrlResolver.resolveUrl(rawPrimaryPhoto)
+        : null;
+
       return {
         id: s.fromUser.id,
         fullName: s.fromUser.profile?.fullName || null,
         username: s.fromUser.profile?.username || null,
         city: s.fromUser.demographic?.city?.name || null,
         isOnline,
+        avatarUrl,
       };
     });
   }

@@ -325,7 +325,12 @@ describe('PrismaMatchingRepository', () => {
               fullName: 'Sara Connor',
               username: 'sarah_c',
               isOnline: true,
+              avatarUrl: 'avatars/old_avatar.webp',
             },
+            gallery: [
+              { imageUrl: 'gallery/photo1.webp', isProfilePicture: false },
+              { imageUrl: 'gallery/profile_pic.webp', isProfilePicture: true },
+            ],
             demographic: {
               city: { name: 'Tehran' },
             },
@@ -348,6 +353,7 @@ describe('PrismaMatchingRepository', () => {
         username: 'sarah_c',
         city: 'Tehran',
         isOnline: true,
+        avatarUrl: 'http://localhost:3000/assets/gallery/profile_pic.webp',
       });
     });
   });

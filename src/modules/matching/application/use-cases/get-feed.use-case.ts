@@ -66,7 +66,7 @@ export class GetFeedUseCase {
           fullName: c.fullName,
           city: c.city,
           age: c.age,
-          avatarUrl: candidatePhoto
+          profilePicture: candidatePhoto
             ? this.mediaUrlResolver.resolveUrl(candidatePhoto)
             : null,
           username: c.username,

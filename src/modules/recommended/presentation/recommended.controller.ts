@@ -43,7 +43,7 @@ export class RecommendedController {
   @ApiOperation({
     summary: 'Get recommended profiles',
     description:
-      'Retrieves top recommended candidate profiles (default limit: 20) filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity). Cached for 1 day per user.',
+      'Retrieves top recommended candidate profiles filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity). Supports numeric start (0-based item index) and limit pagination. Cached for 1 day per user.',
   })
   @ApiResponse({
     status: 200,

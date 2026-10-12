@@ -40,7 +40,7 @@ export class GetInterestsUseCase {
       }
 
       const mapped = this.mapCategory(category, normalizedLang);
-      this.logger.log(`[Get Interests] Found category by ID #${numericId}`);
+      // this.logger.log(`[Get Interests] Found category by ID #${numericId}`);
 
       return mapped;
     }

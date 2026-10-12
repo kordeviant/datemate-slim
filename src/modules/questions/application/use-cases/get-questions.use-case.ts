@@ -65,9 +65,9 @@ export class GetQuestionsUseCase {
       this.mapQuestion(q, normalizedLang),
     );
 
-    this.logger.log(
-      `[Get Questions] Found ${result.length} questions (type=${normalizedType ?? 'all'}, lang=${normalizedLang ?? 'all'})`,
-    );
+    // this.logger.log(
+    //   `[Get Questions] Found ${result.length} questions (type=${normalizedType ?? 'all'}, lang=${normalizedLang ?? 'all'})`,
+    // );
 
     return {
       total: result.length,

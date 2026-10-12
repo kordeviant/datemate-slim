@@ -54,11 +54,12 @@ export class GetRecommendedUseCase {
     requiredCount: number = 20,
   ): Promise<RankedCandidateItem[]> {
     // 1. Check Redis cache first
+    let cachedPool: RankedCandidateItem[] | null = null;
     if (this.cacheService) {
-      const cached =
+      cachedPool =
         await this.cacheService.getCachedRankedCandidates(currentUserId);
-      if (cached && cached.length > 0) {
-        return cached;
+      if (cachedPool && cachedPool.length >= requiredCount) {
+        return cachedPool;
       }
     }
 

@@ -7,7 +7,8 @@ export class RecommendedQueryDto {
   @ApiPropertyOptional({
     example: 0,
     default: 0,
-    description: 'Starting numeric index/offset (0-based, default: 0)',
+    description:
+      'Starting numeric item index (0-based: 0 is 1st item, 4 is 5th item, default: 0)',
   })
   @IsOptional()
   @Type(() => Number)

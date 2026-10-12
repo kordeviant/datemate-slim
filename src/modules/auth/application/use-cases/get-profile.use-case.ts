@@ -202,9 +202,9 @@ export class GetProfileUseCase {
       }
     }
 
-    this.logger.log(
-      `[Profile Retrieved] User ${userId} profile retrieved. Completed status: ${profileCompleted}`,
-    );
+    // this.logger.log(
+    //   `[Profile Retrieved] User ${userId} profile retrieved. Completed status: ${profileCompleted}`,
+    // );
 
     const likedActivitiesMap: Record<string, number | number[]> = {};
     if ((user as any).interests && Array.isArray((user as any).interests)) {

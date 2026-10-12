@@ -1297,9 +1297,9 @@ export class UpdateProfileUseCase {
       hasPreferences &&
       hasAnsweredAllQuestions;
 
-    this.logger.log(
-      `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
-    );
+    // this.logger.log(
+    //   `[Profile Updated] User ${userId} profile updated. Completed status: ${profileCompleted}`,
+    // );
 
     const answersMap: Record<string, number | number[]> = {};
     const dbIdToAnswerInfo = new Map<number, { questionId: number; answerIndex: number }>();

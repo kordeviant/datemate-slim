@@ -77,6 +77,11 @@ registry.register({
 | `S3_REGION` | `us-east-1` | S3 bucket region |
 | `S3_ENDPOINT` | *(optional)* | S3 endpoint override for MinIO / Cloudflare R2 |
 | `RECOMMENDED_CACHE_TTL` | `86400` | Recommended candidate pool Redis cache duration in seconds (default: 86400 = 1 day) |
+| `DOCS_IP_WHITELIST_ENABLED` | `false` | Enable/disable IP whitelist check for Swagger docs and /docs/rules (`true`/`false`) |
+| `DOCS_ALLOWED_IPS` | `127.0.0.1,::1` | Comma-separated list of whitelisted IPs permitted to access docs and rules |
+| `DOCS_AUTH_ENABLED` | `true` | Enable/disable HTTP Basic Auth login prompt for docs and rules (`true`/`false`) |
+| `DOCS_USERNAME` | `admin` | HTTP Basic Auth username required to view docs and rules |
+| `DOCS_PASSWORD` | `datemate_docs_password_2026` | HTTP Basic Auth password required to view docs and rules |
 
 ---
 

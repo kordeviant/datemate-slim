@@ -7,6 +7,14 @@ stages:
 test:
   stage: test
   script:
+    - |
+      if [ -n "$ENV_FILE_CONTENT" ]; then
+        if [ -f "$ENV_FILE_CONTENT" ]; then
+          cat "$ENV_FILE_CONTENT" > .env
+        else
+          printf '%s\n' "$ENV_FILE_CONTENT" > .env
+        fi
+      fi
     - npm ci
     - npx prisma generate
     - npm test
@@ -37,6 +45,14 @@ deploy:
     - test -s /tmp/deploy_key || (echo "Decoded SSH private key is empty" && exit 1)
     - chmod 600 /tmp/deploy_key
     - ssh-keygen -y -f /tmp/deploy_key >/dev/null
+    - |
+      if [ -n "$ENV_FILE_CONTENT" ]; then
+        if [ -f "$ENV_FILE_CONTENT" ]; then
+          cat "$ENV_FILE_CONTENT" > /tmp/env_content
+        else
+          printf '%s\n' "$ENV_FILE_CONTENT" > /tmp/env_content
+        fi
+      fi
   script:
     - |
       TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
@@ -47,7 +63,18 @@ deploy:
         export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes'
         git fetch origin main
         git reset --hard origin/main
+      "
 
+      if [ -f /tmp/env_content ]; then
+        echo '===> Deploying .env file to target server...'
+        scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} -i /tmp/deploy_key /tmp/env_content $SERVER_USER@$SERVER_IP:$TARGET_DIR/.env
+      else
+        echo 'Warning: ENV_FILE_CONTENT is not set in GitLab CI variables'
+      fi
+
+      ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+        set -e
+        cd $TARGET_DIR
         echo '===> Starting / updating Docker containers (postgres, redis, nginx)...'
         if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
           docker compose up -d --remove-orphans

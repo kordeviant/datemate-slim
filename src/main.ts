@@ -7,6 +7,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as path from 'path';
+import { DocsProtectionMiddleware } from './common/middleware/docs-protection.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -59,6 +60,22 @@ async function bootstrap() {
       'JWT-auth',
     )
     .build();
+
+  // Protect Swagger UI and Rules documentation via IP Whitelist & HTTP Basic Auth
+  const configService = app.get(ConfigService);
+  const docsProtectionMiddleware = new DocsProtectionMiddleware(configService);
+  app.use(
+    [
+      '/docs',
+      '/docs-json',
+      '/v1/docs',
+      '/rules',
+      '/docs/rules',
+      '/v1/rules',
+      '/v1/docs/rules',
+    ],
+    (req: any, res: any, next: any) => docsProtectionMiddleware.use(req, res, next),
+  );
 
   // Prevent caching for Swagger documentation so each backend deployment is visible immediately
   app.use(
@@ -113,7 +130,6 @@ async function bootstrap() {
     customSiteTitle: 'DateMate Backend API Docs',
   });
 
-  const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
 
   await app.listen(port);

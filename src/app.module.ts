@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
@@ -12,6 +12,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { RecommendedModule } from './modules/recommended/recommended.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DocsProtectionMiddleware } from './common/middleware/docs-protection.middleware';
 
 @Module({
   imports: [
@@ -31,7 +32,10 @@ import { AppService } from './app.service';
     RecommendedModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, DocsProtectionMiddleware],
 })
-export class AppModule {}
-
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(DocsProtectionMiddleware).forRoutes('*');
+  }
+}

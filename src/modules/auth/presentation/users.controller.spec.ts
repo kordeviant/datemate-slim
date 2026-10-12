@@ -1,5 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { BadRequestException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { UsersController } from "./users.controller";
 import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
@@ -97,6 +97,74 @@ describe("UsersController", () => {
       expect(res.Profile.profileCompleted).toBe(true);
       expect(res.isPremium).toBe(true);
       expect(res.Profile.isPremium).toBe(true);
+    });
+  });
+
+  describe("GET /users/:id", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.getUserProfile("", 2)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should throw UnauthorizedException when token is expired", async () => {
+      mockTokenService.verifyAccessToken.mockImplementationOnce(() => {
+        throw new UnauthorizedException("Access token has expired");
+      });
+      await expect(
+        controller.getUserProfile("Bearer expired_token", 2),
+      ).rejects.toThrow(new UnauthorizedException("Access token has expired"));
+    });
+
+    it("should return target user profile in Android-matching schema", async () => {
+      const mockProfile: any = {
+        id: 2,
+        email: "other@example.com",
+        language: "FA",
+        lat: 35.6892,
+        lon: 51.389,
+        profileValidated: true,
+        isPremium: false,
+        Profile: {
+          fullName: "Other User",
+          username: "other_user",
+          profileCompleted: true,
+          isPremium: false,
+          Demographic: {
+            birthDate: "1999-01-01",
+            gender: "FEMALE",
+          },
+          RelationType: "LONG",
+        },
+        gallery: [
+          {
+            id: 10,
+            url: "http://cdn/photo.webp",
+            isProfilePicture: true,
+          },
+        ],
+      };
+      mockGetProfileUseCase.execute.mockResolvedValue(mockProfile);
+
+      const res = await controller.getUserProfile("Bearer valid_token", 2);
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
+        "valid_token",
+      );
+      expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(2);
+      expect(res).toEqual(mockProfile);
+      expect(res.id).toBe(2);
+      expect(res.Profile.fullName).toBe("Other User");
+      expect(res.gallery?.[0].isProfilePicture).toBe(true);
+    });
+
+    it("should throw NotFoundException if user is not found", async () => {
+      mockGetProfileUseCase.execute.mockRejectedValueOnce(
+        new UnauthorizedException("User account not found"),
+      );
+
+      await expect(
+        controller.getUserProfile("Bearer valid_token", 999),
+      ).rejects.toThrow(new NotFoundException("User with ID 999 not found"));
     });
   });
 

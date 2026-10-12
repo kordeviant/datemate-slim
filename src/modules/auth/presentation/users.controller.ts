@@ -7,6 +7,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Post,
@@ -195,6 +196,59 @@ export class UsersController {
     const decoded = this.tokenService.verifyAccessToken(token);
     const profile = await this.getProfileUseCase.execute(decoded.sub);
     return profile.Profile.profileCompleted;
+  }
+
+  @Get(":id")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Get user profile by ID for client",
+    description:
+      "Retrieves another user's profile details in canonical Android schema (identical response model to /me): language, lat, lon, profileValidated, isPremium, Profile (fullName, username, phoneNumber, bio, languages, avatar, profilePicture, profilePictureId, profileCompleted, isPremium, Demographic, RelationType, Answers, LikedActivities), and gallery.",
+  })
+  @ApiParam({
+    name: "id",
+    description: "ID of the user to retrieve profile for",
+    type: Number,
+    example: 30,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User profile successfully retrieved",
+    type: ProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "User not found",
+  })
+  async getUserProfile(
+    @Headers("authorization") authHeader: string,
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<ProfileResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    this.tokenService.verifyAccessToken(token);
+
+    try {
+      return await this.getProfileUseCase.execute(id);
+    } catch (err) {
+      if (
+        err instanceof UnauthorizedException &&
+        err.message === "User account not found"
+      ) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+      throw err;
+    }
   }
 
   @Put("profile")

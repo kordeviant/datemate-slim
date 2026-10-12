@@ -198,7 +198,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Gallery Total Capacity**: Maximum 10 photos stored per user (`projected = current - deleteCount + newUploads <= 10`).
 
 ### 7.3 Profile Response
-Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
+`GET /v1/users/me`, `GET /v1/users/:id`, and `PUT /v1/users/profile` return the canonical client ProfileResponseDto:
 ```json
 {
   "Profile": {
@@ -229,6 +229,11 @@ Both `GET /v1/users/me` and `PUT /v1/users/profile` return:
 - **Self-Service Account Purge**: Authenticated users can permanently delete their own account.
 - **Cascading Purge**: Removes user sessions, profiles, demographics, preferences, personalities, galleries, swipes, matches, and messages. Cleans up associated media files from local storage.
 - **Response Contract**: Returns `{ status: "success", message: "Account deleted successfully", data: { userId, deleted: true } }`.
+
+### 7.6 Client User Profile Retrieval (`GET /v1/users/:id`)
+- **Target Profile Inspection**: Allows authenticated clients to inspect any user's profile card by ID (e.g., when opening a profile from Feed or Matches).
+- **Canonical Response Contract**: Returns the identical `ProfileResponseDto` schema as `GET /v1/users/me` (`id`, `email`, `language`, `lat`, `lon`, `profileValidated`, `isPremium`, `Profile: { fullName, username, phoneNumber, bio, languages, avatar, profilePicture, profilePictureId, profileCompleted, Demographic, RelationType, Answers, LikedActivities }`, and `gallery`).
+- **Error Handling**: Missing or invalid token returns `401 Unauthorized`; non-existent user ID returns `404 Not Found`.
 
 ---
 

@@ -106,14 +106,14 @@ deploy:
         echo '===> Checking migration status...'
         npx prisma migrate status
 
-        echo '===> Seeding questions...'
-        npx ts-node prisma/seed-questions.ts
+        # echo '===> Seeding questions...'
+        # npx ts-node prisma/seed-questions.ts
 
-        echo '===> Seeding interests...'
-        npx ts-node prisma/seed-interests.ts
+        # echo '===> Seeding interests...'
+        # npx ts-node prisma/seed-interests.ts
 
-        echo '===> Seeding Users...'
-        npx ts-node prisma/seed-users.ts
+        # echo '===> Seeding Users...'
+        # npx ts-node prisma/seed-users.ts
 
         echo '===> Building project...'
         npm run build

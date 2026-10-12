@@ -82,6 +82,9 @@ registry.register({
 | `DOCS_AUTH_ENABLED` | `true` | Enable/disable HTTP Basic Auth login prompt for docs and rules (`true`/`false`) |
 | `DOCS_USERNAME` | `admin` | HTTP Basic Auth username required to view docs and rules |
 | `DOCS_PASSWORD` | `datemate_docs_password_2026` | HTTP Basic Auth password required to view docs and rules |
+| `THROTTLE_TTL` | `60000` | Global rate limit rolling window duration in milliseconds (default: 60000 = 60s) |
+| `THROTTLE_LIMIT` | `120` | Global maximum requests per IP permitted within THROTTLE_TTL window (default: 120) |
+| `TRUST_PROXY` | `loopback` | Express trust proxy mode (`loopback`, `1`, `true`, CIDR). Prevents client IP spoofing |
 
 ---
 
@@ -460,5 +463,90 @@ Ranking order:
     ]
   }
   ```
+
+---
+
+## 11. Global Rate Limiting & Proxy Security
+
+### 11.1 Architecture & Core Configuration
+Rate limiting is globally enforced using the official `@nestjs/throttler` package integrated at the root module level (`src/app.module.ts`) via `APP_GUARD` and `ThrottlerGuard`.
+
+- **Global Threshold**: **120 requests per IP per 60 seconds** (configurable via `THROTTLE_LIMIT` and `THROTTLE_TTL`).
+- **Response On Limit Exceeded**: Returns HTTP `429 Too Many Requests` formatted cleanly through `AllExceptionsFilter`:
+  ```json
+  {
+    "status": "error",
+    "message": "Too Many Requests",
+    "data": null,
+    "error": {
+      "type": "UNKNOWN_ERROR",
+      "message": "Too Many Requests"
+    }
+  }
+  ```
+- **Standard Headers**: Rate-limiting response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After`) are returned to enable client-side backoff calculation.
+- **Monitoring / Health Exemption**: Health check endpoints (`GET /health` and `GET /`) are decorated with `@SkipThrottle()` to prevent container orchestrators (Docker, Kubernetes) and monitoring systems from being inadvertently throttled.
+
+### 11.2 Reverse Proxy & Client IP Verification (Anti-Spoofing)
+DateMate operates behind Nginx (configured in `docker-compose.yml` and `nginx/nginx.conf` terminating SSL and forwarding traffic to `127.0.0.1:2020`).
+
+- **The Threat**: Attackers can send arbitrary `X-Forwarded-For` or `X-Real-IP` request headers from the client to attempt bypassing IP-based rate limiting or to cause denial-of-service against other users.
+- **The Defense**:
+  - Express is explicitly configured with `app.set('trust proxy', 'loopback')` in `src/main.ts`.
+  - When `trust proxy` is set to `'loopback'` (or `1`), Express **only trusts the immediate reverse proxy hop** if the connection originates from a loopback address (`127.0.0.1` / `::1`).
+  - Express evaluates `X-Forwarded-For` from right to left, peeling off the trusted loopback hop and selecting the first untrusted IP (the genuine client IP appended by Nginx's `$proxy_add_x_forwarded_for`). Any spoofed IP addresses prepended by malicious clients are discarded.
+  - If a client connects directly to the backend bypassing Nginx, the incoming connection socket address is not loopback; Express automatically rejects all forwarded headers and uses the raw TCP socket address (`req.socket.remoteAddress`).
+
+### 11.3 Endpoint-Specific Sensitive Route Limits
+To defend against brute-force credential stuffing, OTP guessing, and email-bombing attacks, strict limits are declared using `@Throttle()` in `src/modules/auth/presentation/auth.controller.ts`:
+
+| Endpoint | Method | Limit | TTL | Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `/v1/auth/signin` | `POST` | 10 reqs | 60s | Mitigates credential stuffing and password brute-force attacks |
+| `/v1/auth/signup` | `POST` | 10 reqs | 60s | Prevents automated registration spam and email inbox flooding |
+| `/v1/auth/verify` | `POST` | 10 reqs | 60s | Stops brute-forcing 6-digit OTP verification codes (10m lifespan) |
+| `/v1/auth/forgot-password` | `POST` | 5 reqs | 60s | Thwarts OTP spam and email exhaustion attacks against target accounts |
+| `/v1/auth/reset-password` | `POST` | 10 reqs | 60s | Prevents rapid brute-force execution of password resets |
+
+### 11.4 Scalability & Distributed Storage Considerations
+- **Current Storage Model**: The default `@nestjs/throttler` storage uses high-performance in-memory storage (`ThrottlerStorageService`).
+- **Single-Instance Suitability**: In single-instance deployments, in-memory rate limiting delivers minimal latency and zero extra infrastructure dependencies.
+- **Multi-Instance / Clustered Limitations**:
+  - In horizontal scale-out scenarios where multiple DateMate backend instances run behind a load balancer, each instance maintains an isolated in-memory counter table.
+  - Consequently, client request capacity would multiply across $N$ instances ($N \times 120$ requests/min).
+  - Additionally, instance restarts (e.g., rolling deployments or auto-scaling events) clear in-memory hit counts.
+- **Recommendation for Distributed Deployments**:
+  - When running multiple backend instances, configure shared distributed storage using DateMate's existing Redis cluster (`ioredis`).
+  - `@nestjs/throttler` provides pluggable storage support via `@nestjs/throttler-storage-redis` or custom `ThrottlerStorage` implementing `increment()`, pointing to the existing `REDIS_HOST` and `REDIS_PORT` service defined in `src/infrastructure/redis/redis.module.ts`.
+
+### 11.5 Nginx Edge Rate Limiting & Sensitive Path Protection
+Nginx serves as the primary edge reverse proxy terminating TLS and protecting the backend from automated vulnerability scanning and DDoS floods before traffic ever reaches NestJS.
+
+- **Dual-Layer Defense-in-Depth**:
+  - **Layer 1 (Nginx)**: Absorbs high-volume L7 traffic spikes and rapid scanner bursts at the network edge with minimal CPU overhead.
+  - **Layer 2 (NestJS @nestjs/throttler)**: Enforces business-aware rate limiting, rolling session quotas, and endpoint-specific thresholds (such as 5–10 attempts/min on auth routes).
+- **Shared Memory Zone (`api_limit`)**:
+  - Configured at the top-level `http` block: `limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;`.
+  - A 10 MB zone efficiently holds approximately 160,000 concurrent client IP states in binary format.
+- **Enforcement & Burst Handling**:
+  - Applied to the API proxy location: `limit_req zone=api_limit burst=30 nodelay;`.
+  - Legitimate bursts of up to 30 requests are serviced immediately without artificial delays (`nodelay`).
+  - Excess requests immediately trigger rejection status `limit_req_status 429;`.
+- **Unified 429 Error Envelope**:
+  - An internal Nginx handler (`error_page 429 = @rate_limited;`) outputs a unified JSON response matching the application's standard error format:
+    ```json
+    {"status":"error","message":"Too Many Requests","data":null,"error":{"type":"UNKNOWN_ERROR","message":"Too Many Requests"}}
+    ```
+- **Sensitive Path Probing Denial**:
+  - Requests targeting common automated scanner patterns (`/ssh/`, `/keys/`, `/id_rsa`, `/id_ed25519`, `/private_key.pem`, and hidden credentials) are intercepted and dropped with HTTP 404 at the Nginx edge without forwarding to upstream services:
+    ```nginx
+    location ~* (/(?:\.?ssh|\.?keys)(?:/|$)|id_rsa|id_ed25519|private_key\.pem) {
+        return 404;
+    }
+    ```
+- **Anti-Spoofing Client Identifier**:
+  - Rate limiting strictly indexes `$binary_remote_addr` (the actual IP from the TCP connection). Nginx does not trust client-supplied `X-Forwarded-For` or `X-Real-IP` headers, preventing attackers from bypassing edge rate limits via spoofed header injection.
+
+
 
 

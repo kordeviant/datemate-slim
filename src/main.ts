@@ -1,26 +1,44 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import { ConfigService } from '@nestjs/config';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import * as path from 'path';
-import { DocsProtectionMiddleware } from './common/middleware/docs-protection.middleware';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { ValidationPipe, VersioningType } from "@nestjs/common";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
+import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
+import { ConfigService } from "@nestjs/config";
+import { NestExpressApplication } from "@nestjs/platform-express";
+import * as path from "path";
+import { DocsProtectionMiddleware } from "./common/middleware/docs-protection.middleware";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const configService = app.get(ConfigService);
+
+  // Secure Reverse Proxy & Client IP configuration (Nginx / Load Balancer)
+  // By default, trusts loopback proxies ('loopback' = 127.0.0.1, ::1) where Nginx forwards traffic.
+  // This ensures req.ip correctly resolves legitimate client IPs from X-Forwarded-For
+  // without blindly trusting spoofed X-Forwarded-For headers from untrusted direct callers.
+  const trustProxySetting = configService.get<string>(
+    "TRUST_PROXY",
+    "loopback",
+  );
+  const parsedTrustProxy = !isNaN(Number(trustProxySetting))
+    ? Number(trustProxySetting)
+    : trustProxySetting === "true"
+      ? true
+      : trustProxySetting === "false"
+        ? false
+        : trustProxySetting;
+  app.set("trust proxy", parsedTrustProxy);
 
   // Serve static uploads (avatars, images)
-  app.useStaticAssets(path.join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
+  app.useStaticAssets(path.join(process.cwd(), "uploads"), {
+    prefix: "/uploads/",
   });
 
   // Enable URI Versioning (e.g. /v1/auth/..., /v1/users/...)
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: '1',
+    defaultVersion: "1",
   });
 
   // Global validation pipe
@@ -43,26 +61,25 @@ async function bootstrap() {
 
   // Swagger Documentation Setup
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('DateMate Backend API')
+    .setTitle("DateMate Backend API")
     .setDescription(
       'DateMate REST API documentation covering Authentication, Users, Matching, Messaging, and Platform services.<br><br>👉 <b>Authoritative Client Validation Rules & Protocols</b>: <a href="/docs/rules" target="_blank"><b>/docs/rules</b></a> (Updated on every backend release)',
     )
-    .setVersion('1.0.0')
+    .setVersion("1.0.0")
     .addBearerAuth(
       {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT Access Token',
-        in: 'header',
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        name: "JWT",
+        description: "Enter JWT Access Token",
+        in: "header",
       },
-      'JWT-auth',
+      "JWT-auth",
     )
     .build();
 
   // Protect Swagger UI, documentation static assets, and Rules via IP Whitelist & HTTP Basic Auth
-  const configService = app.get(ConfigService);
   const docsProtectionMiddleware = new DocsProtectionMiddleware(configService);
   app.use((req: any, res: any, next: any) =>
     docsProtectionMiddleware.use(req, res, next),
@@ -70,25 +87,25 @@ async function bootstrap() {
 
   // Prevent caching for Swagger documentation so each backend deployment is visible immediately
   app.use(
-    ['/docs', '/docs-json', '/v1/docs'],
+    ["/docs", "/docs-json", "/v1/docs"],
     (req: any, res: any, next: any) => {
       res.setHeader(
-        'Cache-Control',
-        'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        "Cache-Control",
+        "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
       );
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      res.setHeader('Surrogate-Control', 'no-store');
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      res.setHeader("Surrogate-Control", "no-store");
 
       // Cache-bust swagger-ui-init.js script tag in HTML response
       const originalSend = res.send;
       res.send = function (body: any) {
-        if (typeof body === 'string' && body.includes('swagger-ui-init.js')) {
+        if (typeof body === "string" && body.includes("swagger-ui-init.js")) {
           const timestamp = Date.now();
           const modified = body
-            .replace('swagger-ui-init.js', `swagger-ui-init.js?v=${timestamp}`)
+            .replace("swagger-ui-init.js", `swagger-ui-init.js?v=${timestamp}`)
             .replace(
-              'swagger-ui-bundle.js',
+              "swagger-ui-bundle.js",
               `swagger-ui-bundle.js?v=${timestamp}`,
             );
           return originalSend.call(this, modified);
@@ -101,9 +118,9 @@ async function bootstrap() {
   );
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document, {
+  SwaggerModule.setup("docs", app, document, {
     swaggerOptions: {
-      url: '/docs-json',
+      url: "/docs-json",
       persistAuthorization: true,
     },
     customJsStr: `
@@ -118,10 +135,10 @@ async function bootstrap() {
           .catch(function(err) { console.error('Failed to sync Swagger spec:', err); });
       });
     `,
-    customSiteTitle: 'DateMate Backend API Docs',
+    customSiteTitle: "DateMate Backend API Docs",
   });
 
-  const port = configService.get<number>('PORT', 3000);
+  const port = configService.get<number>("PORT", 3000);
 
   await app.listen(port);
   console.log(`DateMate Backend is running on port: ${port}`);

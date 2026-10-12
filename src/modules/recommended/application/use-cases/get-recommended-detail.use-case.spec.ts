@@ -177,4 +177,27 @@ describe('GetRecommendedDetailUseCase', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(1);
   });
+
+  it('supports candidateId parameter as cursor pagination', async () => {
+    // candidateId: 4 -> starts from candidate 4 (index 3)
+    const result = await useCase.execute(100, { candidateId: 4, limit: 2 });
+
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe(4);
+    expect(result[1].id).toBe(5);
+  });
+
+  it('resolves start as candidate ID when it matches an existing candidate ID out of bounds', async () => {
+    // Candidate pool with large IDs
+    mockGetRecommendedUseCase.getRankedCandidatePool.mockResolvedValueOnce([
+      { id: 216, fullName: 'User 216' },
+      { id: 217, fullName: 'User 217' },
+    ] as any);
+
+    // start: 216 exceeds pool length (2), so it is matched as candidate ID
+    const result = await useCase.execute(100, { start: 216, limit: 1 });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(216);
+  });
 });

@@ -49,16 +49,21 @@ export class GetRecommendedUseCase {
    * If cached in Redis (with 1-day TTL from env), retrieves from cache.
    * Otherwise, executes the recommendation algorithm and caches the result.
    */
+  /**
+   * Retrieves or computes the ranked candidate pool for a user.
+   * If cached in Redis (with 1-day TTL from env), retrieves from cache.
+   * Only if the cache has expired (or on first request), it computes the
+   * candidate pool and saves to Redis for 1 day. Subsequent requests during
+   * the TTL will never re-generate or query the database automatically.
+   */
   async getRankedCandidatePool(
     currentUserId: number,
-    requiredCount: number = 20,
   ): Promise<RankedCandidateItem[]> {
-    // 1. Check Redis cache first
-    let cachedPool: RankedCandidateItem[] | null = null;
+    // 1. Check Redis cache first. If cached (not expired), return cached pool immediately!
     if (this.cacheService) {
-      cachedPool =
+      const cachedPool =
         await this.cacheService.getCachedRankedCandidates(currentUserId);
-      if (cachedPool && cachedPool.length >= requiredCount) {
+      if (cachedPool !== null) {
         return cachedPool;
       }
     }
@@ -94,7 +99,7 @@ export class GetRecommendedUseCase {
     const excludedIds = Array.from(new Set([currentUserId, ...swipedIds]));
 
     // Fetch primary candidate pool (excluding self and swiped candidates)
-    const poolFetchLimit = Math.max(requiredCount * 5, 100);
+    const poolFetchLimit = 100;
     const candidates = await this.recommendedRepository.getCandidatePool(
       targetGender,
       excludedIds,
@@ -108,15 +113,14 @@ export class GetRecommendedUseCase {
         Boolean(this.algorithmService.resolveCandidatePhoto(c)),
     ).length;
 
-    // Fallback: If not enough unswiped candidates to satisfy requiredCount, fetch swiped candidates to backfill
-    if (validPrimaryCount < requiredCount && swipedIds.length > 0) {
+    // Fallback: If not enough unswiped candidates to satisfy target, fetch swiped candidates to backfill
+    if (validPrimaryCount < 20 && swipedIds.length > 0) {
       const existingCandidateIds = new Set(candidates.map((c) => c.id));
-      const neededCount = (requiredCount - validPrimaryCount) * 5;
       const swipedCandidates =
         await this.recommendedRepository.getCandidatePool(
           targetGender,
           [currentUserId], // only exclude self
-          Math.max(neededCount, 50),
+          50,
         );
 
       for (const sc of swipedCandidates) {
@@ -134,8 +138,8 @@ export class GetRecommendedUseCase {
       swipedIds,
     );
 
-    // Save ranked candidate list to Redis cache for 1 day (read from env)
-    if (this.cacheService) {
+    // Save ranked candidate list to Redis cache for 1 day (read from env) on first request / expiry
+    if (this.cacheService && rankedCandidates.length > 0) {
       await this.cacheService.setCachedRankedCandidates(
         currentUserId,
         rankedCandidates,
@@ -150,16 +154,34 @@ export class GetRecommendedUseCase {
     query: RecommendedQueryDto,
   ): Promise<RecommendedCandidateDto[]> {
     const limit = query?.limit ? Math.min(Math.max(query.limit, 1), 50) : 20;
-    const startIndex = Math.max(0, query?.start ?? query?.offset ?? 0);
+
+    const rankedCandidates = await this.getRankedCandidatePool(
+      currentUserId,
+    );
+
+    // Smart start resolution: support explicit candidateId, candidate ID passed in start, or numeric index
+    let startIndex = 0;
+    if (query?.candidateId !== undefined) {
+      const matchIndex = rankedCandidates.findIndex(
+        (c) => c.id === query.candidateId,
+      );
+      startIndex = matchIndex !== -1 ? matchIndex : 0;
+    } else if (query?.start !== undefined) {
+      const rawStart = query.start;
+      if (rawStart >= rankedCandidates.length) {
+        const matchIndex = rankedCandidates.findIndex((c) => c.id === rawStart);
+        startIndex = matchIndex !== -1 ? matchIndex : rawStart;
+      } else {
+        startIndex = Math.max(0, rawStart);
+      }
+    } else if (query?.offset !== undefined) {
+      startIndex = Math.max(0, query.offset);
+    }
+
     let endIndex = startIndex + limit;
     if (query?.end !== undefined && query.end > startIndex) {
       endIndex = query.end;
     }
-
-    const rankedCandidates = await this.getRankedCandidatePool(
-      currentUserId,
-      endIndex,
-    );
 
     return rankedCandidates.slice(startIndex, endIndex).map((c) => ({
       id: c.id,

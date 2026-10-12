@@ -434,33 +434,7 @@ describe('GetRecommendedUseCase', () => {
     expect(mockCacheService.getCachedRankedCandidates).toHaveBeenCalledWith(1);
   });
 
-  it('queries database and expands pool when requested items exceed cached pool size', async () => {
-    mockRepository.getUserProfile.mockResolvedValue(baseCurrentUser);
-    mockRepository.getSwipedUserIds.mockResolvedValue([]);
-
-    const expandedPool: CandidatePoolItem[] = Array.from({ length: 50 }, (_, i) => ({
-      id: 200 + i,
-      fullName: `User ${i}`,
-      username: `user_${i}`,
-      gender: 'FEMALE',
-      birthDate: new Date('1998-01-01'),
-      bio: null,
-      avatarUrl: `https://example.com/user_${i}.jpg`,
-      profilePictureUrl: `https://example.com/user_${i}.jpg`,
-      profileValidated: true,
-      cityId: 10,
-      cityName: 'Tehran',
-      relationPreference: 'LONG',
-      isOnline: false,
-      lastSeenAt: null,
-      gallery: [],
-      interestNames: [],
-      interestIds: [],
-      answerIds: [],
-    }));
-
-    mockRepository.getCandidatePool.mockResolvedValue(expandedPool);
-
+  it('does not re-query database when cache is active, and only generates and caches on first request/expiry', async () => {
     const mockCacheService = {
       getCachedRankedCandidates: jest.fn().mockResolvedValue([
         {
@@ -475,7 +449,7 @@ describe('GetRecommendedUseCase', () => {
           lastSeenAt: null,
           isSwiped: false,
         },
-      ]), // only 1 cached item
+      ]), // cached item
       setCachedRankedCandidates: jest.fn(),
     } as any;
 
@@ -486,12 +460,12 @@ describe('GetRecommendedUseCase', () => {
       mockCacheService,
     );
 
-    // Request start 10, limit 20 -> requiredCount 30 > cached length 1
-    const result = await cachedUseCase.execute(1, { start: 10, limit: 20 });
+    // Request start 0, limit 20 -> cache is active, so database is NOT queried
+    const result = await cachedUseCase.execute(1, { start: 0, limit: 20 });
 
-    expect(mockRepository.getUserProfile).toHaveBeenCalled();
-    expect(mockCacheService.setCachedRankedCandidates).toHaveBeenCalled();
-    expect(result).toHaveLength(20);
-    expect(result[0].id).toBe(210);
+    expect(mockRepository.getUserProfile).not.toHaveBeenCalled();
+    expect(mockCacheService.setCachedRankedCandidates).not.toHaveBeenCalled();
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(555);
   });
 });

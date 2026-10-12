@@ -22,18 +22,36 @@ export class GetRecommendedDetailUseCase {
     query: RecommendedDetailQueryDto,
   ): Promise<ProfileResponseDto[]> {
     const limit = query?.limit ? Math.min(Math.max(query.limit, 1), 50) : 20;
-    const startIndex = Math.max(0, query?.start ?? query?.offset ?? 0);
+
+    // Retrieve ranked candidate pool (from 1-day Redis cache if available, or compute on first request)
+    const rankedCandidates =
+      await this.getRecommendedUseCase.getRankedCandidatePool(
+        currentUserId,
+      );
+
+    // Smart start resolution: support explicit candidateId, candidate ID passed in start, or numeric index
+    let startIndex = 0;
+    if (query?.candidateId !== undefined) {
+      const matchIndex = rankedCandidates.findIndex(
+        (c) => c.id === query.candidateId,
+      );
+      startIndex = matchIndex !== -1 ? matchIndex : 0;
+    } else if (query?.start !== undefined) {
+      const rawStart = query.start;
+      if (rawStart >= rankedCandidates.length) {
+        const matchIndex = rankedCandidates.findIndex((c) => c.id === rawStart);
+        startIndex = matchIndex !== -1 ? matchIndex : rawStart;
+      } else {
+        startIndex = Math.max(0, rawStart);
+      }
+    } else if (query?.offset !== undefined) {
+      startIndex = Math.max(0, query.offset);
+    }
+
     let endIndex = startIndex + limit;
     if (query?.end !== undefined && query.end > startIndex) {
       endIndex = query.end;
     }
-
-    // Retrieve ranked candidate pool (from 1-day Redis cache if available, or compute)
-    const rankedCandidates =
-      await this.getRecommendedUseCase.getRankedCandidatePool(
-        currentUserId,
-        endIndex,
-      );
 
     const sliced = rankedCandidates.slice(startIndex, endIndex);
     if (sliced.length === 0) {

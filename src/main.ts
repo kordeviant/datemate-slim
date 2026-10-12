@@ -61,20 +61,11 @@ async function bootstrap() {
     )
     .build();
 
-  // Protect Swagger UI and Rules documentation via IP Whitelist & HTTP Basic Auth
+  // Protect Swagger UI, documentation static assets, and Rules via IP Whitelist & HTTP Basic Auth
   const configService = app.get(ConfigService);
   const docsProtectionMiddleware = new DocsProtectionMiddleware(configService);
-  app.use(
-    [
-      '/docs',
-      '/docs-json',
-      '/v1/docs',
-      '/rules',
-      '/docs/rules',
-      '/v1/rules',
-      '/v1/docs/rules',
-    ],
-    (req: any, res: any, next: any) => docsProtectionMiddleware.use(req, res, next),
+  app.use((req: any, res: any, next: any) =>
+    docsProtectionMiddleware.use(req, res, next),
   );
 
   // Prevent caching for Swagger documentation so each backend deployment is visible immediately

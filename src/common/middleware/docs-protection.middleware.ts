@@ -14,7 +14,13 @@ export class DocsProtectionMiddleware implements NestMiddleware {
       return next();
     }
 
-    const requestPath = (req.path || req.url || '').split('?')[0];
+    const rawPath =
+      req.originalUrl ||
+      (req.baseUrl ? req.baseUrl + (req.path || '') : '') ||
+      req.path ||
+      req.url ||
+      '';
+    const requestPath = rawPath.split('?')[0];
 
     // Only protect docs and rules routes
     if (!this.isDocsOrRulesRoute(requestPath)) {
@@ -149,10 +155,13 @@ export class DocsProtectionMiddleware implements NestMiddleware {
       normalized === '/docs' ||
       normalized.startsWith('/docs/') ||
       normalized === '/docs-json' ||
+      normalized.startsWith('/docs-json') ||
       normalized === '/rules' ||
       normalized.startsWith('/rules/') ||
       normalized === '/v1/docs' ||
       normalized.startsWith('/v1/docs/') ||
+      normalized === '/v1/docs-json' ||
+      normalized.startsWith('/v1/docs-json') ||
       normalized === '/v1/rules' ||
       normalized.startsWith('/v1/rules/')
     );

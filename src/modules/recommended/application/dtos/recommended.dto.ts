@@ -8,13 +8,24 @@ export class RecommendedQueryDto {
     example: 0,
     default: 0,
     description:
-      'Starting numeric item index (0-based: 0 is 1st item, 4 is 5th item, default: 0)',
+      'Starting numeric item index (0-based, e.g. 0) OR Candidate User ID to start after/from (default: 0)',
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   start?: number;
+
+  @ApiPropertyOptional({
+    example: 216,
+    description:
+      'Optional candidate user ID to start from/after (cursor-based pagination)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  candidateId?: number;
 
   @ApiPropertyOptional({
     example: 20,
@@ -87,13 +98,25 @@ export class RecommendedDetailQueryDto {
   @ApiPropertyOptional({
     example: 0,
     default: 0,
-    description: 'Starting numeric index/offset (0-based, default: 0)',
+    description:
+      'Starting numeric item index (0-based, e.g. 0) OR Candidate User ID to start after/from (default: 0)',
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   start?: number;
+
+  @ApiPropertyOptional({
+    example: 216,
+    description:
+      'Optional candidate user ID to start from/after (cursor-based pagination)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  candidateId?: number;
 
   @ApiPropertyOptional({
     example: 20,

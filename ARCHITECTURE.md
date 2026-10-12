@@ -373,9 +373,11 @@ Ranking order:
 
 #### 1. Lightweight Discovery Cards: `GET /v1/recommended`
 - **Query Params**:
-  - `start` / `offset` (default: 0): Starting numeric index.
+  - `start` / `offset` (default: 0): Starting numeric index (0-based) OR candidate user ID cursor to start from/after.
+  - `candidateId` (optional): Explicit candidate user ID cursor to start from/after.
   - `limit` (default: 20, min: 1, max: 50): Number of profile cards to retrieve.
   - `end` (optional): Ending numeric index.
+- **Caching**: 1-day Redis cache (`recommended:ranked:{userId}`). Does not regenerate automatically while cache is active; only generates and saves on first request or when cache expires.
 - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
 - **Response Payload**: Returns lightweight cards:
   ```json
@@ -397,7 +399,8 @@ Ranking order:
 
 #### 2. Full Profile Details: `GET /v1/recommended/detail`
 - **Query Params**:
-  - `start` / `offset` (default: 0): Starting numeric index (e.g. `start: 4`).
+  - `start` / `offset` (default: 0): Starting numeric index (0-based) OR candidate user ID cursor to start from/after.
+  - `candidateId` (optional): Explicit candidate user ID cursor to start from/after.
   - `limit` (default: 20, min: 1, max: 50): Number of detailed profiles to retrieve.
   - `end` (optional): Ending numeric index.
 - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).

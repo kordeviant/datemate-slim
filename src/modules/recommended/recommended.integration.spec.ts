@@ -166,5 +166,35 @@ describe('Recommended Endpoints (Integration)', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('supports anchor-based window pagination with anchorUserId, before, and after', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/v1/recommended/detail?anchorUserId=123&before=10&after=10')
+        .set('Authorization', 'Bearer valid_token');
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.message).toBe(
+        'Recommended detailed profiles retrieved successfully',
+      );
+      expect(mockGetRecommendedDetailUseCase.execute).toHaveBeenCalledWith(1, {
+        anchorUserId: 123,
+        before: 10,
+        after: 10,
+        limit: 20,
+      });
+    });
+
+    it('rejects invalid anchor query parameters (e.g. before < 0 or after > 50)', async () => {
+      const resInvalidBefore = await request(app.getHttpServer())
+        .get('/v1/recommended/detail?anchorUserId=123&before=-1')
+        .set('Authorization', 'Bearer valid_token');
+      expect(resInvalidBefore.status).toBe(400);
+
+      const resInvalidAfter = await request(app.getHttpServer())
+        .get('/v1/recommended/detail?anchorUserId=123&after=99')
+        .set('Authorization', 'Bearer valid_token');
+      expect(resInvalidAfter.status).toBe(400);
+    });
   });
 });

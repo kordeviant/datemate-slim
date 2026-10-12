@@ -159,31 +159,65 @@ export class GetRecommendedUseCase {
       currentUserId,
     );
 
-    // Smart start resolution: support explicit candidateId, candidate ID passed in start, or numeric index
-    let startIndex = 0;
-    if (query?.candidateId !== undefined) {
-      const matchIndex = rankedCandidates.findIndex(
-        (c) => c.id === query.candidateId,
+    let sliced: RankedCandidateItem[] = [];
+
+    // Anchor-based window pagination takes precedence when anchorUserId is provided
+    if (query?.anchorUserId !== undefined) {
+      const anchorIndex = rankedCandidates.findIndex(
+        (c) => c.id === query.anchorUserId,
       );
-      startIndex = matchIndex !== -1 ? matchIndex : 0;
-    } else if (query?.start !== undefined) {
-      const rawStart = query.start;
-      if (rawStart >= rankedCandidates.length) {
-        const matchIndex = rankedCandidates.findIndex((c) => c.id === rawStart);
-        startIndex = matchIndex !== -1 ? matchIndex : rawStart;
-      } else {
-        startIndex = Math.max(0, rawStart);
+      if (anchorIndex === -1) {
+        return [];
       }
-    } else if (query?.offset !== undefined) {
-      startIndex = Math.max(0, query.offset);
+
+      if (query.before !== undefined || query.after !== undefined) {
+        const beforeCount =
+          query.before !== undefined ? Math.max(0, query.before) : 0;
+        const afterCount =
+          query.after !== undefined ? Math.max(0, query.after) : 0;
+        const startIndex = Math.max(0, anchorIndex - beforeCount);
+        const endIndex = Math.min(
+          rankedCandidates.length,
+          anchorIndex + 1 + afterCount,
+        );
+        sliced = rankedCandidates.slice(startIndex, endIndex);
+      } else {
+        const startIndex = anchorIndex;
+        let endIndex = startIndex + limit;
+        if (query?.end !== undefined && query.end > startIndex) {
+          endIndex = query.end;
+        }
+        sliced = rankedCandidates.slice(startIndex, endIndex);
+      }
+    } else {
+      // Smart start resolution: support explicit candidateId, candidate ID passed in start, or numeric index
+      let startIndex = 0;
+      if (query?.candidateId !== undefined) {
+        const matchIndex = rankedCandidates.findIndex(
+          (c) => c.id === query.candidateId,
+        );
+        startIndex = matchIndex !== -1 ? matchIndex : 0;
+      } else if (query?.start !== undefined) {
+        const rawStart = query.start;
+        if (rawStart >= rankedCandidates.length) {
+          const matchIndex = rankedCandidates.findIndex((c) => c.id === rawStart);
+          startIndex = matchIndex !== -1 ? matchIndex : rawStart;
+        } else {
+          startIndex = Math.max(0, rawStart);
+        }
+      } else if (query?.offset !== undefined) {
+        startIndex = Math.max(0, query.offset);
+      }
+
+      let endIndex = startIndex + limit;
+      if (query?.end !== undefined && query.end > startIndex) {
+        endIndex = query.end;
+      }
+
+      sliced = rankedCandidates.slice(startIndex, endIndex);
     }
 
-    let endIndex = startIndex + limit;
-    if (query?.end !== undefined && query.end > startIndex) {
-      endIndex = query.end;
-    }
-
-    return rankedCandidates.slice(startIndex, endIndex).map((c) => ({
+    return sliced.map((c) => ({
       id: c.id,
       avatarUrl: c.avatarUrl,
       age: c.age,

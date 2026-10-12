@@ -58,6 +58,41 @@ export class RecommendedQueryDto {
   @IsInt()
   @Min(0)
   offset?: number;
+
+  @ApiPropertyOptional({
+    example: 123,
+    description:
+      'Anchor candidate user ID around which to retrieve preceding and succeeding candidates',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  anchorUserId?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      'Number of candidate profiles to retrieve immediately preceding the anchor user (0 to 50)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  before?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      'Number of candidate profiles to retrieve immediately succeeding the anchor user (0 to 50)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  after?: number;
 }
 
 export class RecommendedCandidateDto {
@@ -149,6 +184,41 @@ export class RecommendedDetailQueryDto {
   @IsInt()
   @Min(0)
   offset?: number;
+
+  @ApiPropertyOptional({
+    example: 123,
+    description:
+      'Anchor candidate user ID around which to retrieve preceding and succeeding candidates',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  anchorUserId?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      'Number of candidate profiles to retrieve immediately preceding the anchor user (0 to 50)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  before?: number;
+
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      'Number of candidate profiles to retrieve immediately succeeding the anchor user (0 to 50)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  after?: number;
 }
 
 export class RecommendedDetailResponseDto {

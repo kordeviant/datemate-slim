@@ -87,7 +87,7 @@ export class RecommendedController {
   @ApiOperation({
     summary: 'Get recommended profiles with full details',
     description:
-      'Retrieves recommended candidate profiles with full details (matching /me API schema) while strictly preserving cached recommendation ranking order with start, end, offset, and limit pagination.',
+      'Retrieves recommended candidate profiles with full details (matching /me API schema) while strictly preserving cached recommendation ranking order. Supports start, end, offset, and limit pagination, as well as anchor-based window pagination (anchorUserId, before, after).',
   })
   @ApiResponse({
     status: 200,

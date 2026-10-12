@@ -7,8 +7,10 @@ describe('PrismaMatchingRepository', () => {
   let mockPrisma: any;
   let mockRedisService: any;
   let mockRedisClient: any;
+  const originalAppUrl = process.env.APP_URL;
 
   beforeEach(() => {
+    process.env.APP_URL = 'http://localhost:3000';
     mockRedisClient = {
       sadd: jest.fn().mockResolvedValue(1),
       smembers: jest.fn().mockResolvedValue([]),
@@ -38,6 +40,10 @@ describe('PrismaMatchingRepository', () => {
       mockPrisma as PrismaService,
       mockRedisService as RedisService,
     );
+  });
+
+  afterAll(() => {
+    process.env.APP_URL = originalAppUrl;
   });
 
   describe('getUserDemographicGender', () => {

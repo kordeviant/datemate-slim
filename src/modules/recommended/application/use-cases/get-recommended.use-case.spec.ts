@@ -468,4 +468,59 @@ describe('GetRecommendedUseCase', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(555);
   });
+
+  describe('anchor-based window pagination (anchorUserId, before, after)', () => {
+    it('returns window around anchorUserId with before and after', async () => {
+      const mockCacheService = {
+        getCachedRankedCandidates: jest.fn().mockResolvedValue([
+          { id: 10, fullName: 'User 10' },
+          { id: 20, fullName: 'User 20' },
+          { id: 30, fullName: 'User 30' },
+          { id: 40, fullName: 'User 40' },
+          { id: 50, fullName: 'User 50' },
+        ]),
+        setCachedRankedCandidates: jest.fn(),
+      } as any;
+
+      const cachedUseCase = new GetRecommendedUseCase(
+        mockRepository,
+        undefined,
+        undefined,
+        mockCacheService,
+      );
+
+      const result = await cachedUseCase.execute(1, {
+        anchorUserId: 30,
+        before: 1,
+        after: 1,
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result.map((r) => r.id)).toEqual([20, 30, 40]);
+    });
+
+    it('returns empty array if anchorUserId is not found in candidate pool', async () => {
+      const mockCacheService = {
+        getCachedRankedCandidates: jest.fn().mockResolvedValue([
+          { id: 10, fullName: 'User 10' },
+        ]),
+        setCachedRankedCandidates: jest.fn(),
+      } as any;
+
+      const cachedUseCase = new GetRecommendedUseCase(
+        mockRepository,
+        undefined,
+        undefined,
+        mockCacheService,
+      );
+
+      const result = await cachedUseCase.execute(1, {
+        anchorUserId: 999,
+        before: 10,
+        after: 10,
+      });
+
+      expect(result).toEqual([]);
+    });
+  });
 });

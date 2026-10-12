@@ -200,4 +200,80 @@ describe('GetRecommendedDetailUseCase', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(216);
   });
+
+  describe('Anchor-based window pagination (anchorUserId, before, after)', () => {
+    it('returns window around anchorUserId with before and after counts', async () => {
+      // mockRankedPool has IDs: 1, 2, 3, 4, 5
+      // Anchor: 3, before: 1, after: 1 -> IDs [2, 3, 4]
+      const result = await useCase.execute(100, {
+        anchorUserId: 3,
+        before: 1,
+        after: 1,
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result.map((r) => r.id)).toEqual([2, 3, 4]);
+      expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(2);
+      expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(3);
+      expect(mockGetProfileUseCase.execute).toHaveBeenCalledWith(4);
+    });
+
+    it('clamps before and after correctly at pool boundaries (e.g. before: 10, after: 10)', async () => {
+      // Anchor: 3 with before: 10 and after: 10 -> all 5 candidates [1, 2, 3, 4, 5]
+      const result = await useCase.execute(100, {
+        anchorUserId: 3,
+        before: 10,
+        after: 10,
+      });
+
+      expect(result).toHaveLength(5);
+      expect(result.map((r) => r.id)).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('handles anchor at start of pool (index 0)', async () => {
+      // Anchor: 1, before: 5, after: 2 -> IDs [1, 2, 3]
+      const result = await useCase.execute(100, {
+        anchorUserId: 1,
+        before: 5,
+        after: 2,
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result.map((r) => r.id)).toEqual([1, 2, 3]);
+    });
+
+    it('handles anchor at end of pool', async () => {
+      // Anchor: 5, before: 2, after: 5 -> IDs [3, 4, 5]
+      const result = await useCase.execute(100, {
+        anchorUserId: 5,
+        before: 2,
+        after: 5,
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result.map((r) => r.id)).toEqual([3, 4, 5]);
+    });
+
+    it('supports anchorUserId without before/after by defaulting to anchorIndex with limit', async () => {
+      // Anchor: 2, limit: 2 -> IDs [2, 3]
+      const result = await useCase.execute(100, {
+        anchorUserId: 2,
+        limit: 2,
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((r) => r.id)).toEqual([2, 3]);
+    });
+
+    it('returns empty array when anchorUserId is not found in pool', async () => {
+      const result = await useCase.execute(100, {
+        anchorUserId: 999,
+        before: 10,
+        after: 10,
+      });
+
+      expect(result).toEqual([]);
+      expect(mockGetProfileUseCase.execute).not.toHaveBeenCalled();
+    });
+  });
 });

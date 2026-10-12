@@ -380,6 +380,9 @@ Ranking order:
   - `candidateId` (optional): Explicit candidate user ID cursor to start from/after.
   - `limit` (default: 20, min: 1, max: 50): Number of profile cards to retrieve.
   - `end` (optional): Ending numeric index.
+  - `anchorUserId` (optional): Anchor candidate user ID around which to retrieve preceding and succeeding candidates.
+  - `before` (optional, min: 0, max: 50): Number of candidates preceding the anchor.
+  - `after` (optional, min: 0, max: 50): Number of candidates succeeding the anchor.
 - **Caching**: 1-day Redis cache (`recommended:ranked:{userId}`). Does not regenerate automatically while cache is active; only generates and saves on first request or when cache expires.
 - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
 - **Response Payload**: Returns lightweight cards:
@@ -406,6 +409,9 @@ Ranking order:
   - `candidateId` (optional): Explicit candidate user ID cursor to start from/after.
   - `limit` (default: 20, min: 1, max: 50): Number of detailed profiles to retrieve.
   - `end` (optional): Ending numeric index.
+  - `anchorUserId` (optional): Anchor candidate user ID around which to retrieve preceding and succeeding candidates (e.g. `anchorUserId=123&before=10&after=10`).
+  - `before` (optional, min: 0, max: 50): Number of candidates preceding the anchor.
+  - `after` (optional, min: 0, max: 50): Number of candidates succeeding the anchor.
 - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
 - **Response Payload**: Returns full `/me` detailed profile objects:
   ```json

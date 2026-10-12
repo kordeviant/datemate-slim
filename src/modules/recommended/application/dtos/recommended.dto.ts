@@ -12,7 +12,7 @@ export class RecommendedQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(50)
+  @Max(30)
   limit?: number = 20;
 }
 

@@ -130,8 +130,8 @@ export class GetRecommendedUseCase {
     for (const c of candidates) {
       // Rule 4: Must have an active photo
       const primaryPhoto =
-        c.profilePictureUrl ||
         c.avatarUrl ||
+        c.profilePictureUrl ||
         c.gallery.find((g) => g.isProfilePicture)?.imageUrl ||
         c.gallery[0]?.imageUrl ||
         null;
@@ -183,8 +183,8 @@ export class GetRecommendedUseCase {
       // 4. Relationship Goal Match (Weight: 10)
       const sameRelationGoal = Boolean(
         currentUser.relationPreference &&
-          c.relationPreference &&
-          currentUser.relationPreference === c.relationPreference,
+        c.relationPreference &&
+        currentUser.relationPreference === c.relationPreference,
       );
       const relationScore = sameRelationGoal ? 10 : 0;
 

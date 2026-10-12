@@ -1,8 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { ProfileResponseDto } from '../../../auth/application/dtos/profile-response.dto';
 
 export class RecommendedQueryDto {
+  @ApiPropertyOptional({
+    example: 0,
+    default: 0,
+    description: 'Starting numeric index/offset (0-based, default: 0)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  start?: number;
+
   @ApiPropertyOptional({
     example: 20,
     default: 20,
@@ -12,8 +24,28 @@ export class RecommendedQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(30)
+  @Max(50)
   limit?: number = 20;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Optional ending numeric index',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  end?: number;
+
+  @ApiPropertyOptional({
+    example: 0,
+    description: 'Alternative alias for start (0-based offset)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
 }
 
 export class RecommendedCandidateDto {
@@ -48,4 +80,60 @@ export class RecommendedResponseDto {
 
   @ApiProperty({ type: [RecommendedCandidateDto] })
   data: RecommendedCandidateDto[];
+}
+
+export class RecommendedDetailQueryDto {
+  @ApiPropertyOptional({
+    example: 0,
+    default: 0,
+    description: 'Starting numeric index/offset (0-based, default: 0)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  start?: number;
+
+  @ApiPropertyOptional({
+    example: 20,
+    default: 20,
+    description: 'Number of detailed recommended profiles to retrieve (1 to 50, default: 20)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number = 20;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description: 'Optional ending numeric index',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  end?: number;
+
+  @ApiPropertyOptional({
+    example: 0,
+    description: 'Alternative alias for start (0-based offset)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
+
+export class RecommendedDetailResponseDto {
+  @ApiProperty({ example: 'success' })
+  status: string;
+
+  @ApiProperty({ example: 'Recommended detailed profiles retrieved successfully' })
+  message: string;
+
+  @ApiProperty({ type: [ProfileResponseDto] })
+  data: ProfileResponseDto[];
 }

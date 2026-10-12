@@ -364,4 +364,73 @@ describe('GetRecommendedUseCase', () => {
     expect(result[0].id).toBe(70);
     expect(result[1].id).toBe(99);
   });
+
+  it('supports start and limit pagination', async () => {
+    mockRepository.getUserProfile.mockResolvedValue(baseCurrentUser);
+    mockRepository.getSwipedUserIds.mockResolvedValue([]);
+
+    const pool: CandidatePoolItem[] = Array.from({ length: 10 }, (_, i) => ({
+      id: 100 + i,
+      fullName: `User ${i}`,
+      username: `user_${i}`,
+      gender: 'FEMALE',
+      birthDate: new Date('1998-01-01'),
+      bio: null,
+      avatarUrl: `https://example.com/user_${i}.jpg`,
+      profilePictureUrl: `https://example.com/user_${i}.jpg`,
+      profileValidated: true,
+      cityId: 10,
+      cityName: 'Tehran',
+      relationPreference: 'LONG',
+      isOnline: false,
+      lastSeenAt: null,
+      gallery: [],
+      interestNames: [],
+      interestIds: [],
+      answerIds: [],
+    }));
+
+    mockRepository.getCandidatePool.mockResolvedValue(pool);
+
+    // start from index 3, limit 2
+    const result = await useCase.execute(1, { start: 3, limit: 2 });
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe(103);
+    expect(result[1].id).toBe(104);
+  });
+
+  it('uses cached candidate ranking if present in RecommendedCacheService', async () => {
+    const mockCacheService = {
+      getCachedRankedCandidates: jest.fn().mockResolvedValue([
+        {
+          id: 555,
+          avatarUrl: 'https://cdn/555.webp',
+          age: 26,
+          city: 'Tehran',
+          username: 'cached_user',
+          fullName: 'Cached User',
+          compatibilityScore: 99,
+          isOnline: true,
+          lastSeenAt: null,
+          isSwiped: false,
+        },
+      ]),
+      setCachedRankedCandidates: jest.fn(),
+    } as any;
+
+    const cachedUseCase = new GetRecommendedUseCase(
+      mockRepository,
+      undefined,
+      undefined,
+      mockCacheService,
+    );
+
+    const result = await cachedUseCase.execute(1, { limit: 10 });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe(555);
+    // Repository should not be queried when cache is valid
+    expect(mockRepository.getUserProfile).not.toHaveBeenCalled();
+    expect(mockCacheService.getCachedRankedCandidates).toHaveBeenCalledWith(1);
+  });
 });

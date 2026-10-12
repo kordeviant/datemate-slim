@@ -76,6 +76,7 @@ registry.register({
 | `S3_BUCKET` | `datemate-media` | S3 bucket name when `STORAGE_DRIVER=s3` |
 | `S3_REGION` | `us-east-1` | S3 bucket region |
 | `S3_ENDPOINT` | *(optional)* | S3 endpoint override for MinIO / Cloudflare R2 |
+| `RECOMMENDED_CACHE_TTL` | `86400` | Recommended candidate pool Redis cache duration in seconds (default: 86400 = 1 day) |
 
 ---
 
@@ -333,7 +334,18 @@ Before scoring, candidates must satisfy the 6 discovery baseline hygiene rules:
 5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
 6. **Gender**: Strictly opposite gender (`MALE` $\leftrightarrow$ `FEMALE`).
 
-### 10.2 Dynamic Compatibility Scoring Algorithm
+### 10.2 Modular Architecture & Separated Recommendation Algorithm
+To ensure maintainability, readability, and ease of modification, the recommendation module decomposes responsibilities strictly following DDD and Clean Architecture:
+- **`RecommendationAlgorithmService`** (`src/modules/recommended/domain/services/recommendation-algorithm.service.ts`):
+  Pure, decoupled domain service containing the scoring formulas, weight definitions (`DEFAULT_RECOMMENDATION_WEIGHTS`), hygiene photo/validation checks, and multi-factor ranking. It is isolated from database and network infrastructure for easy inspection and algorithm adjustments.
+- **`RecommendedCacheService`** (`src/modules/recommended/application/services/recommended-cache.service.ts`):
+  Manages candidate list persistence in Redis (`recommended:ranked:{userId}`) with a 1-day TTL read directly from the environment (`RECOMMENDED_CACHE_TTL`, default: `86400` seconds). The cached candidate ranking persists consistently across consecutive client requests and automatically refreshes daily to account for changing user interests or newly joined users.
+- **`GetRecommendedUseCase`** (`src/modules/recommended/application/use-cases/get-recommended.use-case.ts`):
+  Retrieves lightweight cards (`id`, `avatarUrl`, `age`, `city`, `username`, `fullName`) with numeric pagination (`start`, `limit`, `end`, `offset`).
+- **`GetRecommendedDetailUseCase`** (`src/modules/recommended/application/use-cases/get-recommended-detail.use-case.ts`):
+  Retrieves full candidate profiles matching the Android `/me` canonical schema (`ProfileResponseDto`), preserving the exact recommendation order from the 1-day Redis cache.
+
+### 10.3 Dynamic Compatibility Scoring Algorithm
 Candidates are ranked in descending order of a multi-factor compatibility score ($0 \dots 100$):
 1. **Dynamic Lifestyle & Personality Questions (Weight: up to 35 pts)**:
    - Evaluates shared question answers from [`UserQuestionAnswer`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) across all dynamic question types (`LIFESTYLE`, `PERSONALITY`, `VALUES`, `PREFERENCES`).
@@ -352,26 +364,93 @@ Ranking order:
 - Within each tier, candidates sort in descending order of compatibility score (from highest match to lowest filter/match).
 - Tie-breakers sort by user activity (`isOnline` descending), recent presence (`lastSeenAt` descending), and user ID.
 
-### 10.3 API Endpoint
-- `GET /v1/recommended` (and `/recommended`):
-  - **Query Params**: `limit` (default: 20, min: 1, max: 50).
-  - **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
-  - **Response Payload**: Returns `id`, `avatarUrl`, `age`, `city`, `username`, and `fullName`:
-    ```json
-    {
-      "status": "success",
-      "message": "Recommended profiles retrieved successfully",
-      "data": [
-        {
-          "id": 102,
-          "avatarUrl": "http://localhost:3000/assets/avatars/avatar_102.webp",
-          "age": 25,
-          "city": "Tehran",
+### 10.4 API Endpoints
+
+#### 1. Lightweight Discovery Cards: `GET /v1/recommended`
+- **Query Params**:
+  - `start` / `offset` (default: 0): Starting numeric index.
+  - `limit` (default: 20, min: 1, max: 50): Number of profile cards to retrieve.
+  - `end` (optional): Ending numeric index.
+- **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
+- **Response Payload**: Returns lightweight cards:
+  ```json
+  {
+    "status": "success",
+    "message": "Recommended profiles retrieved successfully",
+    "data": [
+      {
+        "id": 102,
+        "avatarUrl": "http://localhost:3000/assets/avatars/avatar_102.webp",
+        "age": 25,
+        "city": "Tehran",
+        "username": "sarah_c",
+        "fullName": "Sara Connor"
+      }
+    ]
+  }
+  ```
+
+#### 2. Full Profile Details: `GET /v1/recommended/detail`
+- **Query Params**:
+  - `start` / `offset` (default: 0): Starting numeric index (e.g. `start: 4`).
+  - `limit` (default: 20, min: 1, max: 50): Number of detailed profiles to retrieve.
+  - `end` (optional): Ending numeric index.
+- **Auth**: Requires Bearer JWT token (`UserAuthGuard`).
+- **Response Payload**: Returns full `/me` detailed profile objects:
+  ```json
+  {
+    "status": "success",
+    "message": "Recommended detailed profiles retrieved successfully",
+    "data": [
+      {
+        "id": 102,
+        "email": "sarah@example.com",
+        "language": "EN",
+        "lat": 35.6892,
+        "lon": 51.389,
+        "profileValidated": true,
+        "isPremium": false,
+        "Profile": {
+          "fullName": "Sara Connor",
           "username": "sarah_c",
-          "fullName": "Sara Connor"
-        }
-      ]
-    }
-    ```
+          "phoneNumber": "+1234567890",
+          "bio": "Designer in Tehran",
+          "languages": ["en", "fa"],
+          "avatar": "http://localhost:3000/assets/avatars/avatar_102.webp",
+          "profilePicture": "http://localhost:3000/assets/avatars/avatar_102.webp",
+          "profilePictureId": 5,
+          "profileCompleted": true,
+          "isPremium": false,
+          "Demographic": {
+            "birthDate": "1998-01-01",
+            "gender": "FEMALE",
+            "height": 168,
+            "degree": "BACHELOR",
+            "profession": "Designer",
+            "relationStatus": "SINGLE",
+            "City": {
+              "id": 1,
+              "name": "Tehran",
+              "state": "Tehran",
+              "country": "Iran"
+            }
+          },
+          "RelationType": "LONG",
+          "Answers": { "1": 0, "2": 1 },
+          "LikedActivities": { "1": [1, 2] }
+        },
+        "gallery": [
+          {
+            "id": 5,
+            "url": "http://localhost:3000/assets/images/gallery_5.webp",
+            "description": "At the design studio",
+            "isProfilePicture": true,
+            "createdAt": "2026-10-04T12:00:00.000Z"
+          }
+        ]
+      }
+    ]
+  }
+  ```
 
 

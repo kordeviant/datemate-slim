@@ -15,43 +15,54 @@ import {
   RecommendedCandidateDto,
   RecommendedQueryDto,
 } from '../dtos/recommended.dto';
-import { calculateAge } from '../../../auth/application/validators/dob.validator';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
-
-interface ScoredCandidateInternal {
-  id: number;
-  avatarUrl: string | null;
-  age: number | null;
-  city: string | null;
-  username: string | null;
-  fullName: string | null;
-  compatibilityScore: number;
-  isOnline: boolean;
-  lastSeenAt: Date | null;
-  isSwiped: boolean;
-}
+import {
+  RankedCandidateItem,
+  RecommendationAlgorithmService,
+} from '../../domain/services/recommendation-algorithm.service';
+import { RecommendedCacheService } from '../services/recommended-cache.service';
 
 @Injectable()
 export class GetRecommendedUseCase {
   private readonly mediaUrlResolver: MediaUrlResolverService;
+  private readonly algorithmService: RecommendationAlgorithmService;
 
   constructor(
     @Inject(RECOMMENDED_REPOSITORY)
     private readonly recommendedRepository: IRecommendedRepository,
     @Optional()
     mediaUrlResolver?: MediaUrlResolverService,
+    @Optional()
+    algorithmService?: RecommendationAlgorithmService,
+    @Optional()
+    private readonly cacheService?: RecommendedCacheService,
   ) {
     this.mediaUrlResolver =
       mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
+    this.algorithmService =
+      algorithmService ||
+      new RecommendationAlgorithmService(this.mediaUrlResolver);
   }
 
-  async execute(
+  /**
+   * Retrieves or computes the ranked candidate pool for a user.
+   * If cached in Redis (with 1-day TTL from env), retrieves from cache.
+   * Otherwise, executes the recommendation algorithm and caches the result.
+   */
+  async getRankedCandidatePool(
     currentUserId: number,
-    query: RecommendedQueryDto,
-  ): Promise<RecommendedCandidateDto[]> {
-    const limit = query?.limit ? Math.min(Math.max(query.limit, 1), 50) : 20;
+    requiredCount: number = 20,
+  ): Promise<RankedCandidateItem[]> {
+    // 1. Check Redis cache first
+    if (this.cacheService) {
+      const cached =
+        await this.cacheService.getCachedRankedCandidates(currentUserId);
+      if (cached && cached.length > 0) {
+        return cached;
+      }
+    }
 
-    // 1. Fetch current user recommendation profile
+    // 2. Fetch current user recommendation profile
     const currentUser =
       await this.recommendedRepository.getUserProfile(currentUserId);
     if (!currentUser) {
@@ -64,7 +75,10 @@ export class GetRecommendedUseCase {
     }
 
     // Rule 6: Current user must have gender demographic set
-    if (!currentUser.gender || (currentUser.gender !== 'MALE' && currentUser.gender !== 'FEMALE')) {
+    if (
+      !currentUser.gender ||
+      (currentUser.gender !== 'MALE' && currentUser.gender !== 'FEMALE')
+    ) {
       throw new BadRequestException(
         'Gender demographic must be completed to retrieve recommendations',
       );
@@ -79,37 +93,30 @@ export class GetRecommendedUseCase {
     const excludedIds = Array.from(new Set([currentUserId, ...swipedIds]));
 
     // Fetch primary candidate pool (excluding self and swiped candidates)
-    const poolFetchLimit = Math.max(limit * 5, 100);
-    let candidates = await this.recommendedRepository.getCandidatePool(
+    const poolFetchLimit = Math.max(requiredCount * 5, 100);
+    const candidates = await this.recommendedRepository.getCandidatePool(
       targetGender,
       excludedIds,
       poolFetchLimit,
     );
 
-    // Filter valid primary candidates (must have photo and profileValidated)
-    const hasActivePhoto = (c: any) => {
-      const photo =
-        c.profilePictureUrl ||
-        c.avatarUrl ||
-        c.gallery.find((g: any) => g.isProfilePicture)?.imageUrl ||
-        c.gallery[0]?.imageUrl ||
-        null;
-      return Boolean(photo && photo.trim().length > 0);
-    };
-
-    let validPrimaryCount = candidates.filter(
-      (c) => c.profileValidated && hasActivePhoto(c),
+    // Count valid primary candidates (must have photo and profileValidated)
+    const validPrimaryCount = candidates.filter(
+      (c) =>
+        c.profileValidated &&
+        Boolean(this.algorithmService.resolveCandidatePhoto(c)),
     ).length;
 
-    // Fallback: If not enough unswiped candidates to satisfy limit, fetch swiped candidates to backfill
-    if (validPrimaryCount < limit && swipedIds.length > 0) {
+    // Fallback: If not enough unswiped candidates to satisfy requiredCount, fetch swiped candidates to backfill
+    if (validPrimaryCount < requiredCount && swipedIds.length > 0) {
       const existingCandidateIds = new Set(candidates.map((c) => c.id));
-      const neededCount = (limit - validPrimaryCount) * 5;
-      const swipedCandidates = await this.recommendedRepository.getCandidatePool(
-        targetGender,
-        [currentUserId], // only exclude self
-        Math.max(neededCount, 50),
-      );
+      const neededCount = (requiredCount - validPrimaryCount) * 5;
+      const swipedCandidates =
+        await this.recommendedRepository.getCandidatePool(
+          targetGender,
+          [currentUserId], // only exclude self
+          Math.max(neededCount, 50),
+        );
 
       for (const sc of swipedCandidates) {
         if (!existingCandidateIds.has(sc.id) && swipedIds.includes(sc.id)) {
@@ -119,139 +126,41 @@ export class GetRecommendedUseCase {
       }
     }
 
-    const scoredCandidates: ScoredCandidateInternal[] = [];
+    // Rank candidates using the isolated recommendation algorithm
+    const rankedCandidates = this.algorithmService.rankCandidates(
+      currentUser,
+      candidates,
+      swipedIds,
+    );
 
-    const currentUserAge = currentUser.birthDate
-      ? calculateAge(currentUser.birthDate)
-      : null;
-    const userAnswerSet = new Set(currentUser.answerIds);
-    const userInterestSet = new Set(currentUser.interestIds);
-
-    for (const c of candidates) {
-      // Rule 4: Must have an active photo
-      const primaryPhoto =
-        c.avatarUrl ||
-        c.profilePictureUrl ||
-        c.gallery.find((g) => g.isProfilePicture)?.imageUrl ||
-        c.gallery[0]?.imageUrl ||
-        null;
-
-      if (!primaryPhoto || !primaryPhoto.trim()) {
-        continue;
-      }
-
-      // Rule 5: Profile must be validated
-      if (!c.profileValidated) {
-        continue;
-      }
-
-      const candidateAge = c.birthDate ? calculateAge(c.birthDate) : null;
-
-      // 1. Dynamic Question & Lifestyle Answers Overlap (Weight: 35)
-      let sharedAnswersCount = 0;
-      for (const ansId of c.answerIds) {
-        if (userAnswerSet.has(ansId)) {
-          sharedAnswersCount++;
-        }
-      }
-      let questionScore = 15; // baseline when current user has not answered questions yet
-      if (currentUser.answerIds.length > 0) {
-        const questionRatio = sharedAnswersCount / currentUser.answerIds.length;
-        questionScore = Math.min(35, Math.round(questionRatio * 35));
-      }
-
-      // 2. Shared Interests Overlap (Weight: 25)
-      let sharedInterestsCount = 0;
-      for (const intId of c.interestIds) {
-        if (userInterestSet.has(intId)) {
-          sharedInterestsCount++;
-        }
-      }
-      let interestScore = 10; // baseline when current user has no interests yet
-      if (currentUser.interestIds.length > 0) {
-        const interestRatio =
-          sharedInterestsCount / currentUser.interestIds.length;
-        interestScore = Math.min(25, Math.round(interestRatio * 25));
-      }
-
-      // 3. City Match (Weight: 20)
-      const sameCity = Boolean(
-        currentUser.cityId && c.cityId && currentUser.cityId === c.cityId,
+    // Save ranked candidate list to Redis cache for 1 day (read from env)
+    if (this.cacheService) {
+      await this.cacheService.setCachedRankedCandidates(
+        currentUserId,
+        rankedCandidates,
       );
-      const cityScore = sameCity ? 20 : 0;
-
-      // 4. Relationship Goal Match (Weight: 10)
-      const sameRelationGoal = Boolean(
-        currentUser.relationPreference &&
-        c.relationPreference &&
-        currentUser.relationPreference === c.relationPreference,
-      );
-      const relationScore = sameRelationGoal ? 10 : 0;
-
-      // 5. Age Proximity (Weight: 10)
-      let ageScore = 5; // neutral baseline if age unavailable
-      if (currentUserAge !== null && candidateAge !== null) {
-        const diff = Math.abs(currentUserAge - candidateAge);
-        if (diff <= 3) {
-          ageScore = 10;
-        } else if (diff <= 6) {
-          ageScore = 6;
-        } else if (diff <= 10) {
-          ageScore = 3;
-        } else {
-          ageScore = 0;
-        }
-      }
-
-      // Final Combined Compatibility Score (0 - 100)
-      const compatibilityScore = Math.min(
-        100,
-        Math.max(
-          0,
-          questionScore + interestScore + cityScore + relationScore + ageScore,
-        ),
-      );
-
-      const resolvedAvatarUrl = this.mediaUrlResolver.resolveUrl(primaryPhoto);
-
-      const isCandidateSwiped = swipedIds.includes(c.id);
-
-      scoredCandidates.push({
-        id: c.id,
-        avatarUrl: resolvedAvatarUrl,
-        age: candidateAge,
-        city: c.cityName,
-        username: c.username,
-        fullName: c.fullName,
-        compatibilityScore,
-        isOnline: c.isOnline,
-        lastSeenAt: c.lastSeenAt,
-        isSwiped: isCandidateSwiped,
-      });
     }
 
-    // Rank candidates: unswiped candidates first, then by compatibility score descending, then activity, then id
-    scoredCandidates.sort((a, b) => {
-      // Prioritize unswiped candidates over swiped fallback candidates
-      if (a.isSwiped !== b.isSwiped) {
-        return a.isSwiped ? 1 : -1;
-      }
-      if (b.compatibilityScore !== a.compatibilityScore) {
-        return b.compatibilityScore - a.compatibilityScore;
-      }
-      if (b.isOnline !== a.isOnline) {
-        return (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0);
-      }
-      const aTime = a.lastSeenAt ? a.lastSeenAt.getTime() : 0;
-      const bTime = b.lastSeenAt ? b.lastSeenAt.getTime() : 0;
-      if (bTime !== aTime) {
-        return bTime - aTime;
-      }
-      return a.id - b.id;
-    });
+    return rankedCandidates;
+  }
 
-    // Return: id, avatarUrl, age, city, username, fullName
-    return scoredCandidates.slice(0, limit).map((c) => ({
+  async execute(
+    currentUserId: number,
+    query: RecommendedQueryDto,
+  ): Promise<RecommendedCandidateDto[]> {
+    const limit = query?.limit ? Math.min(Math.max(query.limit, 1), 50) : 20;
+    const startIndex = Math.max(0, query?.start ?? query?.offset ?? 0);
+    let endIndex = startIndex + limit;
+    if (query?.end !== undefined && query.end > startIndex) {
+      endIndex = query.end;
+    }
+
+    const rankedCandidates = await this.getRankedCandidatePool(
+      currentUserId,
+      endIndex,
+    );
+
+    return rankedCandidates.slice(startIndex, endIndex).map((c) => ({
       id: c.id,
       avatarUrl: c.avatarUrl,
       age: c.age,

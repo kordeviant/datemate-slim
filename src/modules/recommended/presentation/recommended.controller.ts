@@ -17,7 +17,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { GetRecommendedUseCase } from '../application/use-cases/get-recommended.use-case';
+import { GetRecommendedDetailUseCase } from '../application/use-cases/get-recommended-detail.use-case';
 import {
+  RecommendedDetailQueryDto,
+  RecommendedDetailResponseDto,
   RecommendedQueryDto,
   RecommendedResponseDto,
 } from '../application/dtos/recommended.dto';
@@ -30,6 +33,7 @@ import { TokenService } from '../../auth/application/services/token.service';
 export class RecommendedController {
   constructor(
     private readonly getRecommendedUseCase: GetRecommendedUseCase,
+    private readonly getRecommendedDetailUseCase: GetRecommendedDetailUseCase,
     private readonly tokenService: TokenService,
   ) {}
 
@@ -39,7 +43,7 @@ export class RecommendedController {
   @ApiOperation({
     summary: 'Get recommended profiles',
     description:
-      'Retrieves top recommended candidate profiles (default limit: 20) filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity).',
+      'Retrieves top recommended candidate profiles (default limit: 20) filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity). Cached for 1 day per user.',
   })
   @ApiResponse({
     status: 200,
@@ -73,6 +77,50 @@ export class RecommendedController {
     return {
       status: 'success',
       message: 'Recommended profiles retrieved successfully',
+      data: result,
+    };
+  }
+
+  @Get('detail')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get recommended profiles with full details',
+    description:
+      'Retrieves recommended candidate profiles with full details (matching /me API schema) while strictly preserving cached recommendation ranking order with start, end, offset, and limit pagination.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recommended detailed profiles retrieved successfully',
+    type: RecommendedDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (gender demographic not completed)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized access',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Account suspended',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User profile not found',
+  })
+  async getRecommendedDetail(
+    @Query() query: RecommendedDetailQueryDto,
+    @Req() req: any,
+    @Headers('authorization') authHeader?: string,
+  ): Promise<RecommendedDetailResponseDto> {
+    const userId = this.extractUserId(req, authHeader);
+    const result = await this.getRecommendedDetailUseCase.execute(userId, query);
+
+    return {
+      status: 'success',
+      message: 'Recommended detailed profiles retrieved successfully',
       data: result,
     };
   }

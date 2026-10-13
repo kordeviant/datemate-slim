@@ -80,7 +80,7 @@ export class GalleryItemResponseDto {
     description: 'Resolved public image URL',
   })
   url: string;
-
+ 
   @ApiPropertyOptional({
     example: 'Weekend vibes',
     description: 'Photo caption or description',

@@ -1,16 +1,25 @@
 import { PrismaMatchingRepository } from './prisma-matching.repository';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('PrismaMatchingRepository', () => {
   let repository: PrismaMatchingRepository;
   let mockPrisma: any;
   let mockRedisService: any;
   let mockRedisClient: any;
+  const originalAssetBaseUrl = process.env.ASSET_BASE_URL;
+  const originalMediaBaseUrl = process.env.MEDIA_BASE_URL;
+  const originalAppBaseUrl = process.env.APP_BASE_URL;
   const originalAppUrl = process.env.APP_URL;
 
   beforeEach(() => {
+    process.env.ASSET_BASE_URL = 'http://localhost:3000';
+    delete process.env.MEDIA_BASE_URL;
+    delete process.env.APP_BASE_URL;
     process.env.APP_URL = 'http://localhost:3000';
+
     mockRedisClient = {
       sadd: jest.fn().mockResolvedValue(1),
       smembers: jest.fn().mockResolvedValue([]),
@@ -36,14 +45,43 @@ describe('PrismaMatchingRepository', () => {
       },
     };
 
+    const mockConfigService = {
+      get: jest.fn((key: string, defaultValue?: any) => {
+        if (key === 'ASSET_BASE_URL') return 'http://localhost:3000';
+        if (key === 'PORT') return 3000;
+        return defaultValue;
+      }),
+    } as unknown as ConfigService;
+    const mediaUrlResolver = new MediaUrlResolverService(mockConfigService);
+
     repository = new PrismaMatchingRepository(
       mockPrisma as PrismaService,
       mockRedisService as RedisService,
+      mediaUrlResolver,
     );
   });
 
   afterAll(() => {
-    process.env.APP_URL = originalAppUrl;
+    if (originalAssetBaseUrl !== undefined) {
+      process.env.ASSET_BASE_URL = originalAssetBaseUrl;
+    } else {
+      delete process.env.ASSET_BASE_URL;
+    }
+    if (originalMediaBaseUrl !== undefined) {
+      process.env.MEDIA_BASE_URL = originalMediaBaseUrl;
+    } else {
+      delete process.env.MEDIA_BASE_URL;
+    }
+    if (originalAppBaseUrl !== undefined) {
+      process.env.APP_BASE_URL = originalAppBaseUrl;
+    } else {
+      delete process.env.APP_BASE_URL;
+    }
+    if (originalAppUrl !== undefined) {
+      process.env.APP_URL = originalAppUrl;
+    } else {
+      delete process.env.APP_URL;
+    }
   });
 
   describe('getUserDemographicGender', () => {

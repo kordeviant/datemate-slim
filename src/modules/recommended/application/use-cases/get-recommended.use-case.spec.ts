@@ -9,10 +9,16 @@ import {
   IRecommendedRepository,
   UserRecommendationProfile,
 } from '../../domain/repositories/recommended.repository.interface';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('GetRecommendedUseCase', () => {
   let useCase: GetRecommendedUseCase;
   let mockRepository: jest.Mocked<IRecommendedRepository>;
+  const originalAssetBaseUrl = process.env.ASSET_BASE_URL;
+  const originalMediaBaseUrl = process.env.MEDIA_BASE_URL;
+  const originalAppBaseUrl = process.env.APP_BASE_URL;
+  const originalAppUrl = process.env.APP_URL;
 
   const baseCurrentUser: UserRecommendationProfile = {
     id: 1,
@@ -28,12 +34,50 @@ describe('GetRecommendedUseCase', () => {
   };
 
   beforeEach(() => {
+    process.env.ASSET_BASE_URL = 'http://localhost:3000';
+    delete process.env.MEDIA_BASE_URL;
+    delete process.env.APP_BASE_URL;
+    process.env.APP_URL = 'http://localhost:3000';
+
     mockRepository = {
       getUserProfile: jest.fn(),
       getSwipedUserIds: jest.fn(),
       getCandidatePool: jest.fn(),
     };
-    useCase = new GetRecommendedUseCase(mockRepository);
+
+    const mockConfigService = {
+      get: jest.fn((key: string, defaultValue?: any) => {
+        if (key === 'ASSET_BASE_URL') return 'http://localhost:3000';
+        if (key === 'PORT') return 3000;
+        return defaultValue;
+      }),
+    } as unknown as ConfigService;
+    const mediaUrlResolver = new MediaUrlResolverService(mockConfigService);
+
+    useCase = new GetRecommendedUseCase(mockRepository, mediaUrlResolver);
+  });
+
+  afterAll(() => {
+    if (originalAssetBaseUrl !== undefined) {
+      process.env.ASSET_BASE_URL = originalAssetBaseUrl;
+    } else {
+      delete process.env.ASSET_BASE_URL;
+    }
+    if (originalMediaBaseUrl !== undefined) {
+      process.env.MEDIA_BASE_URL = originalMediaBaseUrl;
+    } else {
+      delete process.env.MEDIA_BASE_URL;
+    }
+    if (originalAppBaseUrl !== undefined) {
+      process.env.APP_BASE_URL = originalAppBaseUrl;
+    } else {
+      delete process.env.APP_BASE_URL;
+    }
+    if (originalAppUrl !== undefined) {
+      process.env.APP_URL = originalAppUrl;
+    } else {
+      delete process.env.APP_URL;
+    }
   });
 
   it('should throw NotFoundException if current user profile does not exist', async () => {

@@ -2,12 +2,23 @@ import { BadRequestException } from '@nestjs/common';
 import { GetFeedUseCase } from './get-feed.use-case';
 import { IMatchingRepository } from '../../domain/repositories/matching.repository.interface';
 import { FeedCandidateEntity } from '../../domain/entities/feed-candidate.entity';
+import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('GetFeedUseCase', () => {
   let useCase: GetFeedUseCase;
   let mockMatchingRepository: jest.Mocked<IMatchingRepository>;
+  const originalAssetBaseUrl = process.env.ASSET_BASE_URL;
+  const originalMediaBaseUrl = process.env.MEDIA_BASE_URL;
+  const originalAppBaseUrl = process.env.APP_BASE_URL;
+  const originalAppUrl = process.env.APP_URL;
 
   beforeEach(() => {
+    process.env.ASSET_BASE_URL = 'http://localhost:3000';
+    delete process.env.MEDIA_BASE_URL;
+    delete process.env.APP_BASE_URL;
+    process.env.APP_URL = 'http://localhost:3000';
+
     mockMatchingRepository = {
       findCandidateProfiles: jest.fn(),
       recordSwipe: jest.fn(),
@@ -15,7 +26,40 @@ describe('GetFeedUseCase', () => {
       findLikesReceived: jest.fn(),
       findTargetUserStatus: jest.fn(),
     };
-    useCase = new GetFeedUseCase(mockMatchingRepository);
+
+    const mockConfigService = {
+      get: jest.fn((key: string, defaultValue?: any) => {
+        if (key === 'ASSET_BASE_URL') return 'http://localhost:3000';
+        if (key === 'PORT') return 3000;
+        return defaultValue;
+      }),
+    } as unknown as ConfigService;
+    const mediaUrlResolver = new MediaUrlResolverService(mockConfigService);
+
+    useCase = new GetFeedUseCase(mockMatchingRepository, mediaUrlResolver);
+  });
+
+  afterAll(() => {
+    if (originalAssetBaseUrl !== undefined) {
+      process.env.ASSET_BASE_URL = originalAssetBaseUrl;
+    } else {
+      delete process.env.ASSET_BASE_URL;
+    }
+    if (originalMediaBaseUrl !== undefined) {
+      process.env.MEDIA_BASE_URL = originalMediaBaseUrl;
+    } else {
+      delete process.env.MEDIA_BASE_URL;
+    }
+    if (originalAppBaseUrl !== undefined) {
+      process.env.APP_BASE_URL = originalAppBaseUrl;
+    } else {
+      delete process.env.APP_BASE_URL;
+    }
+    if (originalAppUrl !== undefined) {
+      process.env.APP_URL = originalAppUrl;
+    } else {
+      delete process.env.APP_URL;
+    }
   });
 
   const sampleCandidate: FeedCandidateEntity = {

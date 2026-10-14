@@ -544,7 +544,7 @@
       "post": {
         "operationId": "AuthController_logout",
         "summary": "Logout user device session",
-        "description": "Terminates the user's active session by invalidating the refresh token. Can optionally terminate all sessions across all devices if allDevices is set to true.",
+        "description": "Terminates the user's active device session using the refreshToken in the body. The Authorization: Bearer <accessToken> header is used for authentication.",
         "parameters": [
           {
             "name": "authorization",
@@ -577,7 +577,10 @@
             }
           },
           "400": {
-            "description": "Missing refreshToken or valid Authorization token"
+            "description": "Missing or invalid refreshToken"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
           }
         },
         "tags": [
@@ -765,30 +768,12 @@
       "get": {
         "operationId": "UsersController_getUserDevices",
         "summary": "Get list of active and inactive devices/sessions for the authenticated user",
-        "description": "Retrieves all active and inactive device sessions for the authenticated user, indicating which session is the current one if refreshToken is provided in x-refresh-token header or query.",
+        "description": "Retrieves all active and inactive device sessions for the authenticated user. Automatically identifies the current session as isCurrent: true using the Bearer access token.",
         "parameters": [
           {
             "name": "authorization",
             "required": true,
             "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "x-refresh-token",
-            "required": false,
-            "in": "header",
-            "description": "Optional refresh token of current session to mark isCurrent: true",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "refreshToken",
-            "required": false,
-            "in": "query",
-            "description": "Optional refresh token of current session to mark isCurrent: true",
             "schema": {
               "type": "string"
             }
@@ -821,7 +806,7 @@
       "delete": {
         "operationId": "UsersController_terminateAllDevices",
         "summary": "Terminate all device sessions or all except current device",
-        "description": "Allows authenticated user to terminate all sessions, or terminate all sessions except the current active one when excludeCurrent is true (requires refreshToken in x-refresh-token header or body/query).",
+        "description": "Terminates all sessions for the authenticated user, or terminates all sessions except the current active session when excludeCurrent is true in the request body.",
         "parameters": [
           {
             "name": "authorization",
@@ -830,33 +815,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "x-refresh-token",
-            "required": false,
-            "in": "header",
-            "description": "Refresh token of the current session to exclude when excludeCurrent=true",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "refreshToken",
-            "required": false,
-            "in": "query",
-            "description": "Refresh token of current session if excludeCurrent=true and not provided in x-refresh-token header",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "excludeCurrent",
-            "required": false,
-            "in": "query",
-            "description": "If true, terminates all sessions except the current session (default: false)",
-            "schema": {
-              "type": "boolean"
-            }
           }
         ],
         "requestBody": {
@@ -864,7 +822,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TerminateClientDevicesQueryDto"
+                "$ref": "#/components/schemas/TerminateClientDevicesDto"
               }
             }
           }
@@ -881,7 +839,7 @@
             }
           },
           "400": {
-            "description": "Bad request (e.g. excludeCurrent is true but no refresh token was provided)"
+            "description": "Bad request"
           },
           "401": {
             "description": "Missing or invalid access token"
@@ -3869,20 +3827,12 @@
           "refreshToken": {
             "type": "string",
             "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
-            "description": "Refresh token of the session to terminate"
-          },
-          "token": {
-            "type": "string",
-            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
-            "description": "Alternative alias for refreshToken"
-          },
-          "allDevices": {
-            "type": "boolean",
-            "example": false,
-            "description": "If true, terminates all active sessions for the user across all devices",
-            "default": false
+            "description": "Refresh token of the current session to terminate"
           }
-        }
+        },
+        "required": [
+          "refreshToken"
+        ]
       },
       "LogoutResponseDataDto": {
         "type": "object",
@@ -4159,18 +4109,19 @@
           "data"
         ]
       },
-      "TerminateClientDevicesQueryDto": {
+      "TerminateClientDevicesDto": {
         "type": "object",
         "properties": {
           "excludeCurrent": {
             "type": "boolean",
-            "description": "If true, terminates all sessions except the current caller session. Requires refreshToken in header (x-refresh-token) or body/query.",
-            "example": false
+            "description": "If true, terminates all sessions except the current caller session. Defaults to false.",
+            "example": false,
+            "default": false
           },
           "refreshToken": {
             "type": "string",
-            "description": "Refresh token to identify current session if excludeCurrent=true and not sent in x-refresh-token header.",
-            "example": "d8f9..."
+            "description": "Refresh token of the current session to exclude when excludeCurrent=true (optional if authenticated via Bearer token with session).",
+            "example": "d9b7f5e1..."
           }
         }
       },

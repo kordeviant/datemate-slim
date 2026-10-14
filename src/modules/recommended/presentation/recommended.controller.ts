@@ -71,7 +71,7 @@ export class RecommendedController {
     @Req() req: any,
     @Headers('authorization') authHeader?: string,
   ): Promise<RecommendedResponseDto> {
-    const userId = this.extractUserId(req, authHeader);
+    const userId = await this.extractUserId(req, authHeader);
     const result = await this.getRecommendedUseCase.execute(userId, query);
 
     return {
@@ -115,7 +115,7 @@ export class RecommendedController {
     @Req() req: any,
     @Headers('authorization') authHeader?: string,
   ): Promise<RecommendedDetailResponseDto> {
-    const userId = this.extractUserId(req, authHeader);
+    const userId = await this.extractUserId(req, authHeader);
     const result = await this.getRecommendedDetailUseCase.execute(userId, query);
 
     return {
@@ -125,7 +125,7 @@ export class RecommendedController {
     };
   }
 
-  private extractUserId(req: any, authHeader?: string): number {
+  private async extractUserId(req: any, authHeader?: string): Promise<number> {
     if (req?.user?.sub) {
       return Number(req.user.sub);
     }
@@ -136,7 +136,7 @@ export class RecommendedController {
       .replace(/^(Bearer\s*)+/i, '')
       .trim()
       .replace(/^["']|["']$/g, '');
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     return Number(decoded.sub);
   }
 }

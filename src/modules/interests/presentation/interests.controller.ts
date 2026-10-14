@@ -180,7 +180,7 @@ export class InterestsController {
       .replace(/^(Bearer\s*)+/i, '')
       .trim()
       .replace(/^["']|["']$/g, '');
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
     // Only admins can create interest categories
     if (decoded.role !== 'ADMIN') {

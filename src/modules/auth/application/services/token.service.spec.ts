@@ -40,57 +40,111 @@ describe("TokenService", () => {
   });
 
   describe("verifyAccessToken", () => {
-    it("should return decoded payload when token is valid", () => {
+    it("should return decoded payload when token is valid", async () => {
       const payload = { sub: 1, email: "user@example.com", role: "USER" };
       mockJwtService.verify.mockReturnValue(payload);
 
-      const result = service.verifyAccessToken("valid_token");
+      const result = await service.verifyAccessToken("valid_token");
       expect(mockJwtService.verify).toHaveBeenCalledWith("valid_token", {
         secret: "test_secret",
       });
       expect(result).toEqual(payload);
     });
 
-    it("should throw UnauthorizedException with message Access token has expired on TokenExpiredError", () => {
+    it("should throw UnauthorizedException with message Access token has expired on TokenExpiredError", async () => {
       const expiredError = new TokenExpiredError("jwt expired", new Date());
       mockJwtService.verify.mockImplementation(() => {
         throw expiredError;
       });
 
-      expect(() => service.verifyAccessToken("expired_token")).toThrow(
+      await expect(service.verifyAccessToken("expired_token")).rejects.toThrow(
         new UnauthorizedException("Access token has expired"),
       );
     });
 
-    it("should throw UnauthorizedException with message Invalid access token on JsonWebTokenError", () => {
+    it("should throw UnauthorizedException with message Invalid access token on JsonWebTokenError", async () => {
       const jwtError = new JsonWebTokenError("invalid signature");
       mockJwtService.verify.mockImplementation(() => {
         throw jwtError;
       });
 
-      expect(() => service.verifyAccessToken("invalid_token")).toThrow(
+      await expect(service.verifyAccessToken("invalid_token")).rejects.toThrow(
         new UnauthorizedException("Invalid access token"),
       );
     });
 
-    it("should throw UnauthorizedException with message Invalid access token on NotBeforeError", () => {
+    it("should throw UnauthorizedException with message Invalid access token on NotBeforeError", async () => {
       const nbfError = new NotBeforeError("jwt not active", new Date());
       mockJwtService.verify.mockImplementation(() => {
         throw nbfError;
       });
 
-      expect(() => service.verifyAccessToken("future_token")).toThrow(
+      await expect(service.verifyAccessToken("future_token")).rejects.toThrow(
         new UnauthorizedException("Invalid access token"),
       );
     });
 
-    it("should re-throw unexpected non-JWT errors", () => {
+    it("should re-throw unexpected non-JWT errors", async () => {
       const unexpectedError = new Error("DB connection failure");
       mockJwtService.verify.mockImplementation(() => {
         throw unexpectedError;
       });
 
-      expect(() => service.verifyAccessToken("token")).toThrow("DB connection failure");
+      await expect(service.verifyAccessToken("token")).rejects.toThrow("DB connection failure");
+    });
+
+    it("should throw UnauthorizedException if device session was terminated in database", async () => {
+      const mockPrisma: any = {
+        userSession: {
+          findUnique: jest.fn().mockResolvedValue(null),
+        },
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          TokenService,
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: ConfigService, useValue: mockConfigService },
+          { provide: "PrismaService", useValue: mockPrisma },
+        ],
+      }).compile();
+
+      const serviceWithDb = new TokenService(
+        mockJwtService,
+        mockConfigService,
+        mockPrisma,
+      );
+
+      mockJwtService.verify.mockReturnValue({ sub: 5, sessionId: 42, role: "USER" });
+
+      await expect(serviceWithDb.verifyAccessToken("token_with_session")).rejects.toThrow(
+        new UnauthorizedException("Device session has been terminated or expired"),
+      );
+    });
+
+    it("should allow request if device session is active in database", async () => {
+      const mockPrisma: any = {
+        userSession: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 42,
+            userId: 5,
+            expiresAt: new Date(Date.now() + 100000),
+            user: { bannedUntil: null },
+          }),
+        },
+      };
+
+      const serviceWithDb = new TokenService(
+        mockJwtService,
+        mockConfigService,
+        mockPrisma,
+      );
+
+      const payload = { sub: 5, sessionId: 42, role: "USER" };
+      mockJwtService.verify.mockReturnValue(payload);
+
+      const result = await serviceWithDb.verifyAccessToken("token_with_session");
+      expect(result).toEqual(payload);
     });
   });
 

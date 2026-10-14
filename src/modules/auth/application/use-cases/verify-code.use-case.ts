@@ -60,22 +60,23 @@ export class VerifyCodeUseCase {
     await this.redisService.del(`signup:code:${dto.code}`);
     await this.redisService.del(`signup:pending:${email}`);
 
-    // Generate tokens
-    const access = this.tokenService.generateAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
     const refreshObj = this.tokenService.generateRefreshToken({ sub: user.id });
 
-    // Save refresh session
-    await this.sessionRepository.createSession({
+    // Save refresh session first to obtain session ID
+    const session = await this.sessionRepository.createSession({
       userId: user.id,
       refreshTokenHash: refreshObj.hash,
       deviceInfo: `${dto.device} (${dto.userAgent})`,
       fcmToken: dto.fcmToken,
       expiresAt: refreshObj.expiresAt,
+    });
+
+    // Generate tokens with sessionId embedded
+    const access = this.tokenService.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sessionId: session?.id,
     });
 
     return {

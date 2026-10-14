@@ -19,6 +19,7 @@ export class GetUserDevicesUseCase {
 
   async execute(
     userId: number,
+    currentSessionId?: number,
     currentRefreshToken?: string,
   ): Promise<UserDevicesDataDto> {
     const sessions = await this.sessionRepository.findSessionsByUserId(userId);
@@ -31,7 +32,10 @@ export class GetUserDevicesUseCase {
 
     const devices: UserDeviceItemDto[] = sessions.map((s) => {
       const isActive = Boolean(s.expiresAt && new Date(s.expiresAt) > now);
-      const isCurrent = Boolean(currentHash && s.refreshTokenHash === currentHash);
+      const isCurrent = Boolean(
+        (currentSessionId && s.id === currentSessionId) ||
+        (currentHash && s.refreshTokenHash === currentHash),
+      );
 
       return {
         id: s.id,

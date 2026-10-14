@@ -10,7 +10,7 @@ import { TokenService } from '../../../auth/application/services/token.service';
 export class AdminAuthGuard implements CanActivate {
   constructor(private readonly tokenService: TokenService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers?.authorization;
 
@@ -23,7 +23,7 @@ export class AdminAuthGuard implements CanActivate {
       .trim()
       .replace(/^["']|["']$/g, '');
 
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
     if (!decoded || decoded.role !== 'ADMIN') {
       throw new UnauthorizedException(

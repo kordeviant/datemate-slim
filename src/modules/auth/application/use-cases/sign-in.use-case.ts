@@ -74,27 +74,28 @@ export class SignInUseCase {
       throw new UnauthorizedException('User is currently banned');
     }
 
-    // Generate tokens
-    const access = this.tokenService.generateAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
     const refreshObj = this.tokenService.generateRefreshToken({ sub: user.id });
 
-    // Save session
+    // Save session first to obtain session ID
     const deviceInfo =
       dto.device && dto.userAgent
         ? `${dto.device} (${dto.userAgent})`
         : dto.device || dto.userAgent || 'Web Browser';
 
-    await this.sessionRepository.createSession({
+    const session = await this.sessionRepository.createSession({
       userId: user.id,
       refreshTokenHash: refreshObj.hash,
       deviceInfo,
       fcmToken: dto.fcmToken,
       expiresAt: refreshObj.expiresAt,
+    });
+
+    // Generate tokens with sessionId embedded
+    const access = this.tokenService.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sessionId: session?.id,
     });
 
     return {

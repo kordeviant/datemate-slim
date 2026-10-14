@@ -60,7 +60,7 @@ export class SwipesController {
     @Req() req: any,
     @Headers('authorization') authHeader?: string,
   ): Promise<SwipeResponseDto> {
-    const userId = this.extractUserId(req, authHeader);
+    const userId = await this.extractUserId(req, authHeader);
     await this.recordSwipeUseCase.execute(userId, dto);
 
     return {
@@ -69,7 +69,7 @@ export class SwipesController {
     };
   }
 
-  private extractUserId(req: any, authHeader?: string): number {
+  private async extractUserId(req: any, authHeader?: string): Promise<number> {
     if (req?.user?.sub) {
       return Number(req.user.sub);
     }
@@ -80,7 +80,7 @@ export class SwipesController {
       .replace(/^(Bearer\s*)+/i, '')
       .trim()
       .replace(/^["']|["']$/g, '');
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     return Number(decoded.sub);
   }
 }

@@ -23,7 +23,7 @@ describe("UsersController", () => {
 
   beforeEach(async () => {
     mockTokenService = {
-      verifyAccessToken: jest.fn().mockReturnValue({ sub: 1 }),
+      verifyAccessToken: jest.fn().mockReturnValue({ sub: 1, sessionId: 10 }),
     };
 
     mockGetProfileUseCase = {
@@ -553,15 +553,12 @@ describe("UsersController", () => {
 
       mockGetUserDevicesUseCase.execute.mockResolvedValue(mockResult);
 
-      const res = await controller.getUserDevices(
-        "Bearer valid_token",
-        "custom_refresh_token",
-      );
+      const res = await controller.getUserDevices("Bearer valid_token");
 
       expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
       expect(mockGetUserDevicesUseCase.execute).toHaveBeenCalledWith(
         1,
-        "custom_refresh_token",
+        10,
       );
       expect(res).toEqual({
         status: "success",
@@ -616,8 +613,7 @@ describe("UsersController", () => {
 
       const res = await controller.terminateAllDevices(
         "Bearer valid_token",
-        undefined,
-        false,
+        { excludeCurrent: false },
       );
 
       expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
@@ -625,6 +621,7 @@ describe("UsersController", () => {
         1,
         false,
         undefined,
+        10,
       );
       expect(res).toEqual({
         status: "success",
@@ -644,8 +641,7 @@ describe("UsersController", () => {
 
       const res = await controller.terminateAllDevices(
         "Bearer valid_token",
-        "current_refresh_token",
-        true,
+        { excludeCurrent: true, refreshToken: "current_refresh_token" },
       );
 
       expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
@@ -653,6 +649,7 @@ describe("UsersController", () => {
         1,
         true,
         "current_refresh_token",
+        10,
       );
       expect(res).toEqual({
         status: "success",

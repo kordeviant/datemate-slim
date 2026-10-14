@@ -105,18 +105,21 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/logout', () => {
-    it('should successfully log out with refreshToken', async () => {
+    it('should successfully log out with valid Authorization header and refreshToken in body', async () => {
+      mockTokenService.verifyAccessToken.mockResolvedValue({ sub: 42 });
       mockLogoutUseCase.execute.mockResolvedValue({ loggedOut: true });
 
       const result = await controller.logout(
         { refreshToken: 'token_123' },
-        undefined,
+        'Bearer valid_jwt_token',
       );
 
-      expect(mockLogoutUseCase.execute).toHaveBeenCalledWith(
-        { refreshToken: 'token_123' },
-        undefined,
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
+        'valid_jwt_token',
       );
+      expect(mockLogoutUseCase.execute).toHaveBeenCalledWith({
+        refreshToken: 'token_123',
+      });
       expect(result).toEqual({
         status: 'success',
         message: 'Logged out successfully',
@@ -124,23 +127,10 @@ describe('AuthController', () => {
       });
     });
 
-    it('should extract authenticated user ID from Authorization header', async () => {
-      mockTokenService.verifyAccessToken.mockReturnValue({ sub: 42 });
-      mockLogoutUseCase.execute.mockResolvedValue({ loggedOut: true });
-
-      const result = await controller.logout(
-        { allDevices: true },
-        'Bearer valid_jwt_token',
-      );
-
-      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
-        'valid_jwt_token',
-      );
-      expect(mockLogoutUseCase.execute).toHaveBeenCalledWith(
-        { allDevices: true },
-        42,
-      );
-      expect(result.data).toEqual({ loggedOut: true });
+    it('should throw UnauthorizedException when Authorization header is missing', async () => {
+      await expect(
+        controller.logout({ refreshToken: 'token_123' }, undefined),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

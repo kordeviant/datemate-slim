@@ -30,7 +30,7 @@ describe('QuestionsController', () => {
     } as any;
 
     tokenService = {
-      verifyAccessToken: jest.fn().mockReturnValue({
+      verifyAccessToken: jest.fn().mockResolvedValue({
         sub: 1,
         email: 'admin@test.com',
         role: 'ADMIN',
@@ -118,7 +118,7 @@ describe('QuestionsController', () => {
     });
 
     it('should throw UnauthorizedException when user is not admin', async () => {
-      tokenService.verifyAccessToken.mockReturnValue({
+      tokenService.verifyAccessToken.mockResolvedValue({
         sub: 2,
         email: 'user@test.com',
         role: 'USER',

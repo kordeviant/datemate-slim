@@ -22,21 +22,30 @@ export class TerminateAllClientDevicesUseCase {
     userId: number,
     excludeCurrent: boolean = false,
     currentRefreshToken?: string,
+    currentSessionId?: number,
   ): Promise<TerminateAllClientDevicesDataDto> {
     if (excludeCurrent) {
-      if (!currentRefreshToken || !currentRefreshToken.trim()) {
+      const trimmedToken = currentRefreshToken?.trim();
+      if (!trimmedToken && !currentSessionId) {
         throw new BadRequestException(
-          'Current refresh token is required to exclude current device (pass via x-refresh-token header or refreshToken query/body)',
+          'refreshToken is required in the request body to exclude the current device',
         );
       }
 
-      const hash = this.tokenService.hashRefreshToken(
-        currentRefreshToken.trim(),
-      );
-      const count = await this.sessionRepository.deleteAllForUserExcept(
-        userId,
-        hash,
-      );
+      let count = 0;
+      if (trimmedToken) {
+        const hash = this.tokenService.hashRefreshToken(trimmedToken);
+        count = await this.sessionRepository.deleteAllForUserExcept(
+          userId,
+          hash,
+        );
+      } else if (currentSessionId) {
+        count = await this.sessionRepository.deleteAllForUserExcept(
+          userId,
+          undefined,
+          currentSessionId,
+        );
+      }
 
       return {
         terminatedCount: count,

@@ -44,22 +44,23 @@ export class RefreshTokenUseCase {
     // Delete used refresh token (Rotation)
     await this.sessionRepository.deleteByTokenHash(tokenHash);
 
-    // Issue new tokens
-    const access = this.tokenService.generateAccessToken({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
     const newRefreshObj = this.tokenService.generateRefreshToken({ sub: user.id });
 
-    // Save new session
-    await this.sessionRepository.createSession({
+    // Save new session first to obtain session ID
+    const newSession = await this.sessionRepository.createSession({
       userId: user.id,
       refreshTokenHash: newRefreshObj.hash,
       deviceInfo: session.deviceInfo || undefined,
       fcmToken: session.fcmToken || undefined,
       expiresAt: newRefreshObj.expiresAt,
+    });
+
+    // Issue new tokens with new session ID embedded
+    const access = this.tokenService.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      sessionId: newSession?.id,
     });
 
     return {

@@ -22,28 +22,28 @@ describe('UserAuthGuard', () => {
     };
   };
 
-  it('throws UnauthorizedException when Authorization header is missing', () => {
+  it('throws UnauthorizedException when Authorization header is missing', async () => {
     const context = createMockContext({});
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('throws UnauthorizedException when Authorization header is whitespace', () => {
+  it('throws UnauthorizedException when Authorization header is whitespace', async () => {
     const context = createMockContext({ authorization: '   ' });
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('throws UnauthorizedException when token payload has no sub', () => {
-    (mockTokenService.verifyAccessToken as jest.Mock).mockReturnValue({});
+  it('throws UnauthorizedException when token payload has no sub', async () => {
+    (mockTokenService.verifyAccessToken as jest.Mock).mockResolvedValue({});
     const context = createMockContext({ authorization: 'Bearer valid_token' });
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('attaches decoded user to request and returns true for valid token', () => {
+  it('attaches decoded user to request and returns true for valid token', async () => {
     const userPayload = { sub: 101, email: 'user@example.com', role: 'USER' };
-    (mockTokenService.verifyAccessToken as jest.Mock).mockReturnValue(userPayload);
+    (mockTokenService.verifyAccessToken as jest.Mock).mockResolvedValue(userPayload);
     const context = createMockContext({ authorization: 'Bearer valid_token' });
 
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
     expect(result).toBe(true);
     expect(context.switchToHttp().getRequest().user).toEqual(userPayload);
   });

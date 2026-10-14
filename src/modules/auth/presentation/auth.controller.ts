@@ -308,7 +308,7 @@ export class AuthController {
   @ApiOperation({
     summary: "Logout user device session",
     description:
-      "Terminates the user's active session by invalidating the refresh token. Can optionally terminate all sessions across all devices if allDevices is set to true.",
+      "Terminates the user's active device session using the refreshToken in the body. The Authorization: Bearer <accessToken> header is used for authentication.",
   })
   @ApiResponse({
     status: 200,
@@ -317,31 +317,26 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: "Missing refreshToken or valid Authorization token",
+    description: "Missing or invalid refreshToken",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
   })
   async logout(
-    @Body() dto?: LogoutDto,
+    @Body() dto: LogoutDto,
     @Headers("authorization") authHeader?: string,
   ): Promise<LogoutResponseDto> {
-    let authenticatedUserId: number | undefined;
-    if (authHeader) {
-      try {
-        const token = authHeader
-          .replace(/^(Bearer\s*)+/i, "")
-          .trim()
-          .replace(/^["']|["']$/g, "");
-        if (token) {
-          const decoded = this.tokenService.verifyAccessToken(token);
-          if (decoded?.sub) {
-            authenticatedUserId = Number(decoded.sub);
-          }
-        }
-      } catch {
-        // If Bearer token is expired/invalid, allow logout to proceed using refreshToken in body
-      }
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
     }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    await this.tokenService.verifyAccessToken(token);
 
-    const result = await this.logoutUseCase.execute(dto, authenticatedUserId);
+    const result = await this.logoutUseCase.execute(dto);
 
     return {
       status: "success",

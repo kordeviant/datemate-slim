@@ -10,6 +10,14 @@ DateMate is architected as a **Modular Monolith** applying **Domain-Driven Desig
 3. **Infrastructure Layer**: Concrete persistence and driver implementations (`LocalStorageService`, `S3StorageService`, `PrismaUserRepository`, `RedisService`, `NodemailerService`).
 4. **Presentation Layer**: NestJS controllers handling HTTP transport, OpenAPI/Swagger specifications, and input transformation (`AssetsController`, `MediaUploadController`, `UsersController`, `AuthController`).
 
+### Canonical Contract Principles & No-Alias Policy
+- **Don't add alias, client should have only one option to not confuse client**:
+  - Maintain a single, canonical, unambiguous contract for every DTO, API request, and API response.
+  - Do NOT accept parameters across multiple locations (e.g., do not accept the same parameter in headers, query parameters, and request body simultaneously).
+  - Every field has one and only one authoritative location. For instance, in device termination (`DELETE /v1/users/devices`), client parameters (`excludeCurrent`, `refreshToken`) belong strictly in the request **body**.
+  - **No Route Aliases**: Maintain one and only one canonical route path per endpoint (no multi-route bindings like `['devices', 'me/devices']`).
+  - **No DTO Field Aliases**: Never introduce duplicate field names (e.g., `token` vs `refreshToken`). Clients must have exactly one clean, unambiguous way to interact with each endpoint to prevent confusion and bugs.
+
 ---
 
 ## 2. Media Upload & Scalable Asset System (`src/modules/media`)
@@ -287,28 +295,35 @@ The Authentication module supports consumer mobile applications and web administ
 - **Admin Seeding**: Seeded admin user can be provisioned via `npm run seed:users` (`admin` / `admin@datemate.com`).
 
 ### 8.2 Client Logout API (`POST /v1/auth/logout` & `/auth/logout`)
-- **Flexible Token Handling**: Accepts session refresh token (`refreshToken` or `token` alias) in JSON body, and/or bearer access token in `Authorization: Bearer <token>` header.
-- **Single-Device or All-Devices Revocation**:
-  - By default, revokes the specific session tied to the provided `refreshToken`.
-  - When `allDevices: true` is sent, immediately terminates all active sessions across all devices for the authenticated user.
-  - If only the `Authorization` bearer token is provided without a `refreshToken`, revokes the user's active sessions.
-- **Graceful Token Expiry Handling**: If the bearer access token is expired, clients can still log out successfully by providing their `refreshToken` in the request body.
+- **Single-Device Logout (Current Session Only)**: `POST /v1/auth/logout` strictly logs out the current device session. To terminate all devices or other devices, users use the dedicated device management API (`DELETE /v1/users/devices`).
+- **Bearer Header for Authentication**: The `Authorization: Bearer <accessToken>` header is used purely for request authentication and session verification.
+- **RefreshToken Required in Body**: The client sends `{ "refreshToken": "..." }` in the request body to specify the session to terminate. No aliases (`token`) are accepted.
 - **Standard Response Contract**: Returns `{ status: "success", message: "Logged out successfully", data: { loggedOut: true } }`.
 
 ### 8.3 Client Device Management & Termination (`GET /v1/users/devices`, `DELETE /v1/users/devices/:deviceId`, `DELETE /v1/users/devices`)
 - **Get Active & Inactive Devices (`GET /v1/users/devices`)**:
   - Retrieves all device sessions for the authenticated user with explicit categorization (`devices`, `activeDevices`, `inactiveDevices`, `total`, `activeCount`, `inactiveCount`).
   - Automatically identifies whether each session is currently active (`isActive = true` when `expiresAt > now`).
-  - Automatically tags the caller's current session (`isCurrent = true`) when `x-refresh-token` header or `refreshToken` query parameter is supplied.
+  - Automatically tags the caller's current session (`isCurrent = true`) using the `sessionId` embedded inside the Bearer access token payload. No query parameter or custom header aliases are accepted.
   - Standard response envelope: `{ status: "success", message: "User devices retrieved successfully", data: { devices, activeDevices, inactiveDevices, total, activeCount, inactiveCount } }`.
 - **Terminate a Specific Device Session (`DELETE /v1/users/devices/:deviceId`)**:
   - Authenticated user can terminate/log out any specific device session by deviceId.
   - Strictly verifies that the session belongs to the authenticated user (returns 404 if not found or belongs to another user).
   - Standard response envelope: `{ status: "success", success: true, message: "Device session terminated successfully", data: { deviceId, terminated: true } }`.
 - **Terminate All Devices or All Except Current (`DELETE /v1/users/devices`)**:
+  - Accepts parameters strictly in the request **body** (`TerminateClientDevicesDto: { excludeCurrent?: boolean, refreshToken?: string }`).
+  - Zero aliases: redundant `x-refresh-token` header and query parameter aliases are removed.
   - When `excludeCurrent` is omitted or `false`, terminates all active and inactive device sessions for the authenticated user.
-  - When `excludeCurrent=true`, terminates all device sessions EXCEPT the current caller's session. Requires the current session's refresh token passed via `x-refresh-token` header, query parameter, or JSON request body.
+  - When `excludeCurrent=true`, terminates all device sessions EXCEPT the current caller's session (identified via session ID in the Bearer token or `refreshToken` provided in the request body).
   - Standard response envelope: `{ status: "success", success: true, message: "Device sessions terminated successfully", data: { terminatedCount, excludedCurrent } }`.
+
+### 8.4 Immediate Device Session Termination & Access Token Revocation
+- **Immediate Invalidation (Zero-Delay Revocation)**:
+  - Access tokens embed the session ID (`sessionId`) in their JWT payload.
+  - On every authenticated API request, `TokenService.verifyAccessToken()` validates the cryptographic signature and expiration, and performs an active session check against `user_sessions` in PostgreSQL (along with checking `User.bannedUntil`).
+  - When a device is terminated—either by an administrator (`DELETE /v1/admin/users/:userId/devices/:deviceId` or `DELETE /v1/admin/users/:userId/devices`) or by the user themselves (`DELETE /v1/users/devices/:deviceId`, `DELETE /v1/users/devices`, or `POST /v1/auth/logout`)—the session record is deleted from the database.
+  - The terminated device is immediately rejected on its very next API request with HTTP `401 Unauthorized` (`"Device session has been terminated or expired"`), guaranteeing real-time access revocation without waiting for the JWT's natural expiration.
+  - Subsequent refresh token exchange attempts also fail because the refresh token hash no longer exists in `user_sessions`.
 
 ---
 

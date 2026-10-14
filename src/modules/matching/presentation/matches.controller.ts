@@ -50,7 +50,7 @@ export class MatchesController {
     @Req() req: any,
     @Headers('authorization') authHeader?: string,
   ): Promise<LikesListResponseDto> {
-    const userId = this.extractUserId(req, authHeader);
+    const userId = await this.extractUserId(req, authHeader);
     const result = await this.getLikesReceivedUseCase.execute(userId);
 
     return {
@@ -60,7 +60,7 @@ export class MatchesController {
     };
   }
 
-  private extractUserId(req: any, authHeader?: string): number {
+  private async extractUserId(req: any, authHeader?: string): Promise<number> {
     if (req?.user?.sub) {
       return Number(req.user.sub);
     }
@@ -71,7 +71,7 @@ export class MatchesController {
       .replace(/^(Bearer\s*)+/i, '')
       .trim()
       .replace(/^["']|["']$/g, '');
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     return Number(decoded.sub);
   }
 }

@@ -56,7 +56,7 @@ export class FeedController {
     @Req() req: any,
     @Headers('authorization') authHeader?: string,
   ): Promise<FeedResponseDto> {
-    const userId = this.extractUserId(req, authHeader);
+    const userId = await this.extractUserId(req, authHeader);
     const result = await this.getFeedUseCase.execute(userId, query);
 
     return {
@@ -66,7 +66,7 @@ export class FeedController {
     };
   }
 
-  private extractUserId(req: any, authHeader?: string): number {
+  private async extractUserId(req: any, authHeader?: string): Promise<number> {
     if (req?.user?.sub) {
       return Number(req.user.sub);
     }
@@ -77,7 +77,7 @@ export class FeedController {
       .replace(/^(Bearer\s*)+/i, '')
       .trim()
       .replace(/^["']|["']$/g, '');
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     return Number(decoded.sub);
   }
 }

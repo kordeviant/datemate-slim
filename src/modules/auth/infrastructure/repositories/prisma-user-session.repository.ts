@@ -63,14 +63,16 @@ export class PrismaUserSessionRepository implements IUserSessionRepository {
 
   async deleteAllForUserExcept(
     userId: number,
-    excludeTokenHash: string,
+    excludeTokenHash?: string,
+    excludeSessionId?: number,
   ): Promise<number> {
-    const result = await this.prisma.userSession.deleteMany({
-      where: {
-        userId,
-        refreshTokenHash: { not: excludeTokenHash },
-      },
-    });
+    const where: any = { userId };
+    if (excludeTokenHash) {
+      where.refreshTokenHash = { not: excludeTokenHash };
+    } else if (excludeSessionId) {
+      where.id = { not: excludeSessionId };
+    }
+    const result = await this.prisma.userSession.deleteMany({ where });
     return result.count;
   }
 }

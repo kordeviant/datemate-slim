@@ -27,33 +27,33 @@ describe('AdminAuthGuard', () => {
     } as unknown as ExecutionContext;
   };
 
-  it('should throw UnauthorizedException if authorization header is missing', () => {
+  it('should throw UnauthorizedException if authorization header is missing', async () => {
     const context = createMockContext(undefined);
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should throw UnauthorizedException if authorization header is empty', () => {
+  it('should throw UnauthorizedException if authorization header is empty', async () => {
     const context = createMockContext('   ');
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should throw UnauthorizedException if user role is not ADMIN', () => {
-    (mockTokenService.verifyAccessToken as jest.Mock).mockReturnValue({
+  it('should throw UnauthorizedException if user role is not ADMIN', async () => {
+    (mockTokenService.verifyAccessToken as jest.Mock).mockResolvedValue({
       sub: 1,
       role: 'USER',
     });
     const context = createMockContext('Bearer user-token');
-    expect(() => guard.canActivate(context)).toThrow(
+    await expect(guard.canActivate(context)).rejects.toThrow(
       new UnauthorizedException('Only administrators can access this resource'),
     );
   });
 
-  it('should allow access and set request.user when user role is ADMIN', () => {
+  it('should allow access and set request.user when user role is ADMIN', async () => {
     const mockUser = { sub: 99, role: 'ADMIN', email: 'admin@datemate.com' };
-    (mockTokenService.verifyAccessToken as jest.Mock).mockReturnValue(mockUser);
+    (mockTokenService.verifyAccessToken as jest.Mock).mockResolvedValue(mockUser);
 
     const context = createMockContext('Bearer valid-admin-token');
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
     const req = context.switchToHttp().getRequest();

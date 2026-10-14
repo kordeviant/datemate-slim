@@ -13,7 +13,11 @@ export interface IUserSessionRepository {
   deleteAllForUser(userId: number): Promise<number>;
   findSessionsByUserId(userId: number): Promise<UserSessionEntity[]>;
   deleteSessionById(sessionId: number, userId: number): Promise<boolean>;
-  deleteAllForUserExcept(userId: number, excludeTokenHash: string): Promise<number>;
+  deleteAllForUserExcept(
+    userId: number,
+    excludeTokenHash?: string,
+    excludeSessionId?: number,
+  ): Promise<number>;
 }
 
 export const USER_SESSION_REPOSITORY = Symbol('IUserSessionRepository');

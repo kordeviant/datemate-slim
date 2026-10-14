@@ -46,7 +46,7 @@ import {
   UserDevicesResponseDto,
   TerminateClientDeviceResponseDto,
   TerminateAllClientDevicesResponseDto,
-  TerminateClientDevicesQueryDto,
+  TerminateClientDevicesDto,
 } from "../application/dtos/user-devices.dto";
 
 @ApiTags("Users")
@@ -90,7 +90,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     const result = await this.deleteAccountUseCase.execute(decoded.sub);
     return {
       status: "success",
@@ -137,7 +137,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     const result = await this.deleteGalleryImageUseCase.execute(
       decoded.sub,
       galleryId,
@@ -156,17 +156,7 @@ export class UsersController {
   @ApiOperation({
     summary: "Get list of active and inactive devices/sessions for the authenticated user",
     description:
-      "Retrieves all active and inactive device sessions for the authenticated user, indicating which session is the current one if refreshToken is provided in x-refresh-token header or query.",
-  })
-  @ApiHeader({
-    name: "x-refresh-token",
-    required: false,
-    description: "Optional refresh token of current session to mark isCurrent: true",
-  })
-  @ApiQuery({
-    name: "refreshToken",
-    required: false,
-    description: "Optional refresh token of current session to mark isCurrent: true",
+      "Retrieves all active and inactive device sessions for the authenticated user. Automatically identifies the current session as isCurrent: true using the Bearer access token.",
   })
   @ApiResponse({
     status: 200,
@@ -179,8 +169,6 @@ export class UsersController {
   })
   async getUserDevices(
     @Headers("authorization") authHeader: string,
-    @Headers("x-refresh-token") refreshTokenHeader?: string,
-    @Query("refreshToken") refreshTokenQuery?: string,
   ): Promise<UserDevicesResponseDto> {
     if (!authHeader) {
       throw new UnauthorizedException("Missing Authorization header");
@@ -189,12 +177,11 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
-    const currentRefreshToken = refreshTokenHeader || refreshTokenQuery;
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
     const result = await this.getUserDevicesUseCase.execute(
       decoded.sub,
-      currentRefreshToken,
+      decoded.sessionId,
     );
 
     return {
@@ -242,7 +229,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
     const result = await this.terminateClientDeviceUseCase.execute(
       decoded.sub,
@@ -263,23 +250,7 @@ export class UsersController {
   @ApiOperation({
     summary: "Terminate all device sessions or all except current device",
     description:
-      "Allows authenticated user to terminate all sessions, or terminate all sessions except the current active one when excludeCurrent is true (requires refreshToken in x-refresh-token header or body/query).",
-  })
-  @ApiHeader({
-    name: "x-refresh-token",
-    required: false,
-    description: "Refresh token of the current session to exclude when excludeCurrent=true",
-  })
-  @ApiQuery({
-    name: "excludeCurrent",
-    required: false,
-    type: Boolean,
-    description: "If true, terminates all sessions except the current session (default: false)",
-  })
-  @ApiQuery({
-    name: "refreshToken",
-    required: false,
-    description: "Refresh token of current session if excludeCurrent=true and not provided in x-refresh-token header",
+      "Terminates all sessions for the authenticated user, or terminates all sessions except the current active session when excludeCurrent is true in the request body.",
   })
   @ApiResponse({
     status: 200,
@@ -288,7 +259,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 400,
-    description: "Bad request (e.g. excludeCurrent is true but no refresh token was provided)",
+    description: "Bad request",
   })
   @ApiResponse({
     status: 401,
@@ -296,10 +267,7 @@ export class UsersController {
   })
   async terminateAllDevices(
     @Headers("authorization") authHeader: string,
-    @Headers("x-refresh-token") refreshTokenHeader?: string,
-    @Query("excludeCurrent") excludeCurrentQuery?: string | boolean,
-    @Query("refreshToken") refreshTokenQuery?: string,
-    @Body() body?: TerminateClientDevicesQueryDto,
+    @Body() body?: TerminateClientDevicesDto,
   ): Promise<TerminateAllClientDevicesResponseDto> {
     if (!authHeader) {
       throw new UnauthorizedException("Missing Authorization header");
@@ -308,20 +276,16 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
-    const excludeCurrent =
-      excludeCurrentQuery === true ||
-      excludeCurrentQuery === "true" ||
-      body?.excludeCurrent === true;
-
-    const currentRefreshToken =
-      refreshTokenHeader || refreshTokenQuery || body?.refreshToken;
+    const excludeCurrent = Boolean(body?.excludeCurrent);
+    const refreshToken = body?.refreshToken;
 
     const result = await this.terminateAllClientDevicesUseCase.execute(
       decoded.sub,
       excludeCurrent,
-      currentRefreshToken,
+      refreshToken,
+      decoded.sessionId,
     );
 
     return {
@@ -359,7 +323,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     return this.getProfileUseCase.execute(decoded.sub);
   }
 
@@ -390,7 +354,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
     const profile = await this.getProfileUseCase.execute(decoded.sub);
     return profile.Profile.profileCompleted;
   }
@@ -433,7 +397,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    this.tokenService.verifyAccessToken(token);
+    await this.tokenService.verifyAccessToken(token);
 
     try {
       return await this.getProfileUseCase.execute(id);
@@ -506,7 +470,7 @@ export class UsersController {
       .replace(/^(Bearer\s*)+/i, "")
       .trim()
       .replace(/^["']|["']$/g, "");
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
     let avatarFile: Express.Multer.File | undefined;
     let selfieFile: Express.Multer.File | undefined;

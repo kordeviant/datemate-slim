@@ -51,10 +51,9 @@ describe('GetUserDevicesUseCase', () => {
       mockSessionRepository.findSessionsByUserId as jest.Mock
     ).mockResolvedValue(mockSessions);
 
-    const result = await useCase.execute(10, 'current_token');
+    const result = await useCase.execute(10, 1);
 
     expect(mockSessionRepository.findSessionsByUserId).toHaveBeenCalledWith(10);
-    expect(mockTokenService.hashRefreshToken).toHaveBeenCalledWith('current_token');
 
     expect(result.total).toBe(2);
     expect(result.activeCount).toBe(1);

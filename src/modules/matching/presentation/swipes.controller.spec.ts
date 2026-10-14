@@ -42,7 +42,7 @@ describe('SwipesController', () => {
   });
 
   it('records swipe using Authorization header fallback', async () => {
-    mockTokenService.verifyAccessToken.mockReturnValue({ sub: 15 });
+    mockTokenService.verifyAccessToken.mockResolvedValue({ sub: 15 });
     mockRecordSwipeUseCase.execute.mockResolvedValue();
 
     const req = {};

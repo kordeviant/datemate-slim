@@ -83,18 +83,19 @@ export class TerminateClientDeviceResponseDto {
   data: TerminateClientDeviceDataDto;
 }
 
-export class TerminateClientDevicesQueryDto {
+export class TerminateClientDevicesDto {
   @ApiPropertyOptional({
     description:
-      'If true, terminates all sessions except the current caller session. Requires refreshToken in header (x-refresh-token) or body/query.',
+      'If true, terminates all sessions except the current caller session. Defaults to false.',
     example: false,
+    default: false,
   })
   excludeCurrent?: boolean;
 
   @ApiPropertyOptional({
     description:
-      'Refresh token to identify current session if excludeCurrent=true and not sent in x-refresh-token header.',
-    example: 'd8f9...',
+      'Refresh token of the current session to exclude when excludeCurrent=true (optional if authenticated via Bearer token with session).',
+    example: 'd9b7f5e1...',
   })
   refreshToken?: string;
 }

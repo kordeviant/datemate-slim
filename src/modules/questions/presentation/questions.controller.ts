@@ -277,7 +277,7 @@ export class QuestionsController {
       .replace(/^(Bearer\s*)+/i, '')
       .trim()
       .replace(/^["']|["']$/g, '');
-    const decoded = this.tokenService.verifyAccessToken(token);
+    const decoded = await this.tokenService.verifyAccessToken(token);
 
     // Only admins can create questions
     if (decoded.role !== 'ADMIN') {

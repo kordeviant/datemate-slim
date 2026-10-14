@@ -12,6 +12,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UploadedFiles,
   UseInterceptors,
   UnauthorizedException,
@@ -21,6 +22,8 @@ import {
   ApiTags,
   ApiOperation,
   ApiParam,
+  ApiQuery,
+  ApiHeader,
   ApiResponse,
   ApiBearerAuth,
   ApiConsumes,
@@ -32,10 +35,19 @@ import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
 import { DeleteAccountUseCase } from "../application/use-cases/delete-account.use-case";
 import { DeleteGalleryImageUseCase } from "../application/use-cases/delete-gallery-image.use-case";
+import { GetUserDevicesUseCase } from "../application/use-cases/get-user-devices.use-case";
+import { TerminateClientDeviceUseCase } from "../application/use-cases/terminate-client-device.use-case";
+import { TerminateAllClientDevicesUseCase } from "../application/use-cases/terminate-all-client-devices.use-case";
 import { UpdateProfileDto } from "../application/dtos/update-profile.dto";
 import { ProfileResponseDto } from "../application/dtos/profile-response.dto";
 import { DeleteAccountResponseDto } from "../application/dtos/delete-account-response.dto";
 import { DeleteGalleryImageResponseDto } from "../application/dtos/delete-gallery-image-response.dto";
+import {
+  UserDevicesResponseDto,
+  TerminateClientDeviceResponseDto,
+  TerminateAllClientDevicesResponseDto,
+  TerminateClientDevicesQueryDto,
+} from "../application/dtos/user-devices.dto";
 
 @ApiTags("Users")
 @Controller({ path: "users", version: ["1", VERSION_NEUTRAL] })
@@ -46,6 +58,9 @@ export class UsersController {
     private readonly updateProfileUseCase: UpdateProfileUseCase,
     private readonly deleteAccountUseCase: DeleteAccountUseCase,
     private readonly deleteGalleryImageUseCase: DeleteGalleryImageUseCase,
+    private readonly getUserDevicesUseCase: GetUserDevicesUseCase,
+    private readonly terminateClientDeviceUseCase: TerminateClientDeviceUseCase,
+    private readonly terminateAllClientDevicesUseCase: TerminateAllClientDevicesUseCase,
   ) {}
 
   @Delete(["me", "account"])
@@ -131,6 +146,188 @@ export class UsersController {
       status: "success",
       success: true,
       message: "Gallery image deleted successfully",
+      data: result,
+    };
+  }
+
+  @Get("devices")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Get list of active and inactive devices/sessions for the authenticated user",
+    description:
+      "Retrieves all active and inactive device sessions for the authenticated user, indicating which session is the current one if refreshToken is provided in x-refresh-token header or query.",
+  })
+  @ApiHeader({
+    name: "x-refresh-token",
+    required: false,
+    description: "Optional refresh token of current session to mark isCurrent: true",
+  })
+  @ApiQuery({
+    name: "refreshToken",
+    required: false,
+    description: "Optional refresh token of current session to mark isCurrent: true",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User devices retrieved successfully",
+    type: UserDevicesResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  async getUserDevices(
+    @Headers("authorization") authHeader: string,
+    @Headers("x-refresh-token") refreshTokenHeader?: string,
+    @Query("refreshToken") refreshTokenQuery?: string,
+  ): Promise<UserDevicesResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    const decoded = this.tokenService.verifyAccessToken(token);
+    const currentRefreshToken = refreshTokenHeader || refreshTokenQuery;
+
+    const result = await this.getUserDevicesUseCase.execute(
+      decoded.sub,
+      currentRefreshToken,
+    );
+
+    return {
+      status: "success",
+      message: "User devices retrieved successfully",
+      data: result,
+    };
+  }
+
+  @Delete("devices/:deviceId")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Terminate a specific device session for the authenticated user",
+    description:
+      "Terminates/logs out a single device session belonging to the authenticated user by deviceId (session ID).",
+  })
+  @ApiParam({
+    name: "deviceId",
+    description: "Session ID of the device to terminate",
+    type: Number,
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Device session terminated successfully",
+    type: TerminateClientDeviceResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Device session not found or does not belong to the user",
+  })
+  async terminateDevice(
+    @Headers("authorization") authHeader: string,
+    @Param("deviceId", ParseIntPipe) deviceId: number,
+  ): Promise<TerminateClientDeviceResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    const decoded = this.tokenService.verifyAccessToken(token);
+
+    const result = await this.terminateClientDeviceUseCase.execute(
+      decoded.sub,
+      deviceId,
+    );
+
+    return {
+      status: "success",
+      success: true,
+      message: "Device session terminated successfully",
+      data: result,
+    };
+  }
+
+  @Delete("devices")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Terminate all device sessions or all except current device",
+    description:
+      "Allows authenticated user to terminate all sessions, or terminate all sessions except the current active one when excludeCurrent is true (requires refreshToken in x-refresh-token header or body/query).",
+  })
+  @ApiHeader({
+    name: "x-refresh-token",
+    required: false,
+    description: "Refresh token of the current session to exclude when excludeCurrent=true",
+  })
+  @ApiQuery({
+    name: "excludeCurrent",
+    required: false,
+    type: Boolean,
+    description: "If true, terminates all sessions except the current session (default: false)",
+  })
+  @ApiQuery({
+    name: "refreshToken",
+    required: false,
+    description: "Refresh token of current session if excludeCurrent=true and not provided in x-refresh-token header",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Device sessions terminated successfully",
+    type: TerminateAllClientDevicesResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Bad request (e.g. excludeCurrent is true but no refresh token was provided)",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  async terminateAllDevices(
+    @Headers("authorization") authHeader: string,
+    @Headers("x-refresh-token") refreshTokenHeader?: string,
+    @Query("excludeCurrent") excludeCurrentQuery?: string | boolean,
+    @Query("refreshToken") refreshTokenQuery?: string,
+    @Body() body?: TerminateClientDevicesQueryDto,
+  ): Promise<TerminateAllClientDevicesResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    const decoded = this.tokenService.verifyAccessToken(token);
+
+    const excludeCurrent =
+      excludeCurrentQuery === true ||
+      excludeCurrentQuery === "true" ||
+      body?.excludeCurrent === true;
+
+    const currentRefreshToken =
+      refreshTokenHeader || refreshTokenQuery || body?.refreshToken;
+
+    const result = await this.terminateAllClientDevicesUseCase.execute(
+      decoded.sub,
+      excludeCurrent,
+      currentRefreshToken,
+    );
+
+    return {
+      status: "success",
+      success: true,
+      message: "Device sessions terminated successfully",
       data: result,
     };
   }

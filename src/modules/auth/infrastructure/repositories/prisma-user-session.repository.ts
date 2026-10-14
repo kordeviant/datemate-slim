@@ -39,9 +39,38 @@ export class PrismaUserSessionRepository implements IUserSessionRepository {
     });
   }
 
-  async deleteAllForUser(userId: number): Promise<void> {
-    await this.prisma.userSession.deleteMany({
+  async deleteAllForUser(userId: number): Promise<number> {
+    const result = await this.prisma.userSession.deleteMany({
       where: { userId },
     });
+    return result.count;
+  }
+
+  async findSessionsByUserId(userId: number): Promise<UserSessionEntity[]> {
+    const sessions = await this.prisma.userSession.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return sessions.map((s) => new UserSessionEntity(s));
+  }
+
+  async deleteSessionById(sessionId: number, userId: number): Promise<boolean> {
+    const result = await this.prisma.userSession.deleteMany({
+      where: { id: sessionId, userId },
+    });
+    return result.count > 0;
+  }
+
+  async deleteAllForUserExcept(
+    userId: number,
+    excludeTokenHash: string,
+  ): Promise<number> {
+    const result = await this.prisma.userSession.deleteMany({
+      where: {
+        userId,
+        refreshTokenHash: { not: excludeTokenHash },
+      },
+    });
+    return result.count;
   }
 }

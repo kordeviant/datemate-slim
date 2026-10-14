@@ -7,6 +7,8 @@ import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { DeleteUserGalleryItemUseCase } from '../application/use-cases/delete-user-gallery-item.use-case';
 import { DeleteAdminUserUseCase } from '../application/use-cases/delete-admin-user.use-case';
+import { TerminateUserDeviceUseCase } from '../application/use-cases/terminate-user-device.use-case';
+import { TerminateAllUserDevicesUseCase } from '../application/use-cases/terminate-all-user-devices.use-case';
 import { GetUsersCountUseCase } from '../application/use-cases/get-users-count.use-case';
 import { GetPendingSelfiesCountUseCase } from '../application/use-cases/get-pending-selfies-count.use-case';
 import { TokenService } from '../../auth/application/services/token.service';
@@ -27,6 +29,8 @@ describe('AdminUsersController', () => {
   let mockUnbanUserUseCase: Partial<UnbanUserUseCase>;
   let mockDeleteUserGalleryItemUseCase: Partial<DeleteUserGalleryItemUseCase>;
   let mockDeleteAdminUserUseCase: Partial<DeleteAdminUserUseCase>;
+  let mockTerminateUserDeviceUseCase: Partial<TerminateUserDeviceUseCase>;
+  let mockTerminateAllUserDevicesUseCase: Partial<TerminateAllUserDevicesUseCase>;
   let mockGetUsersCountUseCase: Partial<GetUsersCountUseCase>;
   let mockGetPendingSelfiesCountUseCase: Partial<GetPendingSelfiesCountUseCase>;
 
@@ -50,6 +54,12 @@ describe('AdminUsersController', () => {
       execute: jest.fn(),
     };
     mockDeleteAdminUserUseCase = {
+      execute: jest.fn(),
+    };
+    mockTerminateUserDeviceUseCase = {
+      execute: jest.fn(),
+    };
+    mockTerminateAllUserDevicesUseCase = {
       execute: jest.fn(),
     };
     mockGetUsersCountUseCase = {
@@ -89,6 +99,14 @@ describe('AdminUsersController', () => {
         {
           provide: DeleteAdminUserUseCase,
           useValue: mockDeleteAdminUserUseCase,
+        },
+        {
+          provide: TerminateUserDeviceUseCase,
+          useValue: mockTerminateUserDeviceUseCase,
+        },
+        {
+          provide: TerminateAllUserDevicesUseCase,
+          useValue: mockTerminateAllUserDevicesUseCase,
         },
         {
           provide: GetUsersCountUseCase,
@@ -261,6 +279,8 @@ describe('AdminUsersController', () => {
         ],
         transactions: [],
         chatRooms: [],
+        devices: [],
+        likes: [],
         interests: ['Hiking'],
       };
 
@@ -513,5 +533,57 @@ describe('AdminUsersController', () => {
       expect(mockDeleteAdminUserUseCase.execute).toHaveBeenCalledWith(101);
     });
   });
+
+  describe('DELETE /v1/admin/users/:userId/devices/:deviceId', () => {
+    it('should terminate a user device and return success response', async () => {
+      const mockResult = {
+        userId: 12,
+        deviceId: 10,
+        terminated: true,
+      };
+
+      (mockTerminateUserDeviceUseCase.execute as jest.Mock).mockResolvedValue(
+        mockResult,
+      );
+
+      const res = await controller.terminateDevice(12, 10);
+
+      expect(res).toEqual({
+        status: 'success',
+        success: true,
+        message: 'Device session terminated successfully',
+        data: mockResult,
+      });
+      expect(mockTerminateUserDeviceUseCase.execute).toHaveBeenCalledWith(
+        12,
+        10,
+      );
+    });
+  });
+
+  describe('DELETE /v1/admin/users/:userId/devices', () => {
+    it('should terminate all user devices and return success response', async () => {
+      const mockResult = {
+        userId: 12,
+        terminated: true,
+        count: 4,
+      };
+
+      (
+        mockTerminateAllUserDevicesUseCase.execute as jest.Mock
+      ).mockResolvedValue(mockResult);
+
+      const res = await controller.terminateAllDevices(12);
+
+      expect(res).toEqual({
+        status: 'success',
+        success: true,
+        message: 'All user device sessions terminated successfully',
+        data: mockResult,
+      });
+      expect(mockTerminateAllUserDevicesUseCase.execute).toHaveBeenCalledWith(12);
+    });
+  });
 });
+
 

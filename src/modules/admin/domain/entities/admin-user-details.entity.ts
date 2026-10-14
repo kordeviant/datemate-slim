@@ -36,6 +36,26 @@ export interface AdminUserChatRoomDetails {
   imageUrl: string;
 }
 
+export interface AdminUserDeviceDetails {
+  id: number;
+  deviceInfo: string;
+  fcmToken: string | null;
+  isActive: boolean;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface AdminUserLikeDetails {
+  id: number;
+  userId: number;
+  fullName: string;
+  username: string | null;
+  avatarUrl: string | null;
+  city?: string | null;
+  type: string;
+  createdAt: string;
+}
+
 export interface AdminUserDetails {
   id: number;
   email: string;
@@ -65,5 +85,8 @@ export interface AdminUserDetails {
   gallery: AdminUserGalleryItemDetails[];
   transactions: AdminUserTransactionDetails[];
   chatRooms: AdminUserChatRoomDetails[];
+  devices: AdminUserDeviceDetails[];
+  likes: AdminUserLikeDetails[];
   interests: string[];
 }
+

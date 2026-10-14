@@ -10,7 +10,10 @@ export interface IUserSessionRepository {
   }): Promise<UserSessionEntity>;
   findByTokenHash(refreshTokenHash: string): Promise<UserSessionEntity | null>;
   deleteByTokenHash(refreshTokenHash: string): Promise<void>;
-  deleteAllForUser(userId: number): Promise<void>;
+  deleteAllForUser(userId: number): Promise<number>;
+  findSessionsByUserId(userId: number): Promise<UserSessionEntity[]>;
+  deleteSessionById(sessionId: number, userId: number): Promise<boolean>;
+  deleteAllForUserExcept(userId: number, excludeTokenHash: string): Promise<number>;
 }
 
 export const USER_SESSION_REPOSITORY = Symbol('IUserSessionRepository');

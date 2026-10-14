@@ -30,6 +30,8 @@ import { BanUserUseCase } from '../application/use-cases/ban-user.use-case';
 import { UnbanUserUseCase } from '../application/use-cases/unban-user.use-case';
 import { DeleteUserGalleryItemUseCase } from '../application/use-cases/delete-user-gallery-item.use-case';
 import { DeleteAdminUserUseCase } from '../application/use-cases/delete-admin-user.use-case';
+import { TerminateUserDeviceUseCase } from '../application/use-cases/terminate-user-device.use-case';
+import { TerminateAllUserDevicesUseCase } from '../application/use-cases/terminate-all-user-devices.use-case';
 import { GetUsersCountUseCase } from '../application/use-cases/get-users-count.use-case';
 import { GetPendingSelfiesCountUseCase } from '../application/use-cases/get-pending-selfies-count.use-case';
 import { GetAdminUsersDto } from '../application/dtos/get-admin-users.dto';
@@ -41,6 +43,10 @@ import { BanUserDto } from '../application/dtos/ban-user.dto';
 import { BanUserResponseDto } from '../application/dtos/ban-user-response.dto';
 import { DeleteGalleryResponseDto } from '../application/dtos/delete-gallery-response.dto';
 import { DeleteAdminUserResponseDto } from '../application/dtos/delete-admin-user-response.dto';
+import {
+  TerminateDeviceResponseDto,
+  TerminateAllDevicesResponseDto,
+} from '../application/dtos/terminate-device-response.dto';
 import { AdminCountResponseDto } from '../application/dtos/admin-count-response.dto';
 
 @ApiTags('Admin - Users')
@@ -56,6 +62,8 @@ export class AdminUsersController {
     private readonly unbanUserUseCase: UnbanUserUseCase,
     private readonly deleteUserGalleryItemUseCase: DeleteUserGalleryItemUseCase,
     private readonly deleteAdminUserUseCase: DeleteAdminUserUseCase,
+    private readonly terminateUserDeviceUseCase: TerminateUserDeviceUseCase,
+    private readonly terminateAllUserDevicesUseCase: TerminateAllUserDevicesUseCase,
     private readonly getUsersCountUseCase: GetUsersCountUseCase,
     private readonly getPendingSelfiesCountUseCase: GetPendingSelfiesCountUseCase,
   ) {}
@@ -426,4 +434,90 @@ export class AdminUsersController {
       data: result,
     };
   }
+
+  @Delete(':userId/devices/:deviceId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Terminate a user device session',
+    description:
+      'Allows administrators to terminate/logout an active device session of a user by userId and deviceId (session ID).',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'User ID whose device session is being terminated',
+    example: 12,
+  })
+  @ApiParam({
+    name: 'deviceId',
+    description: 'Device session ID to terminate',
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Device session terminated successfully',
+    type: TerminateDeviceResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User or device session not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async terminateDevice(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('deviceId', ParseIntPipe) deviceId: number,
+  ): Promise<TerminateDeviceResponseDto> {
+    const result = await this.terminateUserDeviceUseCase.execute(
+      userId,
+      deviceId,
+    );
+
+    return {
+      status: 'success',
+      success: true,
+      message: 'Device session terminated successfully',
+      data: result,
+    };
+  }
+
+  @Delete(':userId/devices')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Terminate all device sessions of a user',
+    description:
+      'Allows administrators to terminate/logout all active and inactive device sessions of a user by userId.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'User ID whose device sessions are being terminated',
+    example: 12,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All user device sessions terminated successfully',
+    type: TerminateAllDevicesResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient administrator privileges',
+  })
+  async terminateAllDevices(
+    @Param('userId', ParseIntPipe) userId: number,
+  ): Promise<TerminateAllDevicesResponseDto> {
+    const result = await this.terminateAllUserDevicesUseCase.execute(userId);
+
+    return {
+      status: 'success',
+      success: true,
+      message: 'All user device sessions terminated successfully',
+      data: result,
+    };
+  }
 }
+

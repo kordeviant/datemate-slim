@@ -9,6 +9,7 @@ import {
   AdminUserSortByType,
   AdminUserStatusFilterType,
   DeleteUserGalleryItemResult,
+  TerminateDeviceResult,
 } from '../entities/admin-user-item.entity';
 import {
   AdminVerificationsPaginatedResult,
@@ -99,6 +100,13 @@ export interface IAdminRepository {
     userId: number,
     galleryId: number,
   ): Promise<DeleteUserGalleryItemResult>;
+  terminateUserDevice(
+    userId: number,
+    deviceId: number,
+  ): Promise<TerminateDeviceResult>;
+  terminateAllUserDevices(
+    userId: number,
+  ): Promise<{ userId: number; terminated: boolean; count: number }>;
   deleteUser(
     userId: number,
   ): Promise<{ userId: number; deleted: boolean }>;

@@ -6,6 +6,9 @@ import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
 import { DeleteAccountUseCase } from "../application/use-cases/delete-account.use-case";
 import { DeleteGalleryImageUseCase } from "../application/use-cases/delete-gallery-image.use-case";
+import { GetUserDevicesUseCase } from "../application/use-cases/get-user-devices.use-case";
+import { TerminateClientDeviceUseCase } from "../application/use-cases/terminate-client-device.use-case";
+import { TerminateAllClientDevicesUseCase } from "../application/use-cases/terminate-all-client-devices.use-case";
 
 describe("UsersController", () => {
   let controller: UsersController;
@@ -14,6 +17,9 @@ describe("UsersController", () => {
   let mockUpdateProfileUseCase: any;
   let mockDeleteAccountUseCase: any;
   let mockDeleteGalleryImageUseCase: any;
+  let mockGetUserDevicesUseCase: any;
+  let mockTerminateClientDeviceUseCase: any;
+  let mockTerminateAllClientDevicesUseCase: any;
 
   beforeEach(async () => {
     mockTokenService = {
@@ -36,6 +42,18 @@ describe("UsersController", () => {
       execute: jest.fn().mockResolvedValue({ userId: 1, galleryId: 10, deleted: true }),
     };
 
+    mockGetUserDevicesUseCase = {
+      execute: jest.fn(),
+    };
+
+    mockTerminateClientDeviceUseCase = {
+      execute: jest.fn(),
+    };
+
+    mockTerminateAllClientDevicesUseCase = {
+      execute: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -44,6 +62,9 @@ describe("UsersController", () => {
         { provide: UpdateProfileUseCase, useValue: mockUpdateProfileUseCase },
         { provide: DeleteAccountUseCase, useValue: mockDeleteAccountUseCase },
         { provide: DeleteGalleryImageUseCase, useValue: mockDeleteGalleryImageUseCase },
+        { provide: GetUserDevicesUseCase, useValue: mockGetUserDevicesUseCase },
+        { provide: TerminateClientDeviceUseCase, useValue: mockTerminateClientDeviceUseCase },
+        { provide: TerminateAllClientDevicesUseCase, useValue: mockTerminateAllClientDevicesUseCase },
       ],
     }).compile();
 
@@ -499,6 +520,145 @@ describe("UsersController", () => {
         success: true,
         message: "Gallery image deleted successfully",
         data: { userId: 1, galleryId: 10, deleted: true },
+      });
+    });
+  });
+
+  describe("GET /users/devices", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.getUserDevices("")).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should retrieve devices list and return success envelope", async () => {
+      const mockResult = {
+        devices: [
+          {
+            id: 1,
+            deviceInfo: "iPhone 15",
+            fcmToken: "fcm1",
+            isActive: true,
+            isCurrent: true,
+            createdAt: "2026-10-10T00:00:00.000Z",
+            expiresAt: "2026-11-10T00:00:00.000Z",
+          },
+        ],
+        activeDevices: [],
+        inactiveDevices: [],
+        total: 1,
+        activeCount: 1,
+        inactiveCount: 0,
+      };
+
+      mockGetUserDevicesUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.getUserDevices(
+        "Bearer valid_token",
+        "custom_refresh_token",
+      );
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockGetUserDevicesUseCase.execute).toHaveBeenCalledWith(
+        1,
+        "custom_refresh_token",
+      );
+      expect(res).toEqual({
+        status: "success",
+        message: "User devices retrieved successfully",
+        data: mockResult,
+      });
+    });
+  });
+
+  describe("DELETE /users/devices/:deviceId", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.terminateDevice("", 5)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should terminate a single device and return success response", async () => {
+      const mockResult = {
+        deviceId: 5,
+        terminated: true,
+      };
+
+      mockTerminateClientDeviceUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.terminateDevice("Bearer valid_token", 5);
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockTerminateClientDeviceUseCase.execute).toHaveBeenCalledWith(1, 5);
+      expect(res).toEqual({
+        status: "success",
+        success: true,
+        message: "Device session terminated successfully",
+        data: mockResult,
+      });
+    });
+  });
+
+  describe("DELETE /users/devices", () => {
+    it("should throw UnauthorizedException if header is missing", async () => {
+      await expect(controller.terminateAllDevices("")).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should terminate all devices when excludeCurrent is false", async () => {
+      const mockResult = {
+        terminatedCount: 3,
+        excludedCurrent: false,
+      };
+
+      mockTerminateAllClientDevicesUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.terminateAllDevices(
+        "Bearer valid_token",
+        undefined,
+        false,
+      );
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockTerminateAllClientDevicesUseCase.execute).toHaveBeenCalledWith(
+        1,
+        false,
+        undefined,
+      );
+      expect(res).toEqual({
+        status: "success",
+        success: true,
+        message: "Device sessions terminated successfully",
+        data: mockResult,
+      });
+    });
+
+    it("should terminate all devices except current when excludeCurrent is true", async () => {
+      const mockResult = {
+        terminatedCount: 2,
+        excludedCurrent: true,
+      };
+
+      mockTerminateAllClientDevicesUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.terminateAllDevices(
+        "Bearer valid_token",
+        "current_refresh_token",
+        true,
+      );
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockTerminateAllClientDevicesUseCase.execute).toHaveBeenCalledWith(
+        1,
+        true,
+        "current_refresh_token",
+      );
+      expect(res).toEqual({
+        status: "success",
+        success: true,
+        message: "Device sessions terminated successfully",
+        data: mockResult,
       });
     });
   });

@@ -18,6 +18,10 @@ import { GetProfileUseCase } from "./modules/auth/application/use-cases/get-prof
 import { UpdateProfileUseCase } from "./modules/auth/application/use-cases/update-profile.use-case";
 import { DeleteAccountUseCase } from "./modules/auth/application/use-cases/delete-account.use-case";
 import { DeleteGalleryImageUseCase } from "./modules/auth/application/use-cases/delete-gallery-image.use-case";
+import { LogoutUseCase } from "./modules/auth/application/use-cases/logout.use-case";
+import { GetUserDevicesUseCase } from "./modules/auth/application/use-cases/get-user-devices.use-case";
+import { TerminateClientDeviceUseCase } from "./modules/auth/application/use-cases/terminate-client-device.use-case";
+import { TerminateAllClientDevicesUseCase } from "./modules/auth/application/use-cases/terminate-all-client-devices.use-case";
 
 describe("API Versioning (v1)", () => {
   let app: INestApplication;
@@ -35,11 +39,15 @@ describe("API Versioning (v1)", () => {
         { provide: ResetPasswordUseCase, useValue: { execute: jest.fn() } },
         { provide: GoogleAuthUseCase, useValue: { execute: jest.fn() } },
         { provide: AppleAuthUseCase, useValue: { execute: jest.fn() } },
+        { provide: LogoutUseCase, useValue: { execute: jest.fn() } },
         { provide: TokenService, useValue: { verifyAccessToken: jest.fn() } },
         { provide: GetProfileUseCase, useValue: { execute: jest.fn() } },
         { provide: UpdateProfileUseCase, useValue: { execute: jest.fn() } },
         { provide: DeleteAccountUseCase, useValue: { execute: jest.fn() } },
         { provide: DeleteGalleryImageUseCase, useValue: { execute: jest.fn() } },
+        { provide: GetUserDevicesUseCase, useValue: { execute: jest.fn() } },
+        { provide: TerminateClientDeviceUseCase, useValue: { execute: jest.fn() } },
+        { provide: TerminateAllClientDevicesUseCase, useValue: { execute: jest.fn() } },
       ],
     }).compile();
 

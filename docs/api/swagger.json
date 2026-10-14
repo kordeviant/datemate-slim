@@ -540,6 +540,56 @@
         ]
       }
     },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "summary": "Logout user device session",
+        "description": "Terminates the user's active session by invalidating the refresh token. Can optionally terminate all sessions across all devices if allDevices is set to true.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User logged out successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing refreshToken or valid Authorization token"
+          }
+        },
+        "tags": [
+          "Authentication"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/users/me": {
       "delete": {
         "operationId": "UsersController_deleteAccount",
@@ -711,6 +761,195 @@
         ]
       }
     },
+    "/users/devices": {
+      "get": {
+        "operationId": "UsersController_getUserDevices",
+        "summary": "Get list of active and inactive devices/sessions for the authenticated user",
+        "description": "Retrieves all active and inactive device sessions for the authenticated user, indicating which session is the current one if refreshToken is provided in x-refresh-token header or query.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-refresh-token",
+            "required": false,
+            "in": "header",
+            "description": "Optional refresh token of current session to mark isCurrent: true",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "refreshToken",
+            "required": false,
+            "in": "query",
+            "description": "Optional refresh token of current session to mark isCurrent: true",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User devices retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDevicesResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_terminateAllDevices",
+        "summary": "Terminate all device sessions or all except current device",
+        "description": "Allows authenticated user to terminate all sessions, or terminate all sessions except the current active one when excludeCurrent is true (requires refreshToken in x-refresh-token header or body/query).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-refresh-token",
+            "required": false,
+            "in": "header",
+            "description": "Refresh token of the current session to exclude when excludeCurrent=true",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "refreshToken",
+            "required": false,
+            "in": "query",
+            "description": "Refresh token of current session if excludeCurrent=true and not provided in x-refresh-token header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeCurrent",
+            "required": false,
+            "in": "query",
+            "description": "If true, terminates all sessions except the current session (default: false)",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateClientDevicesQueryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device sessions terminated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateAllClientDevicesResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (e.g. excludeCurrent is true but no refresh token was provided)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/users/devices/{deviceId}": {
+      "delete": {
+        "operationId": "UsersController_terminateDevice",
+        "summary": "Terminate a specific device session for the authenticated user",
+        "description": "Terminates/logs out a single device session belonging to the authenticated user by deviceId (session ID).",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "description": "Session ID of the device to terminate",
+            "schema": {
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Device session terminated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateClientDeviceResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "404": {
+            "description": "Device session not found or does not belong to the user"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/users/profile": {
       "get": {
         "operationId": "UsersController_checkProfileStatus",
@@ -853,6 +1092,59 @@
           },
           "401": {
             "description": "Missing or invalid authorization token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UsersController_getUserProfile",
+        "summary": "Get user profile by ID for client",
+        "description": "Retrieves another user's profile details in canonical Android schema (identical response model to /me): language, lat, lon, profileValidated, isPremium, Profile (fullName, username, phoneNumber, bio, languages, avatar, profilePicture, profilePictureId, profileCompleted, isPremium, Demographic, RelationType, Answers, LikedActivities), and gallery.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID of the user to retrieve profile for",
+            "schema": {
+              "example": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "404": {
+            "description": "User not found"
           }
         },
         "tags": [
@@ -2500,6 +2792,106 @@
         ]
       }
     },
+    "/admin/users/{userId}/devices/{deviceId}": {
+      "delete": {
+        "operationId": "AdminUsersController_terminateDevice",
+        "summary": "Terminate a user device session",
+        "description": "Allows administrators to terminate/logout an active device session of a user by userId and deviceId (session ID).",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "User ID whose device session is being terminated",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "path",
+            "description": "Device session ID to terminate",
+            "schema": {
+              "example": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Device session terminated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateDeviceResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User or device session not found"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/admin/users/{userId}/devices": {
+      "delete": {
+        "operationId": "AdminUsersController_terminateAllDevices",
+        "summary": "Terminate all device sessions of a user",
+        "description": "Allows administrators to terminate/logout all active and inactive device sessions of a user by userId.",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "User ID whose device sessions are being terminated",
+            "schema": {
+              "example": 12,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All user device sessions terminated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateAllDevicesResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid token or insufficient administrator privileges"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "tags": [
+          "Admin - Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/admin/verifications/count": {
       "get": {
         "operationId": "AdminVerificationsController_getPendingSelfiesCount",
@@ -2927,8 +3319,29 @@
       "get": {
         "operationId": "RecommendedController_getRecommended",
         "summary": "Get recommended profiles",
-        "description": "Retrieves top recommended candidate profiles (default limit: 20) filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity).",
+        "description": "Retrieves top recommended candidate profiles filtered by the 6 hygiene rules and ranked dynamically by compatibility score (lifestyle & questions overlap, shared interests, city match, relation goal, and age proximity). Supports numeric start (0-based item index) and limit pagination. Cached for 1 day per user.",
         "parameters": [
+          {
+            "name": "start",
+            "required": false,
+            "in": "query",
+            "description": "Starting numeric item index (0-based, e.g. 0) OR Candidate User ID to start after/from (default: 0)",
+            "schema": {
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "candidateId",
+            "required": false,
+            "in": "query",
+            "description": "Optional candidate user ID to start from/after (cursor-based pagination)",
+            "schema": {
+              "example": 216,
+              "type": "number"
+            }
+          },
           {
             "name": "limit",
             "required": false,
@@ -2937,6 +3350,56 @@
             "schema": {
               "default": 20,
               "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "end",
+            "required": false,
+            "in": "query",
+            "description": "Optional ending numeric index",
+            "schema": {
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Alternative alias for start (0-based offset)",
+            "schema": {
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "anchorUserId",
+            "required": false,
+            "in": "query",
+            "description": "Anchor candidate user ID around which to retrieve preceding and succeeding candidates",
+            "schema": {
+              "example": 123,
+              "type": "number"
+            }
+          },
+          {
+            "name": "before",
+            "required": false,
+            "in": "query",
+            "description": "Number of candidate profiles to retrieve immediately preceding the anchor user (0 to 50)",
+            "schema": {
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Number of candidate profiles to retrieve immediately succeeding the anchor user (0 to 50)",
+            "schema": {
+              "example": 10,
               "type": "number"
             }
           },
@@ -2956,6 +3419,137 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecommendedResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request (gender demographic not completed)"
+          },
+          "401": {
+            "description": "Unauthorized access"
+          },
+          "403": {
+            "description": "Account suspended"
+          },
+          "404": {
+            "description": "User profile not found"
+          }
+        },
+        "tags": [
+          "Recommended"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/recommended/detail": {
+      "get": {
+        "operationId": "RecommendedController_getRecommendedDetail",
+        "summary": "Get recommended profiles with full details",
+        "description": "Retrieves recommended candidate profiles with full details (matching /me API schema) while strictly preserving cached recommendation ranking order. Supports start, end, offset, and limit pagination, as well as anchor-based window pagination (anchorUserId, before, after).",
+        "parameters": [
+          {
+            "name": "start",
+            "required": false,
+            "in": "query",
+            "description": "Starting numeric item index (0-based, e.g. 0) OR Candidate User ID to start after/from (default: 0)",
+            "schema": {
+              "default": 0,
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "candidateId",
+            "required": false,
+            "in": "query",
+            "description": "Optional candidate user ID to start from/after (cursor-based pagination)",
+            "schema": {
+              "example": 216,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of detailed recommended profiles to retrieve (1 to 50, default: 20)",
+            "schema": {
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "end",
+            "required": false,
+            "in": "query",
+            "description": "Optional ending numeric index",
+            "schema": {
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Alternative alias for start (0-based offset)",
+            "schema": {
+              "example": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "anchorUserId",
+            "required": false,
+            "in": "query",
+            "description": "Anchor candidate user ID around which to retrieve preceding and succeeding candidates",
+            "schema": {
+              "example": 123,
+              "type": "number"
+            }
+          },
+          {
+            "name": "before",
+            "required": false,
+            "in": "query",
+            "description": "Number of candidate profiles to retrieve immediately preceding the anchor user (0 to 50)",
+            "schema": {
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Number of candidate profiles to retrieve immediately succeeding the anchor user (0 to 50)",
+            "schema": {
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recommended detailed profiles retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendedDetailResponseDto"
                 }
               }
             }
@@ -3269,6 +3863,60 @@
           "userAgent"
         ]
       },
+      "LogoutDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
+            "description": "Refresh token of the session to terminate"
+          },
+          "token": {
+            "type": "string",
+            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
+            "description": "Alternative alias for refreshToken"
+          },
+          "allDevices": {
+            "type": "boolean",
+            "example": false,
+            "description": "If true, terminates all active sessions for the user across all devices",
+            "default": false
+          }
+        }
+      },
+      "LogoutResponseDataDto": {
+        "type": "object",
+        "properties": {
+          "loggedOut": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "loggedOut"
+        ]
+      },
+      "LogoutResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Logged out successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LogoutResponseDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
       "DeleteAccountDataDto": {
         "type": "object",
         "properties": {
@@ -3351,6 +3999,215 @@
           },
           "data": {
             "$ref": "#/components/schemas/DeleteGalleryImageDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
+          "message",
+          "data"
+        ]
+      },
+      "UserDeviceItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "deviceInfo": {
+            "type": "string",
+            "example": "iPhone 15 Pro, iOS 17.4",
+            "nullable": true
+          },
+          "fcmToken": {
+            "type": "string",
+            "example": "fcm_token_xyz",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true,
+            "description": "True if expiresAt is in the future, false if expired/inactive"
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "example": true,
+            "description": "True if this session corresponds to the caller’s current refresh token"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-10-14T10:00:00.000Z"
+          },
+          "expiresAt": {
+            "type": "string",
+            "example": "2026-11-14T10:00:00.000Z",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "isActive",
+          "isCurrent",
+          "createdAt"
+        ]
+      },
+      "UserDevicesDataDto": {
+        "type": "object",
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserDeviceItemDto"
+            }
+          },
+          "activeDevices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserDeviceItemDto"
+            }
+          },
+          "inactiveDevices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserDeviceItemDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "example": 2
+          },
+          "activeCount": {
+            "type": "number",
+            "example": 1
+          },
+          "inactiveCount": {
+            "type": "number",
+            "example": 1
+          }
+        },
+        "required": [
+          "devices",
+          "activeDevices",
+          "inactiveDevices",
+          "total",
+          "activeCount",
+          "inactiveCount"
+        ]
+      },
+      "UserDevicesResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "User devices retrieved successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserDevicesDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
+      "TerminateClientDeviceDataDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "number",
+            "example": 1
+          },
+          "terminated": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "deviceId",
+          "terminated"
+        ]
+      },
+      "TerminateClientDeviceResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Device session terminated successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TerminateClientDeviceDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
+          "message",
+          "data"
+        ]
+      },
+      "TerminateClientDevicesQueryDto": {
+        "type": "object",
+        "properties": {
+          "excludeCurrent": {
+            "type": "boolean",
+            "description": "If true, terminates all sessions except the current caller session. Requires refreshToken in header (x-refresh-token) or body/query.",
+            "example": false
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "Refresh token to identify current session if excludeCurrent=true and not sent in x-refresh-token header.",
+            "example": "d8f9..."
+          }
+        }
+      },
+      "TerminateAllClientDevicesDataDto": {
+        "type": "object",
+        "properties": {
+          "terminatedCount": {
+            "type": "number",
+            "example": 2
+          },
+          "excludedCurrent": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "terminatedCount",
+          "excludedCurrent"
+        ]
+      },
+      "TerminateAllClientDevicesResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Device sessions terminated successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TerminateAllClientDevicesDataDto"
           }
         },
         "required": [
@@ -5340,6 +6197,94 @@
           "imageUrl"
         ]
       },
+      "AdminUserDeviceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 10
+          },
+          "deviceInfo": {
+            "type": "string",
+            "example": "iPhone 15 Pro (iOS 17.4)"
+          },
+          "fcmToken": {
+            "type": "string",
+            "example": "fcm-device-token...",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "example": "2026-11-14T08:00:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-10-14T08:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "deviceInfo",
+          "isActive",
+          "expiresAt",
+          "createdAt"
+        ]
+      },
+      "AdminUserLikeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "userId": {
+            "type": "number",
+            "example": 205
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Sara Connor"
+          },
+          "username": {
+            "type": "string",
+            "example": "sarah_c",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "example": "https://api-datemate.testdevvvv.site/uploads/avatars/user205.webp",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "example": "Tehran",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "example": "RECEIVED",
+            "enum": [
+              "RECEIVED",
+              "SENT"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-10-14T08:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "fullName",
+          "type",
+          "createdAt"
+        ]
+      },
       "AdminUserDetailsDataDto": {
         "type": "object",
         "properties": {
@@ -5470,6 +6415,18 @@
               "$ref": "#/components/schemas/AdminUserChatRoomDto"
             }
           },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserDeviceDto"
+            }
+          },
+          "likes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserLikeDto"
+            }
+          },
           "interests": {
             "example": [
               "Traditional Cuisine",
@@ -5504,6 +6461,8 @@
           "gallery",
           "transactions",
           "chatRooms",
+          "devices",
+          "likes",
           "interests"
         ]
       },
@@ -5838,6 +6797,102 @@
           "data"
         ]
       },
+      "TerminateDeviceDataDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "example": 12
+          },
+          "deviceId": {
+            "type": "number",
+            "example": 10
+          },
+          "terminated": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "userId",
+          "deviceId",
+          "terminated"
+        ]
+      },
+      "TerminateDeviceResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Device session terminated successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TerminateDeviceDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
+          "message",
+          "data"
+        ]
+      },
+      "TerminateAllDevicesDataDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "number",
+            "example": 12
+          },
+          "terminated": {
+            "type": "boolean",
+            "example": true
+          },
+          "count": {
+            "type": "number",
+            "example": 3
+          }
+        },
+        "required": [
+          "userId",
+          "terminated",
+          "count"
+        ]
+      },
+      "TerminateAllDevicesResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "All user device sessions terminated successfully"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TerminateAllDevicesDataDto"
+          }
+        },
+        "required": [
+          "status",
+          "success",
+          "message",
+          "data"
+        ]
+      },
       "AdminVerificationItemDto": {
         "type": "object",
         "properties": {
@@ -6118,14 +7173,14 @@
             "type": "number",
             "example": 205
           },
-          "username": {
-            "type": "string",
-            "example": "sara_c",
-            "nullable": true
-          },
           "fullName": {
             "type": "string",
             "example": "Sara Connor",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "example": "Tehran",
             "nullable": true
           },
           "age": {
@@ -6133,74 +7188,24 @@
             "example": 24,
             "nullable": true
           },
-          "gender": {
-            "type": "string",
-            "example": "FEMALE",
-            "nullable": true
-          },
-          "bio": {
-            "type": "string",
-            "example": "Love photography and coffee.",
-            "nullable": true
-          },
-          "avatarUrl": {
+          "profilePicture": {
             "type": "string",
             "example": "http://localhost:3000/assets/avatars/avatar_205.webp",
             "nullable": true
           },
-          "profileValidated": {
-            "type": "boolean",
-            "example": true
-          },
-          "gallery": {
-            "example": [
-              "http://localhost:3000/assets/images/gallery_1.webp"
-            ],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "interests": {
-            "example": [
-              "Photography",
-              "Hiking"
-            ],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "city": {
+          "username": {
             "type": "string",
-            "example": "Tehran",
-            "nullable": true
-          },
-          "isOnline": {
-            "type": "boolean",
-            "example": true
-          },
-          "lastSeenAt": {
-            "format": "date-time",
-            "type": "string",
-            "example": "2026-10-11T12:00:00.000Z",
+            "example": "sara_c",
             "nullable": true
           }
         },
         "required": [
           "id",
-          "username",
           "fullName",
-          "age",
-          "gender",
-          "bio",
-          "avatarUrl",
-          "profileValidated",
-          "gallery",
-          "interests",
           "city",
-          "isOnline",
-          "lastSeenAt"
+          "age",
+          "profilePicture",
+          "username"
         ]
       },
       "FeedDataDto": {
@@ -6268,6 +7273,11 @@
           "isOnline": {
             "type": "boolean",
             "example": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "example": "http://localhost:3000/assets/avatars/avatar_205.webp",
+            "nullable": true
           }
         },
         "required": [
@@ -6275,7 +7285,8 @@
           "fullName",
           "username",
           "city",
-          "isOnline"
+          "isOnline",
+          "avatarUrl"
         ]
       },
       "LikesListResponseDto": {
@@ -6359,6 +7370,30 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RecommendedCandidateDto"
+            }
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "data"
+        ]
+      },
+      "RecommendedDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "Recommended detailed profiles retrieved successfully"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileResponseDto"
             }
           }
         },

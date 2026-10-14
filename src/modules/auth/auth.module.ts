@@ -14,6 +14,10 @@ import { UpdateProfileUseCase } from "./application/use-cases/update-profile.use
 import { GetProfileUseCase } from "./application/use-cases/get-profile.use-case";
 import { DeleteAccountUseCase } from "./application/use-cases/delete-account.use-case";
 import { DeleteGalleryImageUseCase } from "./application/use-cases/delete-gallery-image.use-case";
+import { LogoutUseCase } from "./application/use-cases/logout.use-case";
+import { GetUserDevicesUseCase } from "./application/use-cases/get-user-devices.use-case";
+import { TerminateClientDeviceUseCase } from "./application/use-cases/terminate-client-device.use-case";
+import { TerminateAllClientDevicesUseCase } from "./application/use-cases/terminate-all-client-devices.use-case";
 import { PasswordHasherService } from "./application/services/password-hasher.service";
 import { TokenService } from "./application/services/token.service";
 import { AppleAuthService } from "./application/services/apple-auth.service";
@@ -57,6 +61,10 @@ import { MediaModule } from "../media/media.module";
     UpdateProfileUseCase,
     DeleteAccountUseCase,
     DeleteGalleryImageUseCase,
+    LogoutUseCase,
+    GetUserDevicesUseCase,
+    TerminateClientDeviceUseCase,
+    TerminateAllClientDevicesUseCase,
   ],
   exports: [
     USER_REPOSITORY,
@@ -67,6 +75,10 @@ import { MediaModule } from "../media/media.module";
     UpdateProfileUseCase,
     DeleteAccountUseCase,
     DeleteGalleryImageUseCase,
+    LogoutUseCase,
+    GetUserDevicesUseCase,
+    TerminateClientDeviceUseCase,
+    TerminateAllClientDevicesUseCase,
   ],
 })
 export class AuthModule {}

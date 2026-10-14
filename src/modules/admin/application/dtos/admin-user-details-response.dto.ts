@@ -90,6 +90,56 @@ export class AdminUserChatRoomDto {
   imageUrl: string;
 }
 
+export class AdminUserDeviceDto {
+  @ApiProperty({ example: 10 })
+  id: number;
+
+  @ApiProperty({ example: 'iPhone 15 Pro (iOS 17.4)' })
+  deviceInfo: string;
+
+  @ApiPropertyOptional({ example: 'fcm-device-token...', nullable: true })
+  fcmToken: string | null;
+
+  @ApiProperty({ example: true })
+  isActive: boolean;
+
+  @ApiProperty({ example: '2026-11-14T08:00:00.000Z' })
+  expiresAt: string;
+
+  @ApiProperty({ example: '2026-10-14T08:00:00.000Z' })
+  createdAt: string;
+}
+
+export class AdminUserLikeDto {
+  @ApiProperty({ example: 1 })
+  id: number;
+
+  @ApiProperty({ example: 205 })
+  userId: number;
+
+  @ApiProperty({ example: 'Sara Connor' })
+  fullName: string;
+
+  @ApiPropertyOptional({ example: 'sarah_c', nullable: true })
+  username: string | null;
+
+  @ApiPropertyOptional({
+    example:
+      'https://api-datemate.testdevvvv.site/uploads/avatars/user205.webp',
+    nullable: true,
+  })
+  avatarUrl: string | null;
+
+  @ApiPropertyOptional({ example: 'Tehran', nullable: true })
+  city?: string | null;
+
+  @ApiProperty({ example: 'RECEIVED', enum: ['RECEIVED', 'SENT'] })
+  type: string;
+
+  @ApiProperty({ example: '2026-10-14T08:00:00.000Z' })
+  createdAt: string;
+}
+
 export class AdminUserDetailsDataDto {
   @ApiProperty({ example: 12 })
   id: number;
@@ -187,6 +237,12 @@ export class AdminUserDetailsDataDto {
 
   @ApiProperty({ type: [AdminUserChatRoomDto] })
   chatRooms: AdminUserChatRoomDto[];
+
+  @ApiProperty({ type: [AdminUserDeviceDto] })
+  devices: AdminUserDeviceDto[];
+
+  @ApiProperty({ type: [AdminUserLikeDto] })
+  likes: AdminUserLikeDto[];
 
   @ApiProperty({
     type: [String],

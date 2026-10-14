@@ -9,11 +9,15 @@ import { ForgotPasswordUseCase } from '../application/use-cases/forgot-password.
 import { ResetPasswordUseCase } from '../application/use-cases/reset-password.use-case';
 import { GoogleAuthUseCase } from '../application/use-cases/google-auth.use-case';
 import { AppleAuthUseCase } from '../application/use-cases/apple-auth.use-case';
+import { LogoutUseCase } from '../application/use-cases/logout.use-case';
+import { TokenService } from '../application/services/token.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
   let mockAppleAuthUseCase: any;
   let mockGoogleAuthUseCase: any;
+  let mockLogoutUseCase: any;
+  let mockTokenService: any;
 
   beforeEach(async () => {
     mockAppleAuthUseCase = {
@@ -21,6 +25,12 @@ describe('AuthController', () => {
     };
     mockGoogleAuthUseCase = {
       execute: jest.fn(),
+    };
+    mockLogoutUseCase = {
+      execute: jest.fn(),
+    };
+    mockTokenService = {
+      verifyAccessToken: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -34,6 +44,8 @@ describe('AuthController', () => {
         { provide: ResetPasswordUseCase, useValue: {} },
         { provide: GoogleAuthUseCase, useValue: mockGoogleAuthUseCase },
         { provide: AppleAuthUseCase, useValue: mockAppleAuthUseCase },
+        { provide: LogoutUseCase, useValue: mockLogoutUseCase },
+        { provide: TokenService, useValue: mockTokenService },
       ],
     }).compile();
 
@@ -91,4 +103,45 @@ describe('AuthController', () => {
       expect(result).toEqual(mockResult);
     });
   });
+
+  describe('POST /auth/logout', () => {
+    it('should successfully log out with refreshToken', async () => {
+      mockLogoutUseCase.execute.mockResolvedValue({ loggedOut: true });
+
+      const result = await controller.logout(
+        { refreshToken: 'token_123' },
+        undefined,
+      );
+
+      expect(mockLogoutUseCase.execute).toHaveBeenCalledWith(
+        { refreshToken: 'token_123' },
+        undefined,
+      );
+      expect(result).toEqual({
+        status: 'success',
+        message: 'Logged out successfully',
+        data: { loggedOut: true },
+      });
+    });
+
+    it('should extract authenticated user ID from Authorization header', async () => {
+      mockTokenService.verifyAccessToken.mockReturnValue({ sub: 42 });
+      mockLogoutUseCase.execute.mockResolvedValue({ loggedOut: true });
+
+      const result = await controller.logout(
+        { allDevices: true },
+        'Bearer valid_jwt_token',
+      );
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith(
+        'valid_jwt_token',
+      );
+      expect(mockLogoutUseCase.execute).toHaveBeenCalledWith(
+        { allDevices: true },
+        42,
+      );
+      expect(result.data).toEqual({ loggedOut: true });
+    });
+  });
 });
+

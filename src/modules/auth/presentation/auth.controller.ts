@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiHeader,
   ApiBody,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { SignUpUseCase } from "../application/use-cases/sign-up.use-case";
@@ -24,6 +25,8 @@ import { ForgotPasswordUseCase } from "../application/use-cases/forgot-password.
 import { ResetPasswordUseCase } from "../application/use-cases/reset-password.use-case";
 import { GoogleAuthUseCase } from "../application/use-cases/google-auth.use-case";
 import { AppleAuthUseCase } from "../application/use-cases/apple-auth.use-case";
+import { LogoutUseCase } from "../application/use-cases/logout.use-case";
+import { TokenService } from "../application/services/token.service";
 import { SignUpDto } from "../application/dtos/sign-up.dto";
 import { ValidateCodeDto } from "../application/dtos/validate-code.dto";
 import { SignInDto } from "../application/dtos/sign-in.dto";
@@ -32,6 +35,7 @@ import { ForgotPasswordDto } from "../application/dtos/forgot-password.dto";
 import { ResetPasswordDto } from "../application/dtos/reset-password.dto";
 import { GoogleAuthDto } from "../application/dtos/google-auth.dto";
 import { AppleAuthDto } from "../application/dtos/apple-auth.dto";
+import { LogoutDto, LogoutResponseDto } from "../application/dtos/logout.dto";
 import { AuthValidateResultModel } from "../application/dtos/auth-response.dto";
 import * as crypto from "crypto";
 
@@ -47,6 +51,8 @@ export class AuthController {
     private readonly resetPasswordUseCase: ResetPasswordUseCase,
     private readonly googleAuthUseCase: GoogleAuthUseCase,
     private readonly appleAuthUseCase: AppleAuthUseCase,
+    private readonly logoutUseCase: LogoutUseCase,
+    private readonly tokenService: TokenService,
   ) {}
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -295,4 +301,53 @@ export class AuthController {
 
     return this.appleAuthUseCase.execute(token, dto);
   }
+
+  @Post("logout")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Logout user device session",
+    description:
+      "Terminates the user's active session by invalidating the refresh token. Can optionally terminate all sessions across all devices if allDevices is set to true.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User logged out successfully",
+    type: LogoutResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Missing refreshToken or valid Authorization token",
+  })
+  async logout(
+    @Body() dto?: LogoutDto,
+    @Headers("authorization") authHeader?: string,
+  ): Promise<LogoutResponseDto> {
+    let authenticatedUserId: number | undefined;
+    if (authHeader) {
+      try {
+        const token = authHeader
+          .replace(/^(Bearer\s*)+/i, "")
+          .trim()
+          .replace(/^["']|["']$/g, "");
+        if (token) {
+          const decoded = this.tokenService.verifyAccessToken(token);
+          if (decoded?.sub) {
+            authenticatedUserId = Number(decoded.sub);
+          }
+        }
+      } catch {
+        // If Bearer token is expired/invalid, allow logout to proceed using refreshToken in body
+      }
+    }
+
+    const result = await this.logoutUseCase.execute(dto, authenticatedUserId);
+
+    return {
+      status: "success",
+      message: "Logged out successfully",
+      data: result,
+    };
+  }
 }
+

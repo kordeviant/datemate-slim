@@ -32,7 +32,12 @@ describe('PrismaAdminRepository', () => {
         count: jest.fn(),
       },
       userSession: {
+        findFirst: jest.fn(),
+        delete: jest.fn(),
         deleteMany: jest.fn(),
+      },
+      swipe: {
+        findMany: jest.fn(),
       },
       notification: {
         create: jest.fn(),
@@ -783,6 +788,47 @@ describe('PrismaAdminRepository', () => {
       expect(result.interests).toEqual(['Hiking']);
       expect(result.transactions).toEqual([]);
       expect(result.chatRooms).toEqual([]);
+      expect(result.devices).toEqual([]);
+      expect(result.likes).toEqual([]);
+    });
+  });
+
+  describe('terminateUserDevice', () => {
+    it('should throw NotFoundException if user is not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(repository.terminateUserDevice(12, 10)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw NotFoundException if session is not found for user', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 12 });
+      mockPrisma.userSession.findFirst.mockResolvedValueOnce(null);
+
+      await expect(repository.terminateUserDevice(12, 10)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should delete session and return TerminateDeviceResult', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 12 });
+      mockPrisma.userSession.findFirst.mockResolvedValueOnce({
+        id: 10,
+        userId: 12,
+      });
+      mockPrisma.userSession.delete.mockResolvedValueOnce({});
+
+      const result = await repository.terminateUserDevice(12, 10);
+
+      expect(mockPrisma.userSession.delete).toHaveBeenCalledWith({
+        where: { id: 10 },
+      });
+      expect(result).toEqual({
+        userId: 12,
+        deviceId: 10,
+        terminated: true,
+      });
     });
   });
 

@@ -55,3 +55,10 @@ export interface DeleteUserGalleryItemResult {
   deleted: boolean;
 }
 
+export interface TerminateDeviceResult {
+  userId: number;
+  deviceId: number;
+  terminated: boolean;
+}
+
+

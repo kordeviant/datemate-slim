@@ -162,7 +162,9 @@ The Admin Module provides administration, monitoring, user directory search, acc
 - `GET /v1/admin/users/count`: Returns the total registered user count, supporting optional status filtering (`ALL`, `PENDING_VERIFICATION`, `BLOCKED`, `ONLINE`).
 - `GET /v1/admin/users/pending-selfies/count`: Returns the count of unvalidated users who have a non-empty selfie URL and `profileValidated = false`.
 - `GET /v1/admin/users`: Lightweight paginated user directory with multi-field search (`search`), status filters (`ALL`, `BLOCKED`, `PENDING_VERIFICATION`, `COMPLETED`), gender filters (`MALE`, `FEMALE`, `ALL`), age range filters (`minAge`, `maxAge`), and sorting (`createdAt`, `lastSeenAt`, `wallet`). Excludes heavy payloads (gallery, bio, transactions, chatRooms) for fast listing. Returns `id`, `email`, `fullName`, `avatarUrl`, `age`, `gender`, `isPremium`, `hasPendingSelfie`, `profileValidated`, `isOnline`, `bannedUntil`, and `createdAt`.
-- `GET /v1/admin/users/:id`: Full user details endpoint providing complete inspection data for the admin details modal/tabs: demographics, full photo gallery, transactions, chatRooms, and interests.
+- `GET /v1/admin/users/:id`: Full user details endpoint providing complete inspection data for the admin details modal/tabs: demographics, full photo gallery, transactions, chatRooms, **devices** (list of user sessions: `id`, `deviceInfo`, `fcmToken`, `isActive`, `expiresAt`, `createdAt`), **likes** (list of right swipes received and sent: `id`, `userId`, `fullName`, `username`, `avatarUrl`, `city`, `type` ['RECEIVED' | 'SENT'], `createdAt`), and interests.
+- `DELETE /v1/admin/users/:userId/devices/:deviceId`: Terminate device session endpoint allowing administrators to terminate / log out an active device session of a user by userId and deviceId (session ID). Returns `{ success: true, message: "Device session terminated successfully", data: { userId, deviceId, terminated: true } }`.
+- `DELETE /v1/admin/users/:userId/devices`: Terminate all device sessions endpoint allowing administrators to terminate / log out all device sessions of a user by userId. Returns `{ success: true, message: "All user device sessions terminated successfully", data: { userId, terminated: true, count: number } }`.
 - `DELETE /v1/admin/users/:id`: Permanently deletes a single user by ID and cascades through all associated records (sessions, profile, demographics, gallery, swipes, matches, messages). Strictly deletes only one user per request (multi-user delete is not supported).
 - `DELETE /v1/admin/users/:userId/gallery/:galleryId`: Deletes a specific gallery photo for a user. If the deleted photo was the active profile picture, the backend automatically falls back to another gallery photo or clears `profilePictureUrl`. Returns `{ success: true, message: "Gallery image deleted successfully", data: { userId, galleryId, deleted: true } }`.
 - `PATCH / PUT /v1/admin/users/:id`: Updates user moderation fields (bio, fullName, premium, wallet, and confirms selfie verification).
@@ -283,6 +285,30 @@ The Authentication module supports consumer mobile applications and web administ
     }
     ```
 - **Admin Seeding**: Seeded admin user can be provisioned via `npm run seed:users` (`admin` / `admin@datemate.com`).
+
+### 8.2 Client Logout API (`POST /v1/auth/logout` & `/auth/logout`)
+- **Flexible Token Handling**: Accepts session refresh token (`refreshToken` or `token` alias) in JSON body, and/or bearer access token in `Authorization: Bearer <token>` header.
+- **Single-Device or All-Devices Revocation**:
+  - By default, revokes the specific session tied to the provided `refreshToken`.
+  - When `allDevices: true` is sent, immediately terminates all active sessions across all devices for the authenticated user.
+  - If only the `Authorization` bearer token is provided without a `refreshToken`, revokes the user's active sessions.
+- **Graceful Token Expiry Handling**: If the bearer access token is expired, clients can still log out successfully by providing their `refreshToken` in the request body.
+- **Standard Response Contract**: Returns `{ status: "success", message: "Logged out successfully", data: { loggedOut: true } }`.
+
+### 8.3 Client Device Management & Termination (`GET /v1/users/devices`, `DELETE /v1/users/devices/:deviceId`, `DELETE /v1/users/devices`)
+- **Get Active & Inactive Devices (`GET /v1/users/devices`)**:
+  - Retrieves all device sessions for the authenticated user with explicit categorization (`devices`, `activeDevices`, `inactiveDevices`, `total`, `activeCount`, `inactiveCount`).
+  - Automatically identifies whether each session is currently active (`isActive = true` when `expiresAt > now`).
+  - Automatically tags the caller's current session (`isCurrent = true`) when `x-refresh-token` header or `refreshToken` query parameter is supplied.
+  - Standard response envelope: `{ status: "success", message: "User devices retrieved successfully", data: { devices, activeDevices, inactiveDevices, total, activeCount, inactiveCount } }`.
+- **Terminate a Specific Device Session (`DELETE /v1/users/devices/:deviceId`)**:
+  - Authenticated user can terminate/log out any specific device session by deviceId.
+  - Strictly verifies that the session belongs to the authenticated user (returns 404 if not found or belongs to another user).
+  - Standard response envelope: `{ status: "success", success: true, message: "Device session terminated successfully", data: { deviceId, terminated: true } }`.
+- **Terminate All Devices or All Except Current (`DELETE /v1/users/devices`)**:
+  - When `excludeCurrent` is omitted or `false`, terminates all active and inactive device sessions for the authenticated user.
+  - When `excludeCurrent=true`, terminates all device sessions EXCEPT the current caller's session. Requires the current session's refresh token passed via `x-refresh-token` header, query parameter, or JSON request body.
+  - Standard response envelope: `{ status: "success", success: true, message: "Device sessions terminated successfully", data: { terminatedCount, excludedCurrent } }`.
 
 ---
 

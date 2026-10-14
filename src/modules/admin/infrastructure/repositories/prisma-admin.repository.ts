@@ -10,13 +10,16 @@ import { AdminDashboardOverviewData } from '../../domain/entities/admin-dashboar
 import {
   AdminUserDetails,
   AdminUserDemographicDetails,
+  AdminUserDeviceDetails,
   AdminUserGalleryItemDetails,
+  AdminUserLikeDetails,
 } from '../../domain/entities/admin-user-details.entity';
 import {
   AdminUserGalleryItem,
   AdminUserItem,
   AdminUsersPaginatedResult,
   DeleteUserGalleryItemResult,
+  TerminateDeviceResult,
 } from '../../domain/entities/admin-user-item.entity';
 import {
   AdminVerificationItem,
@@ -1161,6 +1164,9 @@ export class PrismaAdminRepository implements IAdminRepository {
             interest: true,
           },
         },
+        sessions: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -1219,6 +1225,80 @@ export class PrismaAdminRepository implements IAdminRepository {
       relationStatus: user.demographic?.relationStatus ?? null,
     };
 
+    const devices: AdminUserDeviceDetails[] = (
+      (user as any).sessions || []
+    ).map((s: any) => ({
+      id: s.id,
+      deviceInfo: s.deviceInfo || 'Unknown Device',
+      fcmToken: s.fcmToken ?? null,
+      isActive: s.expiresAt ? new Date(s.expiresAt) > now : false,
+      expiresAt: s.expiresAt
+        ? typeof s.expiresAt.toISOString === 'function'
+          ? s.expiresAt.toISOString()
+          : String(s.expiresAt)
+        : new Date().toISOString(),
+      createdAt: s.createdAt
+        ? typeof s.createdAt.toISOString === 'function'
+          ? s.createdAt.toISOString()
+          : String(s.createdAt)
+        : new Date().toISOString(),
+    }));
+
+    const swipes = this.prisma.swipe?.findMany
+      ? await this.prisma.swipe.findMany({
+          where: {
+            OR: [
+              { toUserId: userId, direction: 'RIGHT' },
+              { fromUserId: userId, direction: 'RIGHT' },
+            ],
+          },
+          include: {
+            fromUser: {
+              include: {
+                profile: true,
+                demographic: {
+                  include: {
+                    city: true,
+                  },
+                },
+              },
+            },
+            toUser: {
+              include: {
+                profile: true,
+                demographic: {
+                  include: {
+                    city: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+
+    const likes: AdminUserLikeDetails[] = (swipes || []).map((s: any) => {
+      const isReceived = s.toUserId === userId;
+      const otherUser = isReceived ? s.fromUser : s.toUser;
+      return {
+        id: s.id,
+        userId: otherUser?.id ?? (isReceived ? s.fromUserId : s.toUserId),
+        fullName: otherUser?.profile?.fullName ?? '',
+        username: otherUser?.profile?.username ?? null,
+        avatarUrl: otherUser?.profile?.avatarUrl
+          ? this.mediaUrlResolver.resolveUrl(otherUser.profile.avatarUrl)
+          : null,
+        city: otherUser?.demographic?.city?.name ?? null,
+        type: isReceived ? 'RECEIVED' : 'SENT',
+        createdAt: s.createdAt
+          ? typeof s.createdAt.toISOString === 'function'
+            ? s.createdAt.toISOString()
+            : String(s.createdAt)
+          : new Date().toISOString(),
+      };
+    });
+
     return {
       id: user.id,
       email: user.email,
@@ -1254,17 +1334,87 @@ export class PrismaAdminRepository implements IAdminRepository {
           ? user.profile.lastSeenAt.toISOString()
           : String(user.profile.lastSeenAt)
         : null,
-      createdAt: typeof user.createdAt.toISOString === 'function'
-        ? user.createdAt.toISOString()
-        : String(user.createdAt),
-      updatedAt: typeof user.updatedAt.toISOString === 'function'
-        ? user.updatedAt.toISOString()
-        : String(user.updatedAt),
+      createdAt:
+        typeof user.createdAt.toISOString === 'function'
+          ? user.createdAt.toISOString()
+          : String(user.createdAt),
+      updatedAt:
+        typeof user.updatedAt.toISOString === 'function'
+          ? user.updatedAt.toISOString()
+          : String(user.updatedAt),
       demographic,
       gallery,
       transactions: [],
       chatRooms: [],
+      devices,
+      likes,
       interests,
+    };
+  }
+
+  async terminateUserDevice(
+    userId: number,
+    deviceId: number,
+  ): Promise<TerminateDeviceResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('کاربر مورد نظر یافت نشد');
+    }
+
+    const session = await this.prisma.userSession.findFirst({
+      where: {
+        id: deviceId,
+        userId,
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException('دستگاه یا نشست مورد نظر یافت نشد');
+    }
+
+    await this.prisma.userSession.delete({
+      where: { id: deviceId },
+    });
+
+    this.logger.log(
+      `Admin terminated device session ${deviceId} for user ${userId}`,
+    );
+
+    return {
+      userId,
+      deviceId,
+      terminated: true,
+    };
+  }
+
+  async terminateAllUserDevices(
+    userId: number,
+  ): Promise<{ userId: number; terminated: boolean; count: number }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('کاربر مورد نظر یافت نشد');
+    }
+
+    const deleteResult = await this.prisma.userSession.deleteMany({
+      where: { userId },
+    });
+
+    this.logger.log(
+      `Admin terminated all device sessions (${deleteResult.count}) for user ${userId}`,
+    );
+
+    return {
+      userId,
+      terminated: true,
+      count: deleteResult.count,
     };
   }
 

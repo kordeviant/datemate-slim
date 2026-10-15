@@ -18,6 +18,7 @@ import { LogoutUseCase } from "./application/use-cases/logout.use-case";
 import { GetUserDevicesUseCase } from "./application/use-cases/get-user-devices.use-case";
 import { TerminateClientDeviceUseCase } from "./application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "./application/use-cases/terminate-all-client-devices.use-case";
+import { GetBulkUsersUseCase } from "./application/use-cases/get-bulk-users.use-case";
 import { PasswordHasherService } from "./application/services/password-hasher.service";
 import { TokenService } from "./application/services/token.service";
 import { AppleAuthService } from "./application/services/apple-auth.service";
@@ -65,6 +66,7 @@ import { MediaModule } from "../media/media.module";
     GetUserDevicesUseCase,
     TerminateClientDeviceUseCase,
     TerminateAllClientDevicesUseCase,
+    GetBulkUsersUseCase,
   ],
   exports: [
     USER_REPOSITORY,
@@ -79,6 +81,7 @@ import { MediaModule } from "../media/media.module";
     GetUserDevicesUseCase,
     TerminateClientDeviceUseCase,
     TerminateAllClientDevicesUseCase,
+    GetBulkUsersUseCase,
   ],
 })
 export class AuthModule {}

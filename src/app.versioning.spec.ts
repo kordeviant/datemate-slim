@@ -22,6 +22,7 @@ import { LogoutUseCase } from "./modules/auth/application/use-cases/logout.use-c
 import { GetUserDevicesUseCase } from "./modules/auth/application/use-cases/get-user-devices.use-case";
 import { TerminateClientDeviceUseCase } from "./modules/auth/application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "./modules/auth/application/use-cases/terminate-all-client-devices.use-case";
+import { GetBulkUsersUseCase } from "./modules/auth/application/use-cases/get-bulk-users.use-case";
 
 describe("API Versioning (v1)", () => {
   let app: INestApplication;
@@ -48,6 +49,7 @@ describe("API Versioning (v1)", () => {
         { provide: GetUserDevicesUseCase, useValue: { execute: jest.fn() } },
         { provide: TerminateClientDeviceUseCase, useValue: { execute: jest.fn() } },
         { provide: TerminateAllClientDevicesUseCase, useValue: { execute: jest.fn() } },
+        { provide: GetBulkUsersUseCase, useValue: { execute: jest.fn().mockResolvedValue([]) } },
       ],
     }).compile();
 
@@ -162,6 +164,14 @@ describe("API Versioning (v1)", () => {
     it("POST /auth/nonce without /v1 returns 404", async () => {
       const res = await request(app.getHttpServer()).post("/auth/nonce");
       expect(res.status).toBe(404);
+    });
+
+    it("POST /v1/users/bulk succeeds with 200 and accepts bare array", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/v1/users/bulk")
+        .send([1, 2]);
+      expect(res.status).toBe(200);
+      expect(res.body).toBeDefined();
     });
   });
 });

@@ -9,6 +9,7 @@ import { DeleteGalleryImageUseCase } from "../application/use-cases/delete-galle
 import { GetUserDevicesUseCase } from "../application/use-cases/get-user-devices.use-case";
 import { TerminateClientDeviceUseCase } from "../application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "../application/use-cases/terminate-all-client-devices.use-case";
+import { GetBulkUsersUseCase } from "../application/use-cases/get-bulk-users.use-case";
 
 describe("UsersController", () => {
   let controller: UsersController;
@@ -20,6 +21,7 @@ describe("UsersController", () => {
   let mockGetUserDevicesUseCase: any;
   let mockTerminateClientDeviceUseCase: any;
   let mockTerminateAllClientDevicesUseCase: any;
+  let mockGetBulkUsersUseCase: any;
 
   beforeEach(async () => {
     mockTokenService = {
@@ -54,6 +56,10 @@ describe("UsersController", () => {
       execute: jest.fn(),
     };
 
+    mockGetBulkUsersUseCase = {
+      execute: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -65,6 +71,7 @@ describe("UsersController", () => {
         { provide: GetUserDevicesUseCase, useValue: mockGetUserDevicesUseCase },
         { provide: TerminateClientDeviceUseCase, useValue: mockTerminateClientDeviceUseCase },
         { provide: TerminateAllClientDevicesUseCase, useValue: mockTerminateAllClientDevicesUseCase },
+        { provide: GetBulkUsersUseCase, useValue: mockGetBulkUsersUseCase },
       ],
     }).compile();
 
@@ -659,5 +666,60 @@ describe("UsersController", () => {
       });
     });
   });
+
+  describe("POST /users/bulk", () => {
+    it("should accept bare array of user IDs and return bulk user details", async () => {
+      const mockUsers = [
+        {
+          id: 1,
+          avatar: "http://localhost:3000/assets/avatars/user1.webp",
+          username: "alice",
+          fullName: "Alice Smith",
+        },
+        {
+          id: 2,
+          avatar: "http://localhost:3000/assets/avatars/user2.webp",
+          username: "bob",
+          fullName: "Bob Jones",
+        },
+      ];
+      mockGetBulkUsersUseCase.execute.mockResolvedValue(mockUsers);
+
+      const res = await controller.getBulkUsers([1, 2]);
+
+      expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([1, 2]);
+      expect(res).toEqual(mockUsers);
+    });
+
+    it("should verify token if authHeader is provided", async () => {
+      mockGetBulkUsersUseCase.execute.mockResolvedValue([]);
+
+      await controller.getBulkUsers([1], "Bearer valid_token");
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([1]);
+    });
+
+    it("should extract IDs if wrapped in object with userIds or ids", async () => {
+      mockGetBulkUsersUseCase.execute.mockResolvedValue([]);
+
+      await controller.getBulkUsers({ userIds: [10, 20] });
+      expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([10, 20]);
+
+      await controller.getBulkUsers({ ids: [30, 40] });
+      expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([30, 40]);
+    });
+
+    it("should pass empty array when body is null, undefined, or empty", async () => {
+      mockGetBulkUsersUseCase.execute.mockResolvedValue([]);
+
+      await controller.getBulkUsers([]);
+      expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([]);
+
+      await controller.getBulkUsers(null);
+      expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([]);
+    });
+  });
 });
+
 

@@ -48,6 +48,8 @@ import {
   TerminateAllClientDevicesResponseDto,
   TerminateClientDevicesDto,
 } from "../application/dtos/user-devices.dto";
+import { GetBulkUsersUseCase } from "../application/use-cases/get-bulk-users.use-case";
+import { BulkUserItemDto } from "../application/dtos/bulk-user-item.dto";
 
 @ApiTags("Users")
 @Controller({ path: "users", version: ["1", VERSION_NEUTRAL] })
@@ -61,6 +63,7 @@ export class UsersController {
     private readonly getUserDevicesUseCase: GetUserDevicesUseCase,
     private readonly terminateClientDeviceUseCase: TerminateClientDeviceUseCase,
     private readonly terminateAllClientDevicesUseCase: TerminateAllClientDevicesUseCase,
+    private readonly getBulkUsersUseCase: GetBulkUsersUseCase,
   ) {}
 
   @Delete(["me", "account"])
@@ -357,6 +360,59 @@ export class UsersController {
     const decoded = await this.tokenService.verifyAccessToken(token);
     const profile = await this.getProfileUseCase.execute(decoded.sub);
     return profile.Profile.profileCompleted;
+  }
+
+  @Post("bulk")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Get bulk users by IDs",
+    description:
+      "Reads a list of user IDs directly from the request body and returns their id, avatar, username, and fullName.",
+  })
+  @ApiBody({
+    description: "List of user IDs",
+    schema: {
+      type: "array",
+      items: { type: "integer", example: 1 },
+      example: [1, 2, 3],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Bulk users retrieved successfully",
+    type: [BulkUserItemDto],
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Invalid access token",
+  })
+  async getBulkUsers(
+    @Body() body: any,
+    @Headers("authorization") authHeader?: string,
+  ): Promise<BulkUserItemDto[]> {
+    if (authHeader) {
+      const token = authHeader
+        .replace(/^(Bearer\s*)+/i, "")
+        .trim()
+        .replace(/^["']|["']$/g, "");
+      if (token) {
+        await this.tokenService.verifyAccessToken(token);
+      }
+    }
+
+    let rawIds: any[] = [];
+    if (Array.isArray(body)) {
+      rawIds = body;
+    } else if (body && typeof body === "object") {
+      if (Array.isArray(body.userIds)) {
+        rawIds = body.userIds;
+      } else if (Array.isArray(body.ids)) {
+        rawIds = body.ids;
+      }
+    }
+
+    return this.getBulkUsersUseCase.execute(rawIds);
   }
 
   @Get(":id")

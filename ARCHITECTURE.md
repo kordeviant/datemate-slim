@@ -254,6 +254,16 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Canonical Response Contract**: Returns the identical `ProfileResponseDto` schema as `GET /v1/users/me` (`id`, `email`, `language`, `lat`, `lon`, `profileValidated`, `isPremium`, `Profile: { fullName, username, phoneNumber, bio, languages, avatar, profilePicture, profilePictureId, profileCompleted, Demographic, RelationType, Answers, LikedActivities }`, and `gallery`).
 - **Error Handling**: Missing or invalid token returns `401 Unauthorized`; non-existent user ID returns `404 Not Found`.
 
+### 7.7 Bulk Users Retrieval (`POST /v1/users/bulk`)
+- **Purpose**: High-performance batch endpoint to resolve multiple users' basic public profile information (e.g. for chat conversations, participant lists, and match previews) in a single request.
+- **Request Body**: Accepts a list of user IDs directly as a JSON array (`[1, 2, 3]`), or optionally wrapped in an object (`{ "userIds": [1, 2, 3] }` / `{ "ids": [1, 2, 3] }`).
+- **Response Contract**: Returns a list of user items, preserving the requested order of IDs, each containing:
+  - `id`: User ID (`number`)
+  - `avatar`: Publicly resolved avatar URL (`string | null`)
+  - `username`: Username handle (`string | null`)
+  - `fullName`: User's full name (`string | null`)
+- **Authentication**: Optional Bearer token authentication (verified if provided; allows service-to-service calls).
+
 ---
 
 

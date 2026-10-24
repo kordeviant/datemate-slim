@@ -29,7 +29,21 @@ async function bootstrap() {
         ? false
         : trustProxySetting;
   app.set("trust proxy", parsedTrustProxy);
-
+  // Enable CORS
+  app.enableCors({
+    origin: [
+      'http://192.168.88.191:3003',
+      'http://192.168.88.191:3001',
+      'http://192.168.88.191:3000',
+      // Allow any port on localhost, 127.0.0.1, or local network:
+      /^http:\/\/localhost:\d+$/,
+      /^http:\/\/127\.0\.0\.1:\d+$/,
+      /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,
+    ],
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+  });
   // Serve static uploads (avatars, images)
   app.useStaticAssets(path.join(process.cwd(), "uploads"), {
     prefix: "/uploads/",
@@ -56,8 +70,6 @@ async function bootstrap() {
   // Global interceptor for unified ResponseResult<T> success envelope
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  // Enable CORS
-  app.enableCors();
 
   // Swagger Documentation Setup
   const swaggerConfig = new DocumentBuilder()

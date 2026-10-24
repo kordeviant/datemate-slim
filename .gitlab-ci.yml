@@ -58,6 +58,7 @@ deploy:
       TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
       ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
+        mkdir -p $TARGET_DIR
         cd $TARGET_DIR
         echo '===> Pulling latest code...'
         export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes'

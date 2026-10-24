@@ -23,6 +23,21 @@ services:
     volumes:
       - datemate_redisdata:/data
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: datemate_backend
+    restart: always
+    network_mode: "host"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - postgres
+      - redis
+
   nginx:
     image: nginx:alpine
     container_name: datemate_nginx
@@ -34,6 +49,7 @@ services:
     depends_on:
       - postgres
       - redis
+      - backend
 
 volumes:
   datemate_pgdata:

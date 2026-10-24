@@ -83,14 +83,25 @@ deploy:
       ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
         set -e
         cd $TARGET_DIR
-        echo '===> Starting / updating Docker containers (postgres, redis, nginx)...'
-        if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-          docker compose up -d --remove-orphans
-        elif command -v docker-compose >/dev/null 2>&1; then
-          docker-compose up -d --remove-orphans
-        else
-          echo 'Warning: Neither docker compose nor docker-compose found on server'
+
+        # Stop legacy host PM2 process if running
+        if command -v pm2 >/dev/null 2>&1; then
+          pm2 stop datemate-backend >/dev/null 2>&1 || true
+          pm2 delete datemate-backend >/dev/null 2>&1 || true
         fi
+
+        echo '===> Detecting docker compose...'
+        if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+          DC='docker compose'
+        elif command -v docker-compose >/dev/null 2>&1; then
+          DC='docker-compose'
+        else
+          echo 'Error: Neither docker compose nor docker-compose found on server'
+          exit 1
+        fi
+
+        echo '===> Starting database and cache services...'
+        \$DC up -d postgres redis
 
         echo '===> Waiting for database readiness...'
         for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
@@ -102,38 +113,26 @@ deploy:
           sleep 1
         done
 
-        echo '===> Installing dependencies...'
-        npm ci
+        echo '===> Building and starting backend and nginx in Docker...'
+        \$DC up -d --build --remove-orphans backend nginx
 
-        echo '===> Generating Prisma client...'
-        npx prisma generate
-
-        echo '===> Running database migrations...'
-        npx prisma migrate deploy
+        echo '===> Running database migrations inside backend container...'
+        docker exec datemate_backend npx prisma migrate deploy
 
         echo '===> Checking migration status...'
-        npx prisma migrate status
+        docker exec datemate_backend npx prisma migrate status
 
-         echo '===> Seeding questions...'
-         npx ts-node prisma/seed-questions.ts
+        echo '===> Seeding questions...'
+        docker exec datemate_backend npx ts-node prisma/seed-questions.ts || true
 
-         echo '===> Seeding interests...'
-         npx ts-node prisma/seed-interests.ts
+        echo '===> Seeding interests...'
+        docker exec datemate_backend npx ts-node prisma/seed-interests.ts || true
 
-         echo '===> Seeding Users...'
-         npx ts-node prisma/seed-users.ts
-
-        echo '===> Building project...'
-        npm run build
-
-        echo '===> Starting / reloading backend with PM2...'
-        pm2 reload datemate-backend || pm2 restart datemate-backend || pm2 start dist/src/main.js --name 'datemate-backend'
-        pm2 save
+        echo '===> Seeding Users...'
+        docker exec datemate_backend npx ts-node prisma/seed-users.ts || true
 
         echo '===> Reloading Nginx proxy...'
-        if command -v docker >/dev/null 2>&1; then
-          docker exec datemate_nginx nginx -s reload || true
-        fi
+        docker exec datemate_nginx nginx -s reload || true
 
-        echo '===> Deployment completed successfully!'
+        echo '===> Deployment completed successfully with Docker!'
       "

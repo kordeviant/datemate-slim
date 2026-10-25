@@ -4,8 +4,14 @@ stages:
   - test
   - deploy
 
+default:
+  tags:
+    - datemate
+
 test:
   stage: test
+  tags:
+    - datemate
   script:
     - |
       if [ -n "$ENV_FILE_CONTENT" ]; then
@@ -22,6 +28,8 @@ test:
 
 deploy:
   stage: deploy
+  tags:
+    - datemate
   image: alpine:latest
   only:
     - main

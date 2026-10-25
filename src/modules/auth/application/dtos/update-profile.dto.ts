@@ -46,8 +46,17 @@ export const transformJsonOrObject = <T>(cls: new () => T) => {
         } catch {
           return value;
         }
+      } else {
+        const num = Number(trimmed);
+        if (!isNaN(num) && trimmed !== '') {
+          return plainToInstance(cls, { id: num });
+        }
+        return plainToInstance(cls, { name: trimmed });
       }
+    } else if (typeof value === 'number') {
+      return plainToInstance(cls, { id: value });
     }
+
     if (parsed && typeof parsed === 'object') {
       if (Array.isArray(parsed)) {
         if (parsed.length > 1) {
@@ -115,9 +124,33 @@ export class GalleryDto {
 export class CityDto {
   @ApiPropertyOptional({ example: 12, description: 'Selected city ID' })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  id?: number;
+  @Transform(({ value }) => {
+    if (value === undefined || value === null) return undefined;
+    const num = Number(value);
+    return !isNaN(num) ? num : value;
+  })
+  id?: number | string;
+
+  @ApiPropertyOptional({ example: 'Tehran', description: 'Selected city name' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Selected state object or name' })
+  @IsOptional()
+  State?: any;
+
+  @ApiPropertyOptional({ description: 'Selected state (lowercase alias)' })
+  @IsOptional()
+  state?: any;
+
+  @ApiPropertyOptional({ description: 'Selected country object or name' })
+  @IsOptional()
+  Country?: any;
+
+  @ApiPropertyOptional({ description: 'Selected country (lowercase alias)' })
+  @IsOptional()
+  country?: any;
 }
 
 export class DemographicDto {
@@ -205,19 +238,12 @@ export class DemographicDto {
   @IsString()
   relationStatus?: string;
 
-  @ApiPropertyOptional({ type: CityDto, description: 'Selected city' })
+  @ApiPropertyOptional({ type: CityDto, description: 'Selected city details' })
   @IsOptional()
   @Transform(transformJsonOrObject(CityDto))
   @ValidateNested()
   @Type(() => CityDto)
   City?: CityDto;
-
-  @ApiPropertyOptional({ type: CityDto, description: 'Selected city (lowercase alias)' })
-  @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
-  @ValidateNested()
-  @Type(() => CityDto)
-  city?: CityDto;
 
   @ApiPropertyOptional({ example: 12, description: 'City ID flat field' })
   @IsOptional()
@@ -630,20 +656,6 @@ export class UpdateProfileDto {
   @Type(() => Number)
   @IsNumber()
   cityId?: number;
-
-  @ApiPropertyOptional({ type: CityDto, description: 'Selected City (flat fallback)' })
-  @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
-  @ValidateNested()
-  @Type(() => CityDto)
-  City?: CityDto;
-
-  @ApiPropertyOptional({ type: CityDto, description: 'Selected city lowercase (flat fallback)' })
-  @IsOptional()
-  @Transform(transformJsonOrObject(CityDto))
-  @ValidateNested()
-  @Type(() => CityDto)
-  city?: CityDto;
 
   @ApiPropertyOptional({
     type: 'string',

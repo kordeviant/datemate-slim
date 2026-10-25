@@ -249,6 +249,29 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Cascading Purge**: Removes user sessions, profiles, demographics, preferences, personalities, galleries, swipes, matches, and messages. Cleans up associated media files from local storage.
 - **Response Contract**: Returns `{ status: "success", message: "Account deleted successfully", data: { userId, deleted: true } }`.
 
+### 7.6 In-Process Geographic & Dataset Download Engine (`src/infrastructure/geo`)
+- **Self-Contained In-Memory Engine**: Geographic datasets (`countries.json`, `states.json`, `cities.json`, `countries_states_cities.json`) are housed natively in `data/geo/` and indexed in memory on startup. Zero external HTTP/proxy dependencies on port 5454.
+- **Unified Domain Routing**: All `/v1/geo/*` and `/v1/downloads/*` endpoints are served directly by the DateMate Backend on `api-datemate.testdevvvv.site` (with dl domain routed to backend as well).
+- **Comprehensive Filter Support**:
+  - `GET /v1/geo/countries`: Supports `?search=...`, `?envelope=true`, `?download=true` (sets `X-Total-Count`, `Content-Disposition`).
+  - `GET /v1/geo/countries/:idOrName`: Resolves country by ID, name, or alias (`usa`, `us`, `america`, `uk`, etc.).
+  - `GET /v1/geo/countries/:idOrName/states`: Resolves country's states (e.g. 60 states for America) with `?search=...`, `?envelope=true`.
+  - `GET /v1/geo/states`: Retrieves states filtered by `?countryId=...`, `?country=...`, or `?search=...`.
+  - `GET /v1/geo/states/:idOrName/cities`: Retrieves cities of a state (e.g. 311 cities for Alabama) with `?search=...`, `?limit=...`, `?offset=...`.
+  - `GET /v1/geo/countries/:idOrName/cities`: Retrieves all cities in a country with pagination and search.
+  - `GET /v1/geo/cities/:idOrName`: Resolves single city by ID or name (including Persian name transliteration map: e.g. `'تهران'` -> `'Tehran'`).
+  - `GET /v1/geo/cities`: Resolves single city by `?id=...` or `?cityId=...`, or returns filtered list by state/country with pagination.
+  - `GET /v1/geo/countries/:idOrName/hierarchy`: Returns complete nested hierarchy (`Country -> States -> Cities`).
+- **Downloads & Catalog Engine**:
+  - `GET /v1/downloads/catalog`: Discovers registered packages with file sizes, update dates, and filter capabilities.
+  - `GET /v1/downloads/raw/:filename`: Directly streams static JSON files.
+  - Convenience endpoints (`/v1/downloads/countries`, `/v1/downloads/states`, `/v1/downloads/cities`, `/v1/downloads/hierarchy`) force attachment download.
+- **Single Canonical Contract (No Aliases)**:
+  - In user profile responses (`GET /v1/users/profile`, `PUT /v1/users/profile`), city details reside exclusively at `Profile.Demographic.City` (`CityResponseDto` containing `id`, `name`, and nested `State: { id, name, Country }`).
+  - Redundant field aliases (such as `City`, `city`, `cityName`, `citiName` at the `Profile` or root level, or `city` / `cityName` inside `Demographic`) are strictly forbidden.
+  - In flat candidate DTOs (Feed, Recommended, Likes), the canonical city string is `city: string | null`.
+- **Database Resilience**: During profile update transactions (`PUT /v1/users/profile` and `POST /v1/users/profile`), `demographics.city_id` stores the resolved geo ID (with FK constraint removed to prevent unseeded Postgres table errors) and optionally persists `city_name`.
+
 ### 7.6 Client User Profile Retrieval (`GET /v1/users/:id`)
 - **Target Profile Inspection**: Allows authenticated clients to inspect any user's profile card by ID (e.g., when opening a profile from Feed or Matches).
 - **Canonical Response Contract**: Returns the identical `ProfileResponseDto` schema as `GET /v1/users/me` (`id`, `email`, `language`, `lat`, `lon`, `profileValidated`, `isPremium`, `Profile: { fullName, username, phoneNumber, bio, languages, avatar, profilePicture, profilePictureId, profileCompleted, Demographic, RelationType, Answers, LikedActivities }`, and `gallery`).
@@ -263,6 +286,24 @@ The User Gallery system enables users to upload, manage, and curate their photo 
   - `username`: Username handle (`string | null`)
   - `fullName`: User's full name (`string | null`)
 - **Authentication**: Optional Bearer token authentication (verified if provided; allows service-to-service calls).
+
+### 7.8 Device Push Token & Device Info APIs (`PUT /v1/users/device-token`, `GET /v1/users/:userId/device-token`)
+- **Single Canonical Contract (Strictly Zero Aliases)**:
+  - Canonical field names are strictly `token` (`string`) and `deviceInfo` (`string | null`).
+  - No aliases (`fcmToken`, `deviceToken`, `device_token`, `fcm_token`, `Token`, `DeviceInfo`, etc.) are permitted.
+- **Update Device Token (`PUT /v1/users/device-token`)**:
+  - Authenticated user endpoint (`Bearer <token>`).
+  - Request body: `{ token: string, deviceInfo?: string }`.
+  - Automatically updates the current active session (via JWT `sessionId`) or latest active session with the new device push token and optional device info string.
+  - Returns: `{ status: "success", message: "Device token updated successfully", data: { userId, token, deviceInfo } }`.
+- **Get Device Token & Device Info by User ID (`GET /v1/users/:userId/device-token`)**:
+  - Path parameter: `userId` (number).
+  - **Authentication**: Authenticated strictly via API key (`ApiKeyGuard`), NOT user JWT. The API key may be passed in header `x-api-key: <key>`, `Authorization: ApiKey <key>`, `Authorization: Bearer <key>`, or query param `?apiKey=<key>`.
+  - Configurable via `DEVICE_TOKEN_API_KEY`, `INTERNAL_API_KEY`, or `API_KEY` environment variables (with default development key `datemate_device_token_api_key_2026`).
+  - Retrieves the user's active device push token and device information.
+  - Returns `401 Unauthorized` if API key is missing or invalid.
+  - Returns `404 Not Found` if the user does not exist.
+  - Returns: `{ status: "success", message: "Device token retrieved successfully", data: { userId, token, deviceInfo } }`.
 
 ---
 

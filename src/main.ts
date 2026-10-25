@@ -7,6 +7,7 @@ import { TransformInterceptor } from "./common/interceptors/transform.intercepto
 import { ConfigService } from "@nestjs/config";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import * as path from "path";
+import * as fs from "fs";
 import { DocsProtectionMiddleware } from "./common/middleware/docs-protection.middleware";
 
 async function bootstrap() {
@@ -29,17 +30,9 @@ async function bootstrap() {
         ? false
         : trustProxySetting;
   app.set("trust proxy", parsedTrustProxy);
-  // Enable CORS
+  // Enable CORS only allow on port 3001
   app.enableCors({
-    origin: [
-      'http://192.168.88.191:3003',
-      'http://192.168.88.191:3001',
-      'http://192.168.88.191:3000',
-      // Allow any port on localhost, 127.0.0.1, or local network:
-      /^http:\/\/localhost:\d+$/,
-      /^http:\/\/127\.0\.0\.1:\d+$/,
-      /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/,
-    ],
+    origin: ['http://localhost:3001', 'https://panel-datemate.testdevvvv.site','http://panel-datemate.testdevvvv.site/'],
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
@@ -48,6 +41,19 @@ async function bootstrap() {
   app.useStaticAssets(path.join(process.cwd(), "uploads"), {
     prefix: "/uploads/",
   });
+
+  // Serve raw static dataset files under /static
+  const geoDataDir = path.join(process.cwd(), "data/geo");
+  if (fs.existsSync(geoDataDir)) {
+    app.useStaticAssets(geoDataDir, {
+      prefix: "/static/",
+      setHeaders: (res: any, filePath: string) => {
+        if (filePath.endsWith(".json")) {
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+        }
+      },
+    });
+  }
 
   // Enable URI Versioning (e.g. /v1/auth/..., /v1/users/...)
   app.enableVersioning({
@@ -88,6 +94,15 @@ async function bootstrap() {
         in: "header",
       },
       "JWT-auth",
+    )
+    .addApiKey(
+      {
+        type: "apiKey",
+        name: "x-api-key",
+        in: "header",
+        description: "Internal Service API Key (e.g. for retrieving device tokens)",
+      },
+      "api-key",
     )
     .build();
 

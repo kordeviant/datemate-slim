@@ -1,9 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Gender, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { GeoLookupService } from '../../../../infrastructure/geo/geo-lookup.service';
 import { formatPersianRelativeTime } from '../../../../common/utils/persian-date.util';
 import { AdminDashboardStats } from '../../domain/entities/admin-dashboard-stats.entity';
 import { AdminDashboardOverviewData } from '../../domain/entities/admin-dashboard-overview.entity';
@@ -41,6 +42,7 @@ export class PrismaAdminRepository implements IAdminRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mediaUrlResolver: MediaUrlResolverService,
+    @Optional() private readonly geoLookupService?: GeoLookupService,
   ) {}
 
   async getDashboardStats(): Promise<AdminDashboardStats> {
@@ -352,8 +354,14 @@ export class PrismaAdminRepository implements IAdminRepository {
       }),
     ]);
 
-    const items: AdminUserItem[] = users.map((user) =>
-      this.mapToAdminUserItem(user, now),
+    const items: AdminUserItem[] = await Promise.all(
+      users.map(async (user) => {
+        let cityName = user.demographic?.city?.name ?? null;
+        if (!cityName && user.demographic?.cityId && this.geoLookupService) {
+          cityName = (await this.geoLookupService.resolveCity(user.demographic.cityId))?.name ?? null;
+        }
+        return this.mapToAdminUserItem(user, now, cityName);
+      }),
     );
 
     const totalPages = Math.ceil(total / limit) || 1;
@@ -422,7 +430,36 @@ export class PrismaAdminRepository implements IAdminRepository {
     const targetWeight = params.weight ?? params.demographic?.weight;
     const targetJob = params.job ?? params.demographic?.job;
 
+    const candidateCityInput =
+      (params as any)?.cityId ??
+      (params as any)?.demographic?.cityId ??
+      params.city ??
+      (params as any)?.cityName ??
+      (params as any)?.demographic?.cityName ??
+      (params as any)?.demographic?.city?.name ??
+      (params as any)?.demographic?.City?.name ??
+      (params as any)?.demographic?.city?.id ??
+      (params as any)?.demographic?.City?.id;
+
     const demographicData: any = {};
+    if (candidateCityInput !== undefined && candidateCityInput !== null && String(candidateCityInput).trim() !== '') {
+      let resolvedCityId: number | null = null;
+      if (this.geoLookupService) {
+        const resolved = await this.geoLookupService.resolveCity(candidateCityInput);
+        if (resolved) {
+          resolvedCityId = resolved.id;
+        }
+      }
+      if (!resolvedCityId) {
+        const num = Number(candidateCityInput);
+        if (!isNaN(num) && num > 0) {
+          resolvedCityId = num;
+        }
+      }
+      if (resolvedCityId) {
+        demographicData.cityId = resolvedCityId;
+      }
+    }
     if (targetGender) {
       demographicData.gender = targetGender.toUpperCase() === 'FEMALE' ? Gender.FEMALE : Gender.MALE;
     }
@@ -804,7 +841,11 @@ export class PrismaAdminRepository implements IAdminRepository {
     return this.mapToAdminUserItem(updatedUser!);
   }
 
-  private mapToAdminUserItem(user: any, referenceDate?: Date): AdminUserItem {
+  private mapToAdminUserItem(
+    user: any,
+    referenceDate?: Date,
+    resolvedCity?: string | null,
+  ): AdminUserItem {
     const now = referenceDate || new Date();
     let age: number | null = null;
     if (user.demographic?.birthDate) {
@@ -847,7 +888,7 @@ export class PrismaAdminRepository implements IAdminRepository {
       isOnline,
       bannedUntil: user.bannedUntil ? user.bannedUntil.toISOString() : null,
       createdAt: user.createdAt.toISOString(),
-      city: user.demographic?.city?.name ?? null,
+      city: resolvedCity ?? user.demographic?.city?.name ?? null,
       username: user.profile?.username ?? null,
       bio: user.profile?.bio ?? null,
       selfieVerified: Boolean(user.profileValidated),
@@ -1208,6 +1249,11 @@ export class PrismaAdminRepository implements IAdminRepository {
       .map((ui: any) => ui.interest?.nameEn || ui.interest?.nameFa || '')
       .filter(Boolean);
 
+    let cityName = user.demographic?.city?.name ?? null;
+    if (!cityName && user.demographic?.cityId && this.geoLookupService) {
+      cityName = (await this.geoLookupService.resolveCity(user.demographic.cityId))?.name ?? null;
+    }
+
     const demographic: AdminUserDemographicDetails = {
       birthDate: user.demographic?.birthDate
         ? typeof user.demographic.birthDate.toISOString === 'function'
@@ -1216,7 +1262,7 @@ export class PrismaAdminRepository implements IAdminRepository {
         : null,
       gender: user.demographic?.gender ?? null,
       age,
-      cityName: user.demographic?.city?.name ?? null,
+      cityName,
       job: user.demographic?.job ?? null,
       degree: user.demographic?.degree ?? null,
       height: user.demographic?.height ?? null,
@@ -1278,26 +1324,32 @@ export class PrismaAdminRepository implements IAdminRepository {
         })
       : [];
 
-    const likes: AdminUserLikeDetails[] = (swipes || []).map((s: any) => {
-      const isReceived = s.toUserId === userId;
-      const otherUser = isReceived ? s.fromUser : s.toUser;
-      return {
-        id: s.id,
-        userId: otherUser?.id ?? (isReceived ? s.fromUserId : s.toUserId),
-        fullName: otherUser?.profile?.fullName ?? '',
-        username: otherUser?.profile?.username ?? null,
-        avatarUrl: otherUser?.profile?.avatarUrl
-          ? this.mediaUrlResolver.resolveUrl(otherUser.profile.avatarUrl)
-          : null,
-        city: otherUser?.demographic?.city?.name ?? null,
-        type: isReceived ? 'RECEIVED' : 'SENT',
-        createdAt: s.createdAt
-          ? typeof s.createdAt.toISOString === 'function'
-            ? s.createdAt.toISOString()
-            : String(s.createdAt)
-          : new Date().toISOString(),
-      };
-    });
+    const likes: AdminUserLikeDetails[] = await Promise.all(
+      (swipes || []).map(async (s: any) => {
+        const isReceived = s.toUserId === userId;
+        const otherUser = isReceived ? s.fromUser : s.toUser;
+        let likeCity = otherUser?.demographic?.city?.name ?? null;
+        if (!likeCity && otherUser?.demographic?.cityId && this.geoLookupService) {
+          likeCity = (await this.geoLookupService.resolveCity(otherUser.demographic.cityId))?.name ?? null;
+        }
+        return {
+          id: s.id,
+          userId: otherUser?.id ?? (isReceived ? s.fromUserId : s.toUserId),
+          fullName: otherUser?.profile?.fullName ?? '',
+          username: otherUser?.profile?.username ?? null,
+          avatarUrl: otherUser?.profile?.avatarUrl
+            ? this.mediaUrlResolver.resolveUrl(otherUser.profile.avatarUrl)
+            : null,
+          city: likeCity,
+          type: isReceived ? 'RECEIVED' : 'SENT',
+          createdAt: s.createdAt
+            ? typeof s.createdAt.toISOString === 'function'
+              ? s.createdAt.toISOString()
+              : String(s.createdAt)
+            : new Date().toISOString(),
+        };
+      }),
+    );
 
     return {
       id: user.id,
@@ -1306,6 +1358,7 @@ export class PrismaAdminRepository implements IAdminRepository {
       language: user.language,
       fullName: user.profile?.fullName ?? '',
       username: user.profile?.username ?? null,
+      city: cityName,
       phoneNumber: user.profile?.phoneNumber ?? null,
       bio: user.profile?.bio ?? null,
       gender: user.demographic?.gender ?? null,

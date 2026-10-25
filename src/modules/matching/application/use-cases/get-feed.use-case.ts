@@ -61,14 +61,16 @@ export class GetFeedUseCase {
         );
         const candidatePhoto = profilePictureGallery?.imageUrl || c.avatarUrl;
 
+        const resolvedPhoto = candidatePhoto
+          ? this.mediaUrlResolver.resolveUrl(candidatePhoto)
+          : null;
+
         return {
           id: c.id,
           fullName: c.fullName,
           city: c.city,
           age: c.age,
-          profilePicture: candidatePhoto
-            ? this.mediaUrlResolver.resolveUrl(candidatePhoto)
-            : null,
+          profilePicture: resolvedPhoto,
           username: c.username,
         };
       }),

@@ -14,6 +14,7 @@ import {
   Put,
   Query,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
   UnauthorizedException,
   VERSION_NEUTRAL,
@@ -26,10 +27,12 @@ import {
   ApiHeader,
   ApiResponse,
   ApiBearerAuth,
+  ApiSecurity,
   ApiConsumes,
   ApiBody,
 } from "@nestjs/swagger";
 import { FileFieldsInterceptor } from "@nestjs/platform-express";
+import { ApiKeyGuard } from "../../../common/guards/api-key.guard";
 import { TokenService } from "../application/services/token.service";
 import { GetProfileUseCase } from "../application/use-cases/get-profile.use-case";
 import { UpdateProfileUseCase } from "../application/use-cases/update-profile.use-case";
@@ -50,6 +53,12 @@ import {
 } from "../application/dtos/user-devices.dto";
 import { GetBulkUsersUseCase } from "../application/use-cases/get-bulk-users.use-case";
 import { BulkUserItemDto } from "../application/dtos/bulk-user-item.dto";
+import { UpdateDeviceTokenUseCase } from "../application/use-cases/update-device-token.use-case";
+import { GetDeviceTokenUseCase } from "../application/use-cases/get-device-token.use-case";
+import {
+  DeviceTokenResponseDto,
+  UpdateDeviceTokenDto,
+} from "../application/dtos/device-token.dto";
 
 @ApiTags("Users")
 @Controller({ path: "users", version: ["1", VERSION_NEUTRAL] })
@@ -64,6 +73,8 @@ export class UsersController {
     private readonly terminateClientDeviceUseCase: TerminateClientDeviceUseCase,
     private readonly terminateAllClientDevicesUseCase: TerminateAllClientDevicesUseCase,
     private readonly getBulkUsersUseCase: GetBulkUsersUseCase,
+    private readonly updateDeviceTokenUseCase: UpdateDeviceTokenUseCase,
+    private readonly getDeviceTokenUseCase: GetDeviceTokenUseCase,
   ) {}
 
   @Delete(["me", "account"])
@@ -299,6 +310,54 @@ export class UsersController {
     };
   }
 
+  @Put("device-token")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Update device token",
+    description:
+      "Updates the device push notification token (and optional deviceInfo) for the authenticated user's current session.",
+  })
+  @ApiBody({ type: UpdateDeviceTokenDto })
+  @ApiResponse({
+    status: 200,
+    description: "Device token updated successfully",
+    type: DeviceTokenResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation error (missing or invalid token)",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid authorization token",
+  })
+  async updateDeviceToken(
+    @Headers("authorization") authHeader: string,
+    @Body() dto: UpdateDeviceTokenDto,
+  ): Promise<DeviceTokenResponseDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    const decoded = await this.tokenService.verifyAccessToken(token);
+
+    const result = await this.updateDeviceTokenUseCase.execute(
+      decoded.sub,
+      dto,
+      decoded.sessionId,
+    );
+
+    return {
+      status: "success",
+      message: "Device token updated successfully",
+      data: result,
+    };
+  }
+
   @Get("me")
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth("JWT-auth")
@@ -413,6 +472,52 @@ export class UsersController {
     }
 
     return this.getBulkUsersUseCase.execute(rawIds);
+  }
+
+  @Get(":userId/device-token")
+  @UseGuards(ApiKeyGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiSecurity("api-key")
+  @ApiHeader({
+    name: "x-api-key",
+    description: "Internal service API key for accessing device tokens",
+    required: true,
+    example: "datemate_device_token_api_key_2026",
+  })
+  @ApiOperation({
+    summary: "Get device token and deviceInfo by user ID",
+    description:
+      "Retrieves the active device push notification token and device info for the specified user ID. Authenticated exclusively via API key (server-to-server), not JWT.",
+  })
+  @ApiParam({
+    name: "userId",
+    description: "User ID to retrieve device token for",
+    type: Number,
+    example: 12,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Device token retrieved successfully",
+    type: DeviceTokenResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Invalid or missing API key",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "User not found",
+  })
+  async getDeviceTokenByUserId(
+    @Param("userId", ParseIntPipe) userId: number,
+  ): Promise<DeviceTokenResponseDto> {
+    const result = await this.getDeviceTokenUseCase.execute(userId);
+
+    return {
+      status: "success",
+      message: "Device token retrieved successfully",
+      data: result,
+    };
   }
 
   @Get(":id")

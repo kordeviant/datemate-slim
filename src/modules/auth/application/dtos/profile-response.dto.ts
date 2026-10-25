@@ -1,17 +1,48 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class CountryResponseDto {
+  @ApiPropertyOptional({ example: 103, description: 'Country ID', nullable: true })
+  id?: number | null;
+
+  @ApiPropertyOptional({ example: 'Iran', description: 'Country name', nullable: true })
+  name?: string | null;
+
+  @ApiPropertyOptional({ example: 'ایران', description: 'Country native name', nullable: true })
+  native?: string | null;
+
+  @ApiPropertyOptional({ example: '🇮🇷', description: 'Country emoji', nullable: true })
+  emoji?: string | null;
+}
+
+export class StateResponseDto {
+  @ApiPropertyOptional({ example: 3945, description: 'State ID', nullable: true })
+  id?: number | null;
+
+  @ApiPropertyOptional({ example: 'Tehran', description: 'State name', nullable: true })
+  name?: string | null;
+
+  @ApiPropertyOptional({ example: 103, description: 'Country ID', nullable: true })
+  countryId?: number | null;
+
+  @ApiPropertyOptional({ type: CountryResponseDto, description: 'Country details', nullable: true })
+  Country?: CountryResponseDto | null;
+}
+
 export class CityResponseDto {
-  @ApiPropertyOptional({ example: 12, description: 'City ID', nullable: true })
+  @ApiPropertyOptional({ example: 135129, description: 'City ID', nullable: true })
   id?: number | null;
 
   @ApiPropertyOptional({ example: 'Tehran', description: 'City name', nullable: true })
   name?: string | null;
 
-  @ApiPropertyOptional({ example: 'Tehran Province', description: 'State name', nullable: true })
+  @ApiPropertyOptional({ example: 'Tehran', description: 'State name (flat string)', nullable: true })
   state?: string | null;
 
-  @ApiPropertyOptional({ example: 'Iran', description: 'Country name', nullable: true })
+  @ApiPropertyOptional({ example: 'Iran', description: 'Country name (flat string)', nullable: true })
   country?: string | null;
+
+  @ApiPropertyOptional({ type: StateResponseDto, description: 'Nested State details for Android City2 schema', nullable: true })
+  State?: StateResponseDto | null;
 }
 
 export class DemographicResponseDto {

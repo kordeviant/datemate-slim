@@ -65,6 +65,7 @@ export interface AdminUserDetails {
   username: string | null;
   phoneNumber: string | null;
   bio: string | null;
+  city?: string | null;
   gender?: string | null;
   age?: number | null;
   avatarUrl: string | null;

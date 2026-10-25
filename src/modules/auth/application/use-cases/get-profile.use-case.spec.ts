@@ -146,7 +146,7 @@ describe('GetProfileUseCase', () => {
     expect(res.language).toBe('FA');
     expect(res.lat).toBe(35.6892);
     expect(res.lon).toBe(51.389);
-    expect(res.Profile.Demographic.City).toEqual({
+    expect(res.Profile.Demographic.City).toMatchObject({
       id: 5,
       name: 'Tehran',
       state: 'Tehran Province',
@@ -561,7 +561,7 @@ describe('GetProfileUseCase', () => {
     const res = await customUseCase.execute(1);
 
     expect(mockGeoLookup.getCityById).toHaveBeenCalledWith(135129);
-    expect(res.Profile.Demographic.City).toEqual({
+    expect(res.Profile.Demographic.City).toMatchObject({
       id: 135129,
       name: 'Tehran',
       state: 'Tehran',

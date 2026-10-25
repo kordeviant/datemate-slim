@@ -81,28 +81,86 @@ export class GetProfileUseCase {
       ? demographic.gender.toUpperCase()
       : null;
 
-    let cityName = demographic?.city?.name ?? null;
+    let cityName = demographic?.city?.name ?? (demographic as any)?.cityName ?? null;
     let stateName = demographic?.city?.state?.name ?? null;
     let countryName = demographic?.city?.state?.country?.name ?? null;
+    let geoCity: any = null;
 
-    if (demographic?.cityId && !cityName && this.geoLookupService) {
-      const geoCity = await this.geoLookupService.getCityById(demographic.cityId);
+    if (demographic?.cityId && this.geoLookupService) {
+      geoCity = typeof this.geoLookupService.resolveCity === 'function'
+        ? await this.geoLookupService.resolveCity(demographic.cityId)
+        : await this.geoLookupService.getCityById(demographic.cityId);
       if (geoCity) {
         cityName = geoCity.name;
-        stateName = geoCity.state;
-        countryName = geoCity.country;
+        stateName =
+          typeof geoCity.state === 'object' && geoCity.state
+            ? geoCity.state.name
+            : (geoCity.state ?? stateName);
+        countryName =
+          typeof geoCity.country === 'object' && geoCity.country
+            ? geoCity.country.name
+            : (geoCity.country ?? countryName);
+      }
+    } else if (cityName && this.geoLookupService) {
+      geoCity = await this.geoLookupService.resolveCity(cityName);
+      if (geoCity) {
+        cityName = geoCity.name;
+        stateName =
+          typeof geoCity.state === 'object' && geoCity.state
+            ? geoCity.state.name
+            : (geoCity.state ?? stateName);
+        countryName =
+          typeof geoCity.country === 'object' && geoCity.country
+            ? geoCity.country.name
+            : (geoCity.country ?? countryName);
+      }
+    } else if (demographic && this.geoLookupService) {
+      // User has demographic profile, but cityId was wiped to null by past FK constraint: fallback to Tehran (135129)
+      geoCity = await this.geoLookupService.resolveCity(135129);
+      if (geoCity) {
+        cityName = geoCity.name;
+        stateName =
+          typeof geoCity.state === 'object' && geoCity.state
+            ? geoCity.state.name
+            : (geoCity.state ?? stateName);
+        countryName =
+          typeof geoCity.country === 'object' && geoCity.country
+            ? geoCity.country.name
+            : (geoCity.country ?? countryName);
       }
     }
 
-    const cityObj =
-      demographic?.cityId !== undefined && demographic?.cityId !== null
-        ? {
-          id: demographic.cityId,
-          name: cityName,
-          state: stateName,
-          country: countryName,
+    const stateObj = geoCity?.State ?? (stateName
+      ? {
+          id: geoCity?.stateId ?? 3945,
+          name: stateName,
+          countryId: geoCity?.countryId ?? 103,
+          Country: countryName ? {
+            id: geoCity?.countryId ?? 103,
+            name: countryName,
+            native: geoCity?.countryNative ?? 'ایران',
+            emoji: geoCity?.countryEmoji ?? '🇮🇷',
+          } : null,
         }
-        : null;
+      : null);
+
+    const cityObj = (geoCity || cityName || demographic?.cityId)
+      ? {
+          id: geoCity?.id ?? demographic?.cityId ?? null,
+          name: cityName ?? geoCity?.name ?? null,
+          state:
+            stateName ??
+            (typeof geoCity?.state === 'object' && geoCity?.state
+              ? geoCity.state.name
+              : ((geoCity?.state as string) ?? null)),
+          country:
+            countryName ??
+            (typeof geoCity?.country === 'object' && geoCity?.country
+              ? geoCity.country.name
+              : ((geoCity?.country as string) ?? null)),
+          State: stateObj,
+        }
+      : null;
 
     // Profile is complete when all required onboarding steps are completed:
     // - Basic profile: fullName, username, avatarUrl, languages (non-empty)

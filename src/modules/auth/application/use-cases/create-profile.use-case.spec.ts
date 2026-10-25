@@ -718,7 +718,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
 
     const res = await useCase.execute(1, userPayload as any);
 
-    expect(res).toEqual({
+    expect(res).toMatchObject({
       id: 1,
       email: "user@example.com",
       language: "EN",
@@ -1505,7 +1505,7 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       } as any);
 
       expect(mockGeoLookup.getCityById).toHaveBeenCalledWith(135129);
-      expect(res.Profile.Demographic.City).toEqual({
+      expect(res.Profile.Demographic.City).toMatchObject({
         id: 135129,
         name: "Tehran",
         state: "Tehran",

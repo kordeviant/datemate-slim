@@ -28,10 +28,16 @@
 ## 5. Keep Documentation Updated
 - Whenever code, APIs, schemas, or business logic change, immediately update the relevant documentation (e.g. `ARCHITECTURE.md`, API specs, and schemas) to stay in sync.
 
-## 6. Single Canonical Contract (No Duplicate Fields)
+## 6. Single Canonical Contract (No Duplicate Fields & No Field Aliases)
 - Maintain a single, unambiguous contract for every DTO, API request, and API response.
 - Do NOT duplicate fields between parent/root payload structures and nested objects.
-- Fields must have one and only one authoritative location in a request. For example, `profilePictureId` and `gallery` belong strictly at the root level outside the `Profile` object in profile update requests. Never duplicate or accept them in multiple locations.
+- Fields must have one and only one authoritative location in a request and response. For example, `profilePictureId` and `gallery` belong strictly at the root level outside the `Profile` object in profile update requests. Never duplicate or accept them in multiple locations.
+- **Strictly Forbid Redundant Field Aliases (`City`, `city`, `cityName`, `citiName`, etc.)**:
+  - Never add artificial alias fields (`City`, `city`, `cityName`, `citiName`, etc.) to DTOs, requests, or response payloads.
+  - Responses must strictly match their canonical schema:
+    - In user profile responses (`GET /v1/users/profile`, `PUT /v1/users/profile`), city details reside exclusively at `Profile.Demographic.City` (`CityResponseDto` containing `id`, `name`, and nested `State: { id, name, Country }`). Never add alias properties such as `city`, `cityName`, or duplicate `City` at the `Profile` or root response level.
+    - In candidate DTOs (Feed `FeedCandidateDto`, Recommended `RecommendedCandidateDto`, Likes `LikedUserDto`), the city string field is canonically `city: string | null`. Never add `cityName`, `City`, `Profile`, or other aliases to these flat DTOs.
+  - Always fix the root cause (data resolution, schema mapping, foreign key constraints, or service lookup) rather than polluting API contracts with fallback aliases.
 
 ## 7. Gallery & Profile Picture Update Rules (`PUT /v1/users/profile` & `POST /v1/users/profile`)
 - **Single Image Upload Per Request**: Do NOT allow sending multiple gallery images in a single request. Only one gallery picture is permitted per request (`maxCount: 1`).
@@ -53,4 +59,13 @@
 ## 10. Feed & Recommended Discovery Invariants (`profileValidated` vs `selfieUrl`)
 - For candidate discovery in both Feed (`GET /v1/feed`) and Recommended (`GET /v1/recommended`), strictly enforce `User.profileValidated == true`.
 - Do NOT check or require an existing `selfieUrl` on candidate profiles. Users with `profileValidated == true` must be eligible regardless of whether `selfieUrl` is present or null.
+
+## 11. Device Token & Device Info Invariants (`PUT /v1/users/device-token` & `GET /v1/users/:userId/device-token`)
+- **Single Canonical Field Names**:
+  - Push notification token field is strictly and exclusively `token`.
+  - Device information field is strictly and exclusively `deviceInfo`.
+  - Never add alias fields (`fcmToken`, `deviceToken`, `device_token`, `fcm_token`, `Token`, `DeviceInfo`, etc.) to DTOs, request bodies, or responses.
+- **Canonical Endpoints**:
+  - `PUT /v1/users/device-token`: Updates the authenticated session's device token and deviceInfo (requires user JWT).
+  - `GET /v1/users/:userId/device-token`: Retrieves active token and deviceInfo by user ID (authenticated strictly via API key in `x-api-key` header / `ApiKey` auth, NOT user JWT).
 

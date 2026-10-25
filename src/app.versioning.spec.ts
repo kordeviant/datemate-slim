@@ -23,15 +23,29 @@ import { GetUserDevicesUseCase } from "./modules/auth/application/use-cases/get-
 import { TerminateClientDeviceUseCase } from "./modules/auth/application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "./modules/auth/application/use-cases/terminate-all-client-devices.use-case";
 import { GetBulkUsersUseCase } from "./modules/auth/application/use-cases/get-bulk-users.use-case";
+import { UpdateDeviceTokenUseCase } from "./modules/auth/application/use-cases/update-device-token.use-case";
+import { GetDeviceTokenUseCase } from "./modules/auth/application/use-cases/get-device-token.use-case";
+import { GeoController } from "./infrastructure/geo/geo.controller";
+import { DownloadController } from "./infrastructure/geo/download.controller";
+import { GeoLookupService } from "./infrastructure/geo/geo-lookup.service";
+import { DownloadRegistryService } from "./infrastructure/geo/download-registry.service";
 
 describe("API Versioning (v1)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      controllers: [AppController, AuthController, UsersController],
+      controllers: [
+        AppController,
+        AuthController,
+        UsersController,
+        GeoController,
+        DownloadController,
+      ],
       providers: [
         AppService,
+        GeoLookupService,
+        DownloadRegistryService,
         { provide: SignUpUseCase, useValue: { execute: jest.fn() } },
         { provide: VerifyCodeUseCase, useValue: { execute: jest.fn() } },
         { provide: SignInUseCase, useValue: { execute: jest.fn() } },
@@ -50,6 +64,8 @@ describe("API Versioning (v1)", () => {
         { provide: TerminateClientDeviceUseCase, useValue: { execute: jest.fn() } },
         { provide: TerminateAllClientDevicesUseCase, useValue: { execute: jest.fn() } },
         { provide: GetBulkUsersUseCase, useValue: { execute: jest.fn().mockResolvedValue([]) } },
+        { provide: UpdateDeviceTokenUseCase, useValue: { execute: jest.fn() } },
+        { provide: GetDeviceTokenUseCase, useValue: { execute: jest.fn().mockResolvedValue({ userId: 1, token: "test_token", deviceInfo: "test_device" }) } },
       ],
     }).compile();
 
@@ -172,6 +188,39 @@ describe("API Versioning (v1)", () => {
         .send([1, 2]);
       expect(res.status).toBe(200);
       expect(res.body).toBeDefined();
+    });
+
+    it("PUT /v1/users/device-token requires auth header (returns 401)", async () => {
+      const res = await request(app.getHttpServer())
+        .put("/v1/users/device-token")
+        .send({ token: "sample_token" });
+      expect(res.status).toBe(401);
+    });
+
+    it("GET /v1/users/1/device-token without API key returns 401", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/users/1/device-token");
+      expect(res.status).toBe(401);
+    });
+
+    it("GET /v1/users/1/device-token with valid API key succeeds with 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get("/v1/users/1/device-token")
+        .set("x-api-key", "datemate_device_token_api_key_2026");
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("success");
+      expect(res.body.data.token).toBe("test_token");
+    });
+
+    it("GET /v1/geo/countries succeeds with 200 and returns 250 countries", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/geo/countries");
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBe(250);
+    });
+
+    it("GET /v1/downloads/catalog succeeds with 200", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/downloads/catalog");
+      expect(res.status).toBe(200);
+      expect(res.body.totalPackages).toBeGreaterThanOrEqual(4);
     });
   });
 });

@@ -201,8 +201,12 @@ export class PrismaMatchingRepository implements IMatchingRepository {
       }));
 
       let cityName = c.demographic?.city?.name || null;
-      if (!cityName && c.demographic?.cityId && this.geoLookupService) {
-        cityName = (await this.geoLookupService.getCityById(c.demographic.cityId))?.name || null;
+      let geoCity: any = null;
+      if (c.demographic?.cityId && this.geoLookupService) {
+        geoCity = await this.geoLookupService.resolveCity(c.demographic.cityId);
+        if (geoCity) {
+          cityName = geoCity.name;
+        }
       }
 
       return {
@@ -335,11 +339,11 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         : null;
 
       let city = s.fromUser.demographic?.city?.name || null;
-      if (!city && s.fromUser.demographic?.cityId && this.geoLookupService) {
-        // Resolve city from in-memory cache / service
-        const cached = await this.geoLookupService.getCityById(s.fromUser.demographic.cityId);
-        if (cached) {
-          city = cached.name;
+      let geoCity: any = null;
+      if (s.fromUser.demographic?.cityId && this.geoLookupService) {
+        geoCity = await this.geoLookupService.resolveCity(s.fromUser.demographic.cityId);
+        if (geoCity) {
+          city = geoCity.name;
         }
       }
 

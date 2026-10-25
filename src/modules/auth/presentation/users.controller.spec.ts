@@ -10,6 +10,8 @@ import { GetUserDevicesUseCase } from "../application/use-cases/get-user-devices
 import { TerminateClientDeviceUseCase } from "../application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "../application/use-cases/terminate-all-client-devices.use-case";
 import { GetBulkUsersUseCase } from "../application/use-cases/get-bulk-users.use-case";
+import { UpdateDeviceTokenUseCase } from "../application/use-cases/update-device-token.use-case";
+import { GetDeviceTokenUseCase } from "../application/use-cases/get-device-token.use-case";
 
 describe("UsersController", () => {
   let controller: UsersController;
@@ -22,6 +24,8 @@ describe("UsersController", () => {
   let mockTerminateClientDeviceUseCase: any;
   let mockTerminateAllClientDevicesUseCase: any;
   let mockGetBulkUsersUseCase: any;
+  let mockUpdateDeviceTokenUseCase: any;
+  let mockGetDeviceTokenUseCase: any;
 
   beforeEach(async () => {
     mockTokenService = {
@@ -60,6 +64,14 @@ describe("UsersController", () => {
       execute: jest.fn(),
     };
 
+    mockUpdateDeviceTokenUseCase = {
+      execute: jest.fn(),
+    };
+
+    mockGetDeviceTokenUseCase = {
+      execute: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -72,6 +84,8 @@ describe("UsersController", () => {
         { provide: TerminateClientDeviceUseCase, useValue: mockTerminateClientDeviceUseCase },
         { provide: TerminateAllClientDevicesUseCase, useValue: mockTerminateAllClientDevicesUseCase },
         { provide: GetBulkUsersUseCase, useValue: mockGetBulkUsersUseCase },
+        { provide: UpdateDeviceTokenUseCase, useValue: mockUpdateDeviceTokenUseCase },
+        { provide: GetDeviceTokenUseCase, useValue: mockGetDeviceTokenUseCase },
       ],
     }).compile();
 
@@ -718,6 +732,89 @@ describe("UsersController", () => {
 
       await controller.getBulkUsers(null);
       expect(mockGetBulkUsersUseCase.execute).toHaveBeenCalledWith([]);
+    });
+  });
+
+  describe("PUT /users/device-token", () => {
+    it("should throw UnauthorizedException if authorization header is missing", async () => {
+      await expect(
+        controller.updateDeviceToken("", { token: "fcm_token_123" }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it("should update device token successfully for authenticated user", async () => {
+      const mockResult = {
+        userId: 1,
+        token: "fcm_token_123",
+        deviceInfo: "Pixel 8 Pro",
+      };
+      mockUpdateDeviceTokenUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.updateDeviceToken("Bearer valid_token", {
+        token: "fcm_token_123",
+        deviceInfo: "Pixel 8 Pro",
+      });
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockUpdateDeviceTokenUseCase.execute).toHaveBeenCalledWith(
+        1,
+        { token: "fcm_token_123", deviceInfo: "Pixel 8 Pro" },
+        10,
+      );
+      expect(res).toEqual({
+        status: "success",
+        message: "Device token updated successfully",
+        data: mockResult,
+      });
+    });
+  });
+
+  describe("GET /users/:userId/device-token", () => {
+    it("should return device token and deviceInfo for specified user", async () => {
+      const mockResult = {
+        userId: 42,
+        token: "token_sample",
+        deviceInfo: "iPhone 15",
+      };
+      mockGetDeviceTokenUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.getDeviceTokenByUserId(42);
+
+      expect(mockGetDeviceTokenUseCase.execute).toHaveBeenCalledWith(42);
+      expect(res).toEqual({
+        status: "success",
+        message: "Device token retrieved successfully",
+        data: mockResult,
+      });
+    });
+
+    it("should retrieve device token without validating JWT", async () => {
+      const mockResult = {
+        userId: 42,
+        token: "token_sample",
+        deviceInfo: null,
+      };
+      mockGetDeviceTokenUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.getDeviceTokenByUserId(42);
+
+      expect(mockTokenService.verifyAccessToken).not.toHaveBeenCalled();
+      expect(mockGetDeviceTokenUseCase.execute).toHaveBeenCalledWith(42);
+      expect(res).toEqual({
+        status: "success",
+        message: "Device token retrieved successfully",
+        data: mockResult,
+      });
+    });
+
+    it("should propagate NotFoundException when user does not exist", async () => {
+      mockGetDeviceTokenUseCase.execute.mockRejectedValue(
+        new NotFoundException("User not found"),
+      );
+
+      await expect(controller.getDeviceTokenByUserId(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

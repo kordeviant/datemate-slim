@@ -393,23 +393,79 @@ export class UpdateProfileUseCase {
       dataObj?.Profile?.languages ??
       dataObj?.profile?.languages;
 
-    const candidateCityIdInput =
+    const candidateCityInput =
       demographic?.City?.id ??
       demographic?.cityId ??
       (demographic as any)?.city?.id ??
+      demographic?.City?.name ??
+      (typeof demographic?.City === 'string' || typeof demographic?.City === 'number'
+        ? demographic.City
+        : undefined) ??
+      (typeof demographic?.city === 'string' || typeof demographic?.city === 'number'
+        ? demographic.city
+        : undefined) ??
+      (demographic as any)?.city?.name ??
       dto.cityId ??
-      dto.City?.id ??
+      (dto as any)?.City?.id ??
       (dto as any)?.city?.id ??
+      (dto as any)?.City?.name ??
+      (typeof (dto as any)?.City === 'string' || typeof (dto as any)?.City === 'number'
+        ? (dto as any).City
+        : undefined) ??
+      (typeof (dto as any)?.city === 'string' || typeof (dto as any)?.city === 'number'
+        ? (dto as any).city
+        : undefined) ??
       dataObj?.cityId ??
       dataObj?.City?.id ??
+      dataObj?.City?.name ??
+      (typeof dataObj?.City === 'string' || typeof dataObj?.City === 'number'
+        ? dataObj.City
+        : undefined) ??
+      (typeof dataObj?.city === 'string' || typeof dataObj?.city === 'number'
+        ? dataObj.city
+        : undefined) ??
       dataObj?.Demographic?.City?.id ??
+      dataObj?.Demographic?.City?.name ??
       dataObj?.Demographic?.cityId ??
+      (typeof dataObj?.Demographic?.City === 'string' || typeof dataObj?.Demographic?.City === 'number'
+        ? dataObj.Demographic.City
+        : undefined) ??
+      (typeof dataObj?.Demographic?.city === 'string' || typeof dataObj?.Demographic?.city === 'number'
+        ? dataObj.Demographic.city
+        : undefined) ??
       dataObj?.demographic?.City?.id ??
+      dataObj?.demographic?.City?.name ??
       dataObj?.demographic?.cityId ??
       dataObj?.Profile?.Demographic?.City?.id ??
+      dataObj?.Profile?.Demographic?.City?.name ??
       dataObj?.Profile?.Demographic?.cityId ??
       dataObj?.profile?.Demographic?.City?.id ??
+      dataObj?.profile?.Demographic?.City?.name ??
       dataObj?.profile?.Demographic?.cityId;
+
+    const candidateCityNameInput =
+      demographic?.City?.name ??
+      (demographic as any)?.city?.name ??
+      demographic?.cityName ??
+      (demographic as any)?.city_name ??
+      (dto as any)?.cityName ??
+      (dto as any)?.city_name ??
+      (dto as any)?.City?.name ??
+      (dto as any)?.city?.name ??
+      dataObj?.Demographic?.City?.name ??
+      dataObj?.Demographic?.city?.name ??
+      dataObj?.Demographic?.cityName ??
+      dataObj?.Demographic?.city_name ??
+      dataObj?.demographic?.City?.name ??
+      dataObj?.demographic?.city?.name ??
+      dataObj?.demographic?.cityName ??
+      dataObj?.demographic?.city_name ??
+      dataObj?.Profile?.Demographic?.City?.name ??
+      dataObj?.Profile?.Demographic?.city?.name ??
+      dataObj?.Profile?.Demographic?.cityName ??
+      dataObj?.Profile?.Demographic?.city_name ??
+      dataObj?.cityName ??
+      dataObj?.city_name;
 
     const candidateLatitudeInput =
       dto.lat ??
@@ -609,17 +665,26 @@ export class UpdateProfileUseCase {
     }
 
     // 8. City ID
+    const rawCityInput =
+      (candidateCityInput !== undefined && candidateCityInput !== null && String(candidateCityInput).trim() !== '')
+        ? candidateCityInput
+        : (candidateCityNameInput !== undefined && candidateCityNameInput !== null && String(candidateCityNameInput).trim() !== '')
+          ? candidateCityNameInput
+          : undefined;
+
     let validCityId: number | null = existingDemographic?.cityId ?? null;
     let resolvedCityDetails: CityGeoDetails | null = null;
-    if (candidateCityIdInput !== undefined && candidateCityIdInput !== null) {
-      const cityNum = Number(candidateCityIdInput);
-      if (!isNaN(cityNum) && cityNum > 0) {
-        if (this.geoLookupService) {
-          resolvedCityDetails = await this.geoLookupService.getCityById(cityNum);
-        }
-        if (resolvedCityDetails) {
-          validCityId = resolvedCityDetails.id;
-        } else {
+    if (rawCityInput !== undefined && rawCityInput !== null && String(rawCityInput).trim() !== '') {
+      if (this.geoLookupService) {
+        resolvedCityDetails = typeof this.geoLookupService.resolveCity === 'function'
+          ? await this.geoLookupService.resolveCity(rawCityInput)
+          : await this.geoLookupService.getCityById(Number(rawCityInput));
+      }
+      if (resolvedCityDetails) {
+        validCityId = resolvedCityDetails.id;
+      } else {
+        const cityNum = Number(rawCityInput);
+        if (!isNaN(cityNum) && cityNum > 0) {
           // Fallback check against Prisma city if DB is seeded or in unit tests
           const cityExists =
             typeof (this.prisma as any)?.city?.findUnique === 'function'
@@ -632,13 +697,64 @@ export class UpdateProfileUseCase {
             validCityId = cityExists.id;
           } else {
             this.logger.warn(
-              `[Profile Update] City ID ${cityNum} does not exist in geo service or local DB.`,
+              `[Profile Update] City input "${rawCityInput}" does not exist in geo service or local DB.`,
             );
             validCityId = null;
           }
+        } else {
+          validCityId = null;
         }
-      } else {
-        validCityId = null;
+      }
+    } else if (validCityId && this.geoLookupService) {
+      resolvedCityDetails = typeof this.geoLookupService.resolveCity === 'function'
+        ? await this.geoLookupService.resolveCity(validCityId)
+        : await this.geoLookupService.getCityById(validCityId);
+    }
+
+    let cityName: string | null =
+      resolvedCityDetails?.name ?? candidateCityNameInput ?? (existingDemographic as any)?.cityName ?? null;
+    let stateName: string | null =
+      typeof resolvedCityDetails?.state === 'object' && resolvedCityDetails?.state
+        ? resolvedCityDetails.state.name
+        : ((resolvedCityDetails?.state as string) ?? null);
+    let countryName: string | null =
+      typeof resolvedCityDetails?.country === 'object' && resolvedCityDetails?.country
+        ? resolvedCityDetails.country.name
+        : ((resolvedCityDetails?.country as string) ?? null);
+
+    if (validCityId && !cityName) {
+      if (this.geoLookupService) {
+        resolvedCityDetails = typeof this.geoLookupService.resolveCity === 'function'
+          ? await this.geoLookupService.resolveCity(validCityId)
+          : await this.geoLookupService.getCityById(validCityId);
+        if (resolvedCityDetails) {
+          cityName = resolvedCityDetails.name;
+          stateName =
+            typeof resolvedCityDetails.state === 'object' && resolvedCityDetails.state
+              ? resolvedCityDetails.state.name
+              : ((resolvedCityDetails.state as string) ?? null);
+          countryName =
+            typeof resolvedCityDetails.country === 'object' && resolvedCityDetails.country
+              ? resolvedCityDetails.country.name
+              : ((resolvedCityDetails.country as string) ?? null);
+        }
+      }
+      if (!cityName && typeof (this.prisma as any)?.city?.findUnique === 'function') {
+        const cityRecord = await this.prisma.city.findUnique({
+          where: { id: validCityId },
+          include: {
+            state: {
+              include: {
+                country: true,
+              },
+            },
+          },
+        });
+        if (cityRecord) {
+          cityName = cityRecord.name;
+          stateName = cityRecord.state?.name ?? null;
+          countryName = cityRecord.state?.country?.name ?? null;
+        }
       }
     }
 
@@ -1031,44 +1147,99 @@ export class UpdateProfileUseCase {
       });
 
       // 2. Demographic handling
-      if (existingDemographic) {
-        await tx.demographic.update({
-          where: { userId },
-          data: {
-            ...(parsedBirthDate ? { birthDate: parsedBirthDate } : {}),
-            ...(normalizedGender ? { gender: normalizedGender } : {}),
-            ...(candidateCityIdInput !== undefined && candidateCityIdInput !== null
-              ? { cityId: validCityId }
-              : {}),
-            ...(cleanHeight !== null ? { height: cleanHeight } : {}),
-            ...(cleanDegree ? { degree: cleanDegree } : {}),
-            ...(cleanJob !== null ? { job: cleanJob } : {}),
-            ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
-          },
-        });
-      } else if (parsedBirthDate && normalizedGender) {
-        await tx.demographic.upsert({
-          where: { userId },
-          create: {
-            userId,
-            birthDate: parsedBirthDate,
-            gender: normalizedGender,
-            cityId: validCityId,
-            height: cleanHeight,
-            degree: cleanDegree,
-            job: cleanJob,
-            relationStatus: cleanRelationStatus,
-          },
-          update: {
-            gender: normalizedGender,
-            birthDate: parsedBirthDate,
-            cityId: validCityId,
-            ...(cleanHeight !== null ? { height: cleanHeight } : {}),
-            ...(cleanDegree ? { degree: cleanDegree } : {}),
-            ...(cleanJob !== null ? { job: cleanJob } : {}),
-            ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
-          },
-        });
+      if (validCityId && resolvedCityDetails && typeof (tx as any).city?.upsert === 'function') {
+        try {
+          const countryId = resolvedCityDetails.countryId ?? 103;
+          const countryName = resolvedCityDetails.country ?? 'Iran';
+          if (typeof (tx as any).country?.upsert === 'function') {
+            await (tx as any).country.upsert({
+              where: { id: countryId },
+              create: { id: countryId, name: countryName, code: 'XX' },
+              update: { name: countryName },
+            });
+          }
+          const stateId = resolvedCityDetails.stateId ?? 1;
+          const stateName = resolvedCityDetails.state ?? countryName;
+          if (typeof (tx as any).state?.upsert === 'function') {
+            await (tx as any).state.upsert({
+              where: { id: stateId },
+              create: { id: stateId, name: stateName, countryId },
+              update: { name: stateName, countryId },
+            });
+          }
+          await (tx as any).city.upsert({
+            where: { id: validCityId },
+            create: { id: validCityId, name: resolvedCityDetails.name, stateId },
+            update: { name: resolvedCityDetails.name, stateId },
+          });
+        } catch (e: any) {
+          this.logger.warn(`Could not ensure city ${validCityId} in local DB: ${e.message}`);
+        }
+      }
+
+      const demographicUpdateData: any = {
+        ...(parsedBirthDate ? { birthDate: parsedBirthDate } : {}),
+        ...(normalizedGender ? { gender: normalizedGender } : {}),
+        ...(rawCityInput !== undefined && rawCityInput !== null
+          ? {
+              cityId: validCityId,
+              ...(cityName ? { cityName } : {}),
+            }
+          : {}),
+        ...(cleanHeight !== null ? { height: cleanHeight } : {}),
+        ...(cleanDegree ? { degree: cleanDegree } : {}),
+        ...(cleanJob !== null ? { job: cleanJob } : {}),
+        ...(cleanRelationStatus ? { relationStatus: cleanRelationStatus } : {}),
+      };
+
+      try {
+        if (existingDemographic) {
+          await tx.demographic.update({
+            where: { userId },
+            data: demographicUpdateData,
+          });
+        } else if (parsedBirthDate && normalizedGender) {
+          await tx.demographic.upsert({
+            where: { userId },
+            create: {
+              userId,
+              birthDate: parsedBirthDate,
+              gender: normalizedGender,
+              cityId: validCityId,
+              cityName: cityName ?? undefined,
+              height: cleanHeight,
+              degree: cleanDegree,
+              job: cleanJob,
+              relationStatus: cleanRelationStatus,
+            },
+            update: demographicUpdateData,
+          });
+        }
+      } catch (err: any) {
+        if (err?.code === 'P2003' && demographicUpdateData.cityId) {
+          this.logger.warn(`Retrying demographic update without cityId due to FK constraint: ${err.message}`);
+          delete demographicUpdateData.cityId;
+          if (existingDemographic) {
+            await tx.demographic.update({ where: { userId }, data: demographicUpdateData });
+          } else if (parsedBirthDate && normalizedGender) {
+            await tx.demographic.upsert({
+              where: { userId },
+              create: {
+                userId,
+                birthDate: parsedBirthDate,
+                gender: normalizedGender,
+                cityId: null,
+                height: cleanHeight,
+                degree: cleanDegree,
+                job: cleanJob,
+                relationStatus: cleanRelationStatus,
+              },
+              update: demographicUpdateData,
+            });
+          }
+        } else {
+          throw err;
+        }
       }
 
       // 3. Preferences handling (kind of relationship)
@@ -1363,38 +1534,6 @@ export class UpdateProfileUseCase {
       }
     }
 
-    let cityName: string | null = resolvedCityDetails?.name ?? null;
-    let stateName: string | null = resolvedCityDetails?.state ?? null;
-    let countryName: string | null = resolvedCityDetails?.country ?? null;
-
-    if (validCityId && !cityName) {
-      if (this.geoLookupService) {
-        const geoCity = await this.geoLookupService.getCityById(validCityId);
-        if (geoCity) {
-          cityName = geoCity.name;
-          stateName = geoCity.state;
-          countryName = geoCity.country;
-        }
-      }
-      if (!cityName && typeof (this.prisma as any)?.city?.findUnique === 'function') {
-        const cityRecord = await this.prisma.city.findUnique({
-          where: { id: validCityId },
-          include: {
-            state: {
-              include: {
-                country: true,
-              },
-            },
-          },
-        });
-        if (cityRecord) {
-          cityName = cityRecord.name;
-          stateName = cityRecord.state?.name ?? null;
-          countryName = cityRecord.state?.country?.name ?? null;
-        }
-      }
-    }
-
     const formattedBirthDate = parsedBirthDate
       ? parsedBirthDate.toISOString().slice(0, 10)
       : null;
@@ -1403,13 +1542,36 @@ export class UpdateProfileUseCase {
       ? normalizedGender.toUpperCase()
       : null;
 
+    const stateObj = resolvedCityDetails?.State ?? (stateName
+      ? {
+          id: resolvedCityDetails?.stateId ?? 3945,
+          name: stateName,
+          countryId: resolvedCityDetails?.countryId ?? 103,
+          Country: countryName ? {
+            id: resolvedCityDetails?.countryId ?? 103,
+            name: countryName,
+            native: resolvedCityDetails?.countryNative ?? 'ایران',
+            emoji: resolvedCityDetails?.countryEmoji ?? '🇮🇷',
+          } : null,
+        }
+      : null);
+
     const cityObj =
-      validCityId !== null
+      (validCityId !== null || cityName !== null || resolvedCityDetails !== null)
         ? {
-          id: validCityId,
-          name: cityName,
-          state: stateName,
-          country: countryName,
+          id: validCityId ?? resolvedCityDetails?.id ?? null,
+          name: cityName ?? resolvedCityDetails?.name ?? null,
+          state:
+            stateName ??
+            (typeof resolvedCityDetails?.state === 'object' && resolvedCityDetails?.state
+              ? resolvedCityDetails.state.name
+              : ((resolvedCityDetails?.state as string) ?? null)),
+          country:
+            countryName ??
+            (typeof resolvedCityDetails?.country === 'object' && resolvedCityDetails?.country
+              ? resolvedCityDetails.country.name
+              : ((resolvedCityDetails?.country as string) ?? null)),
+          State: stateObj,
         }
         : null;
 

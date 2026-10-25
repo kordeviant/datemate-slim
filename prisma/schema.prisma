@@ -246,6 +246,7 @@ model Demographic {
   religion       ReligionStatus?
   relationStatus RelationshipStatus? @map("relation_status")
   cityId         Int?                @map("city_id")
+  cityName       String?             @map("city_name") @db.VarChar(100)
 
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   city           City?               @relation(fields: [cityId], references: [id], onDelete: SetNull)

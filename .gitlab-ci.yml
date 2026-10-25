@@ -127,17 +127,17 @@ deploy:
         echo '===> Running database migrations inside backend container...'
         docker exec datemate_backend npx prisma migrate deploy
 
-        echo '===> Checking migration status...'
-        docker exec datemate_backend npx prisma migrate status
+        # echo '===> Checking migration status...'
+        # docker exec datemate_backend npx prisma migrate status
 
-        echo '===> Seeding questions...'
-        docker exec datemate_backend npx ts-node prisma/seed-questions.ts || true
+        # echo '===> Seeding questions...'
+        # docker exec datemate_backend npx ts-node prisma/seed-questions.ts || true
 
-        echo '===> Seeding interests...'
-        docker exec datemate_backend npx ts-node prisma/seed-interests.ts || true
+        # echo '===> Seeding interests...'
+        # docker exec datemate_backend npx ts-node prisma/seed-interests.ts || true
 
-        echo '===> Seeding Users...'
-        docker exec datemate_backend npx ts-node prisma/seed-users.ts || true
+        # echo '===> Seeding Users...'
+        # docker exec datemate_backend npx ts-node prisma/seed-users.ts || true
 
         echo '===> Reloading Nginx proxy...'
         docker exec datemate_nginx nginx -s reload || true

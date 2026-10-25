@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { GeoLookupService } from '../../../../infrastructure/geo/geo-lookup.service';
 import {
   CandidatePoolItem,
   IRecommendedRepository,
@@ -19,6 +20,8 @@ export class PrismaRecommendedRepository implements IRecommendedRepository {
     private readonly redisService: RedisService,
     @Optional()
     mediaUrlResolver?: MediaUrlResolverService,
+    @Optional()
+    private readonly geoLookupService?: GeoLookupService,
   ) {
     this.mediaUrlResolver =
       mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
@@ -55,12 +58,17 @@ export class PrismaRecommendedRepository implements IRecommendedRepository {
       .map((ui) => ui.interest?.nameEn || ui.interest?.nameFa || '')
       .filter((name) => Boolean(name && name.trim().length > 0));
 
+    let cityName = user.demographic?.city?.name || null;
+    if (!cityName && user.demographic?.cityId && this.geoLookupService) {
+      cityName = (await this.geoLookupService.getCityById(user.demographic.cityId))?.name || null;
+    }
+
     return {
       id: user.id,
       gender: user.demographic?.gender as 'MALE' | 'FEMALE',
       birthDate: user.demographic?.birthDate || null,
       cityId: user.demographic?.cityId || null,
-      cityName: user.demographic?.city?.name || null,
+      cityName,
       relationPreference: user.preferences?.relation || null,
       answerIds,
       interestIds,
@@ -148,44 +156,51 @@ export class PrismaRecommendedRepository implements IRecommendedRepository {
       ],
     });
 
-    return candidates.map((c) => {
-      const interestNames = c.interests
-        .map((ui) => ui.interest?.nameEn || ui.interest?.nameFa || '')
-        .filter((name) => Boolean(name && name.trim().length > 0));
+    return Promise.all(
+      candidates.map(async (c) => {
+        const interestNames = c.interests
+          .map((ui) => ui.interest?.nameEn || ui.interest?.nameFa || '')
+          .filter((name) => Boolean(name && name.trim().length > 0));
 
-      const interestIds = c.interests.map((ui) => ui.interestId);
-      const answerIds = c.questionAnswers.map((qa) => qa.questionAnswerId);
+        const interestIds = c.interests.map((ui) => ui.interestId);
+        const answerIds = c.questionAnswers.map((qa) => qa.questionAnswerId);
 
-      return {
-        id: c.id,
-        fullName: c.profile?.fullName || null,
-        username: c.profile?.username || null,
-        gender: c.demographic?.gender || null,
-        birthDate: c.demographic?.birthDate || null,
-        bio: c.profile?.bio || null,
-        avatarUrl: c.profile?.avatarUrl
-          ? this.mediaUrlResolver.resolveUrl(c.profile.avatarUrl)
-          : null,
-        profilePictureUrl: c.profile?.profilePictureUrl
-          ? this.mediaUrlResolver.resolveUrl(c.profile.profilePictureUrl)
-          : null,
-        profileValidated: c.profileValidated,
-        cityId: c.demographic?.cityId || null,
-        cityName: c.demographic?.city?.name || null,
-        relationPreference: c.preferences?.relation || null,
-        isOnline: (c.email?.endsWith('@datemate.com') ?? false)
-          ? (c.profile?.isOnline || false)
-          : (c.profile?.isOnline ?? true),
-        lastSeenAt: c.profile?.lastSeenAt || null,
-        gallery: c.gallery.map((g) => ({
-          id: g.id,
-          imageUrl: this.mediaUrlResolver.resolveUrl(g.imageUrl),
-          isProfilePicture: g.isProfilePicture,
-        })),
-        interestNames,
-        interestIds,
-        answerIds,
-      };
-    });
+        let cityName = c.demographic?.city?.name || null;
+        if (!cityName && c.demographic?.cityId && this.geoLookupService) {
+          cityName = (await this.geoLookupService.getCityById(c.demographic.cityId))?.name || null;
+        }
+
+        return {
+          id: c.id,
+          fullName: c.profile?.fullName || null,
+          username: c.profile?.username || null,
+          gender: c.demographic?.gender || null,
+          birthDate: c.demographic?.birthDate || null,
+          bio: c.profile?.bio || null,
+          avatarUrl: c.profile?.avatarUrl
+            ? this.mediaUrlResolver.resolveUrl(c.profile.avatarUrl)
+            : null,
+          profilePictureUrl: c.profile?.profilePictureUrl
+            ? this.mediaUrlResolver.resolveUrl(c.profile.profilePictureUrl)
+            : null,
+          profileValidated: c.profileValidated,
+          cityId: c.demographic?.cityId || null,
+          cityName,
+          relationPreference: c.preferences?.relation || null,
+          isOnline: (c.email?.endsWith('@datemate.com') ?? false)
+            ? (c.profile?.isOnline || false)
+            : (c.profile?.isOnline ?? true),
+          lastSeenAt: c.profile?.lastSeenAt || null,
+          gallery: c.gallery.map((g) => ({
+            id: g.id,
+            imageUrl: this.mediaUrlResolver.resolveUrl(g.imageUrl),
+            isProfilePicture: g.isProfilePicture,
+          })),
+          interestNames,
+          interestIds,
+          answerIds,
+        };
+      }),
+    );
   }
 }

@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/com
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { ProfileResponseDto, GalleryItemResponseDto } from '../dtos/profile-response.dto';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { GeoLookupService } from '../../../../infrastructure/geo/geo-lookup.service';
 
 @Injectable()
 export class GetProfileUseCase {
@@ -10,6 +11,7 @@ export class GetProfileUseCase {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly mediaUrlResolver?: MediaUrlResolverService,
+    @Optional() private readonly geoLookupService?: GeoLookupService,
   ) { }
 
   async execute(userId: number): Promise<ProfileResponseDto> {
@@ -79,9 +81,19 @@ export class GetProfileUseCase {
       ? demographic.gender.toUpperCase()
       : null;
 
-    const cityName = demographic?.city?.name ?? null;
-    const stateName = demographic?.city?.state?.name ?? null;
-    const countryName = demographic?.city?.state?.country?.name ?? null;
+    let cityName = demographic?.city?.name ?? null;
+    let stateName = demographic?.city?.state?.name ?? null;
+    let countryName = demographic?.city?.state?.country?.name ?? null;
+
+    if (demographic?.cityId && !cityName && this.geoLookupService) {
+      const geoCity = await this.geoLookupService.getCityById(demographic.cityId);
+      if (geoCity) {
+        cityName = geoCity.name;
+        stateName = geoCity.state;
+        countryName = geoCity.country;
+      }
+    }
+
     const cityObj =
       demographic?.cityId !== undefined && demographic?.cityId !== null
         ? {

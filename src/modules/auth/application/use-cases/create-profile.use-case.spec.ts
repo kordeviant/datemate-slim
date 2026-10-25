@@ -1474,7 +1474,46 @@ describe("UpdateProfileUseCase (Profile step-by-step onboarding & edit)", () => 
       expect(res.Profile.profilePicture).toBe("images/gallery_1_first.webp");
       expect(res.Profile.profilePictureId).toBe(7);
     });
+
+    it("should resolve and validate city via GeoLookupService and return City object in response", async () => {
+      const mockGeoLookup = {
+        getCityById: jest.fn().mockResolvedValue({
+          id: 135129,
+          name: "Tehran",
+          state: "Tehran",
+          country: "Iran",
+        }),
+      };
+
+      const customUseCase = new UpdateProfileUseCase(
+        mockPrisma,
+        mockAvatarProcessor,
+        mockGalleryProcessor,
+        undefined,
+        mockGeoLookup as any,
+      );
+
+      mockPrisma.demographic.findUnique.mockResolvedValue({
+        userId: 1,
+        birthDate: new Date("1995-05-15"),
+        gender: "MALE",
+        cityId: null,
+      });
+
+      const res = await customUseCase.execute(1, {
+        cityId: 135129,
+      } as any);
+
+      expect(mockGeoLookup.getCityById).toHaveBeenCalledWith(135129);
+      expect(res.Profile.Demographic.City).toEqual({
+        id: 135129,
+        name: "Tehran",
+        state: "Tehran",
+        country: "Iran",
+      });
+    });
   });
 });
+
 
 

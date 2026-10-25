@@ -525,4 +525,47 @@ describe('GetProfileUseCase', () => {
     expect((res.Profile as any).interest).toBeUndefined();
     expect((res.Profile as any).interests).toBeUndefined();
   });
+
+  it('should resolve city details from GeoLookupService when DB city relation is null', async () => {
+    const mockGeoLookup = {
+      getCityById: jest.fn().mockResolvedValue({
+        id: 135129,
+        name: 'Tehran',
+        state: 'Tehran',
+        country: 'Iran',
+      }),
+    };
+
+    const customUseCase = new GetProfileUseCase(mockPrisma, undefined, mockGeoLookup as any);
+
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 1,
+      email: 'user@example.com',
+      language: 'FA',
+      profileValidated: true,
+      profile: {
+        fullName: 'Parsa',
+        username: 'parsa1',
+      },
+      demographic: {
+        birthDate: new Date('2000-01-01'),
+        gender: 'MALE',
+        cityId: 135129,
+        city: null, // city is not in DB
+      },
+      preferences: null,
+      interests: [],
+      questionAnswers: [],
+    });
+
+    const res = await customUseCase.execute(1);
+
+    expect(mockGeoLookup.getCityById).toHaveBeenCalledWith(135129);
+    expect(res.Profile.Demographic.City).toEqual({
+      id: 135129,
+      name: 'Tehran',
+      state: 'Tehran',
+      country: 'Iran',
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import { RedisService } from '../../../../infrastructure/redis/redis.service';
+import { GeoLookupService } from '../../../../infrastructure/geo/geo-lookup.service';
 import { IMatchingRepository } from '../../domain/repositories/matching.repository.interface';
 import { FeedCandidateEntity } from '../../domain/entities/feed-candidate.entity';
 import { LikeReceivedEntity } from '../../domain/entities/like-received.entity';
@@ -18,6 +19,8 @@ export class PrismaMatchingRepository implements IMatchingRepository {
     private readonly redisService: RedisService,
     @Optional()
     mediaUrlResolver?: MediaUrlResolverService,
+    @Optional()
+    private readonly geoLookupService?: GeoLookupService,
   ) {
     this.mediaUrlResolver =
       mediaUrlResolver || new MediaUrlResolverService(new ConfigService());
@@ -172,7 +175,7 @@ export class PrismaMatchingRepository implements IMatchingRepository {
 
     const results: FeedCandidateEntity[] = [];
 
-    const processCandidate = (c: any): FeedCandidateEntity | null => {
+    const processCandidate = async (c: any): Promise<FeedCandidateEntity | null> => {
       // Rule 4: Must have an active profile picture (prioritize gallery photo where isProfilePicture is true)
       const profilePicGallery = c.gallery?.find((g: any) => g.isProfilePicture);
       const rawPrimaryPhoto =
@@ -197,10 +200,15 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         isProfilePicture: Boolean(g.isProfilePicture),
       }));
 
+      let cityName = c.demographic?.city?.name || null;
+      if (!cityName && c.demographic?.cityId && this.geoLookupService) {
+        cityName = (await this.geoLookupService.getCityById(c.demographic.cityId))?.name || null;
+      }
+
       return {
         id: c.id,
         fullName: c.profile?.fullName || null,
-        city: c.demographic?.city?.name || null,
+        city: cityName,
         age,
         avatarUrl: primaryPhoto,
         username: c.profile?.username || null,
@@ -212,7 +220,7 @@ export class PrismaMatchingRepository implements IMatchingRepository {
       if (results.length >= limit) {
         break;
       }
-      const processed = processCandidate(c);
+      const processed = await processCandidate(c);
       if (processed) {
         results.push(processed);
       }
@@ -259,7 +267,7 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         if (results.length >= limit) {
           break;
         }
-        const processed = processCandidate(fc);
+        const processed = await processCandidate(fc);
         if (processed) {
           results.push(processed);
         }
@@ -305,11 +313,12 @@ export class PrismaMatchingRepository implements IMatchingRepository {
       orderBy: { createdAt: 'desc' },
     });
 
-    return swipes.map((s) => {
-      const isMockUser = s.fromUser?.email?.endsWith('@datemate.com') ?? false;
-      const isOnline = isMockUser
-        ? (s.fromUser.profile?.isOnline || false)
-        : (s.fromUser.profile?.isOnline ?? true);
+    return Promise.all(
+      swipes.map(async (s) => {
+        const isMockUser = s.fromUser?.email?.endsWith('@datemate.com') ?? false;
+        const isOnline = isMockUser
+          ? (s.fromUser.profile?.isOnline || false)
+          : (s.fromUser.profile?.isOnline ?? true);
 
       const profilePicGallery = s.fromUser?.gallery?.find(
         (g: any) => g.isProfilePicture,
@@ -325,14 +334,23 @@ export class PrismaMatchingRepository implements IMatchingRepository {
         ? this.mediaUrlResolver.resolveUrl(rawPrimaryPhoto)
         : null;
 
+      let city = s.fromUser.demographic?.city?.name || null;
+      if (!city && s.fromUser.demographic?.cityId && this.geoLookupService) {
+        // Resolve city from in-memory cache / service
+        const cached = await this.geoLookupService.getCityById(s.fromUser.demographic.cityId);
+        if (cached) {
+          city = cached.name;
+        }
+      }
+
       return {
         id: s.fromUser.id,
         fullName: s.fromUser.profile?.fullName || null,
         username: s.fromUser.profile?.username || null,
-        city: s.fromUser.demographic?.city?.name || null,
+        city,
         isOnline,
         avatarUrl,
       };
-    });
+    }));
   }
 }

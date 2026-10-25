@@ -13,6 +13,8 @@ import { ProfileResponseDto, GalleryItemResponseDto } from '../dtos/profile-resp
 import { AvatarProcessorService } from '../services/avatar-processor.service';
 import { GalleryProcessorService, ProcessedGalleryImage } from '../services/gallery-processor.service';
 import { MediaUrlResolverService } from '../../../media/application/services/media-url-resolver.service';
+import { GeoLookupService } from '../../../../infrastructure/geo/geo-lookup.service';
+import { CityGeoDetails } from '../../../../infrastructure/geo/geo.interface';
 import { calculateAge, validateDateOfBirth } from '../validators/dob.validator';
 import { validateUsername } from '../validators/username.validator';
 import {
@@ -32,6 +34,7 @@ export class UpdateProfileUseCase {
     private readonly avatarProcessor: AvatarProcessorService,
     @Optional() private readonly galleryProcessor?: GalleryProcessorService,
     @Optional() private readonly mediaUrlResolver?: MediaUrlResolverService,
+    @Optional() private readonly geoLookupService?: GeoLookupService,
   ) { }
 
   async execute(
@@ -607,20 +610,32 @@ export class UpdateProfileUseCase {
 
     // 8. City ID
     let validCityId: number | null = existingDemographic?.cityId ?? null;
+    let resolvedCityDetails: CityGeoDetails | null = null;
     if (candidateCityIdInput !== undefined && candidateCityIdInput !== null) {
       const cityNum = Number(candidateCityIdInput);
       if (!isNaN(cityNum) && cityNum > 0) {
-        const cityExists = await this.prisma.city.findUnique({
-          where: { id: cityNum },
-          select: { id: true },
-        });
-        if (cityExists) {
-          validCityId = cityExists.id;
+        if (this.geoLookupService) {
+          resolvedCityDetails = await this.geoLookupService.getCityById(cityNum);
+        }
+        if (resolvedCityDetails) {
+          validCityId = resolvedCityDetails.id;
         } else {
-          this.logger.warn(
-            `[Profile Update] City ID ${cityNum} does not exist in 'cities' table. Storing demographic without foreign key link until seeded.`,
-          );
-          validCityId = null;
+          // Fallback check against Prisma city if DB is seeded or in unit tests
+          const cityExists =
+            typeof (this.prisma as any)?.city?.findUnique === 'function'
+              ? await this.prisma.city.findUnique({
+                  where: { id: cityNum },
+                  select: { id: true },
+                })
+              : null;
+          if (cityExists) {
+            validCityId = cityExists.id;
+          } else {
+            this.logger.warn(
+              `[Profile Update] City ID ${cityNum} does not exist in geo service or local DB.`,
+            );
+            validCityId = null;
+          }
         }
       } else {
         validCityId = null;
@@ -1348,25 +1363,35 @@ export class UpdateProfileUseCase {
       }
     }
 
-    let cityName: string | null = null;
-    let stateName: string | null = null;
-    let countryName: string | null = null;
+    let cityName: string | null = resolvedCityDetails?.name ?? null;
+    let stateName: string | null = resolvedCityDetails?.state ?? null;
+    let countryName: string | null = resolvedCityDetails?.country ?? null;
 
-    if (validCityId) {
-      const cityRecord = await this.prisma.city.findUnique({
-        where: { id: validCityId },
-        include: {
-          state: {
-            include: {
-              country: true,
+    if (validCityId && !cityName) {
+      if (this.geoLookupService) {
+        const geoCity = await this.geoLookupService.getCityById(validCityId);
+        if (geoCity) {
+          cityName = geoCity.name;
+          stateName = geoCity.state;
+          countryName = geoCity.country;
+        }
+      }
+      if (!cityName && typeof (this.prisma as any)?.city?.findUnique === 'function') {
+        const cityRecord = await this.prisma.city.findUnique({
+          where: { id: validCityId },
+          include: {
+            state: {
+              include: {
+                country: true,
+              },
             },
           },
-        },
-      });
-      if (cityRecord) {
-        cityName = cityRecord.name;
-        stateName = cityRecord.state?.name ?? null;
-        countryName = cityRecord.state?.country?.name ?? null;
+        });
+        if (cityRecord) {
+          cityName = cityRecord.name;
+          stateName = cityRecord.state?.name ?? null;
+          countryName = cityRecord.state?.country?.name ?? null;
+        }
       }
     }
 

@@ -154,6 +154,13 @@ enum AnswerType {
   MULTI
 }
 
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
 // ----------------------------------------------------
 // MODELS
 // ----------------------------------------------------
@@ -189,6 +196,9 @@ model User {
 
   messagesSent     Message[]
   notifications    Notification[]
+
+  friendRequestsSent     FriendRequest[] @relation("FriendRequestsSent")
+  friendRequestsReceived FriendRequest[] @relation("FriendRequestsReceived")
 
   @@map("users")
 }
@@ -481,4 +491,21 @@ model Notification {
 
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+model FriendRequest {
+  id         Int                 @id @default(autoincrement())
+  senderId   Int                 @map("sender_id")
+  receiverId Int                 @map("receiver_id")
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  sender     User                @relation("FriendRequestsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User                @relation("FriendRequestsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+  @@index([senderId, status])
+  @@map("friend_requests")
 }

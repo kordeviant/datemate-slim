@@ -645,6 +645,112 @@ Nginx serves as the primary edge reverse proxy terminating TLS and protecting th
 - **Anti-Spoofing Client Identifier**:
   - Rate limiting strictly indexes `$binary_remote_addr` (the actual IP from the TCP connection). Nginx does not trust client-supplied `X-Forwarded-For` or `X-Real-IP` headers, preventing attackers from bypassing edge rate limits via spoofed header injection.
 
+---
+
+## 12. Friends Module (`src/modules/friends`)
+
+The Friends module provides social connections, friend request workflows, and friends directory capabilities.
+
+### 12.1 Architecture & Domain Invariants
+- **Bounded Context**: Dedicated `friends` domain organized around Clean Architecture, DDD, and SOLID principles.
+- **Single Canonical Contract**:
+  - Strict canonical field names: DTOs use `userId` for target user in add-friend payload.
+  - Candidate/user profile information strictly uses `city: string | null` (no alias fields per Rule 6).
+- **Auto-Accept Reciprocal Requests**:
+  - If User B has already sent a `PENDING` friend request to User A, and User A calls `POST /v1/friends/add` with User B's `userId`, the system automatically accepts the existing request and establishes friendship immediately without duplicate entries.
+- **Invariants & Validations**:
+  - Cannot add self (`BadRequestException: Cannot add yourself as a friend`).
+  - Target user must exist (`NotFoundException: Target user not found`).
+  - Neither sender nor receiver can be banned (`ForbiddenException`).
+  - Cannot duplicate pending requests (`BadRequestException: Friend request is already pending`).
+  - Cannot re-request if already friends (`BadRequestException: Users are already friends`).
+  - Only the intended recipient can accept or reject a friend request (`ForbiddenException`).
+  - Automatically emits notification of type `NotificationType.FRIEND_REQUEST` for the recipient upon sending.
+
+### 12.2 API Endpoints
+- `POST /v1/friends/add`: Sends a friend request to a target user.
+  - Body: `{ "userId": 205 }`
+  - Response:
+    ```json
+    {
+      "status": "success",
+      "message": "Friend request sent successfully",
+      "data": {
+        "id": 1,
+        "status": "PENDING",
+        "createdAt": "2026-10-27T12:00:00.000Z",
+        "updatedAt": "2026-10-27T12:00:00.000Z",
+        "fullName": "Sara Connor",
+        "username": "sarah_c",
+        "avatarUrl": "http://localhost:3000/assets/avatars/avatar_205.webp"
+      }
+    }
+    ```
+- `GET /v1/friends/requests`: Retrieves paginated friend requests with flat items in root of each item.
+  - Query: `page` (default: 1), `limit` (default: 10, max: 100), `type` (`'received'` | `'sent'`, default: `'received'`), `status` (`PENDING`, `ACCEPTED`, `REJECTED`, `CANCELLED`).
+  - Response:
+    ```json
+    {
+      "status": "success",
+      "message": "Friend requests retrieved successfully",
+      "data": {
+        "items": [
+          {
+            "id": 1,
+            "status": "PENDING",
+            "createdAt": "2026-10-27T12:00:00.000Z",
+            "updatedAt": "2026-10-27T12:00:00.000Z",
+            "fullName": "Ali Reza",
+            "username": "alireza",
+            "avatarUrl": "http://localhost:3000/assets/avatars/avatar_10.webp"
+          }
+        ],
+        "total": 1,
+        "page": 1,
+        "limit": 10,
+        "totalPages": 1
+      }
+    }
+    ```
+- `POST /v1/friends/accept/:id`: Accepts a pending friend request by request ID (or sender user ID).
+  - Param: `id` (integer)
+  - Response: `{ "status": "success", "message": "Friend request accepted successfully", "data": { "id": 1, "status": "ACCEPTED", "createdAt": "...", "updatedAt": "...", "fullName": "...", "username": "...", "avatarUrl": "..." } }`
+- `POST /v1/friends/reject/:id`: Rejects a pending friend request by request ID (or sender user ID).
+  - Param: `id` (integer)
+  - Response: `{ "status": "success", "message": "Friend request rejected successfully", "data": { "id": 1, "status": "REJECTED", "createdAt": "...", "updatedAt": "...", "fullName": "...", "username": "...", "avatarUrl": "..." } }`
+- `POST /v1/friends/cancel/:id`: Cancels an outgoing pending friend request previously sent by the user by request ID (or target user ID).
+  - Param: `id` (integer)
+  - Response: `{ "status": "success", "message": "Friend request cancelled successfully", "data": { "id": 1, "status": "CANCELLED", "createdAt": "...", "updatedAt": "...", "fullName": "...", "username": "...", "avatarUrl": "..." } }`
+- `GET /v1/friends`: Retrieves accepted friends with pagination and optional search query with flat items in root of each item.
+  - Query: `page` (default: 1), `limit` (default: 10, max: 100), `search` (optional string filtering by `fullName` or `username`).
+  - Response:
+    ```json
+    {
+      "status": "success",
+      "message": "Friends retrieved successfully",
+      "data": {
+        "items": [
+          {
+            "id": 1,
+            "status": "ACCEPTED",
+            "createdAt": "2026-10-27T12:00:00.000Z",
+            "updatedAt": "2026-10-27T12:00:00.000Z",
+            "fullName": "Sara Connor",
+            "username": "sarah_c",
+            "avatarUrl": "http://localhost:3000/assets/avatars/avatar_205.webp"
+          }
+        ],
+        "total": 1,
+        "page": 1,
+        "limit": 10,
+        "totalPages": 1
+      }
+    }
+    ```
+- `DELETE /v1/friends/:friendId`: Removes an existing friend by user ID (or friendship request ID).
+  - Param: `friendId` (integer)
+  - Response: `{ "status": "success", "message": "Friend removed successfully" }`
+
 
 
 

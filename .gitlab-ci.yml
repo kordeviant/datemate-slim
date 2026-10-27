@@ -77,7 +77,8 @@ deploy:
         fi
         echo '===> Pulling latest code...'
         git fetch origin main
-        git checkout -B main origin/main
+        git reset --hard HEAD || true
+        git checkout -f -B main origin/main
         git reset --hard origin/main
       "
 

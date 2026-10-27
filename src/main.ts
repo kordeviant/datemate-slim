@@ -32,7 +32,7 @@ async function bootstrap() {
   app.set("trust proxy", parsedTrustProxy);
   // Enable CORS only allow on port 3001
   app.enableCors({
-    origin: ['http://localhost:3001', 'https://panel-datemate.testdevvvv.site','http://panel-datemate.testdevvvv.site/', '162.19.154.210', '162.19.154.210:3001'],
+    origin: ['http://localhost:3001', 'https://panel-datemate.testdevvvv.site','http://panel-datemate.testdevvvv.site/', '162.19.154.210', '162.19.154.210:3001','192.168.88.191:3001', '192.168.88.191'],
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],

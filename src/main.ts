@@ -39,7 +39,17 @@ async function bootstrap() {
   // });
   // Allow all origins
   app.enableCors({
-    origin: ['*'],
+    origin: true, // Dynamically reflects request origin (e.g. localhost:3001, panel-datemate.testdevvvv.site)
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Requested-With',
+      'x-api-key',
+    ],
+    exposedHeaders: ['Content-Range', 'X-Content-Range'],
   });
   // Serve static uploads (avatars, images)
   app.useStaticAssets(path.join(process.cwd(), "uploads"), {

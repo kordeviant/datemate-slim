@@ -55,6 +55,9 @@ import { GetBulkUsersUseCase } from "../application/use-cases/get-bulk-users.use
 import { BulkUserItemDto } from "../application/dtos/bulk-user-item.dto";
 import { UpdateDeviceTokenUseCase } from "../application/use-cases/update-device-token.use-case";
 import { GetDeviceTokenUseCase } from "../application/use-cases/get-device-token.use-case";
+import { GetUserAvatarUseCase } from "../application/use-cases/get-user-avatar.use-case";
+import { GetBulkAvatarsUseCase } from "../application/use-cases/get-bulk-avatars.use-case";
+import { UserAvatarDto } from "../application/dtos/user-avatar.dto";
 import {
   DeviceTokenResponseDto,
   UpdateDeviceTokenDto,
@@ -75,6 +78,8 @@ export class UsersController {
     private readonly getBulkUsersUseCase: GetBulkUsersUseCase,
     private readonly updateDeviceTokenUseCase: UpdateDeviceTokenUseCase,
     private readonly getDeviceTokenUseCase: GetDeviceTokenUseCase,
+    private readonly getUserAvatarUseCase: GetUserAvatarUseCase,
+    private readonly getBulkAvatarsUseCase: GetBulkAvatarsUseCase,
   ) {}
 
   @Delete(["me", "account"])
@@ -518,6 +523,93 @@ export class UsersController {
       message: "Device token retrieved successfully",
       data: result,
     };
+  }
+
+  @Get("avatars/:ids")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Get multiple user avatars by comma-separated IDs",
+    description:
+      "Returns a list containing only the user ID and avatar URL for each requested ID in the path.",
+  })
+  @ApiParam({
+    name: "ids",
+    description: "Comma-separated list of user IDs (e.g. 1,2,3)",
+    type: String,
+    example: "1,2,3",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User avatars retrieved successfully",
+    type: [UserAvatarDto],
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  async getBulkAvatars(
+    @Headers("authorization") authHeader: string,
+    @Param("ids") rawIds: string,
+  ): Promise<UserAvatarDto[]> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    await this.tokenService.verifyAccessToken(token);
+
+    const ids = (rawIds || "")
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((id) => !isNaN(id) && id > 0);
+
+    return this.getBulkAvatarsUseCase.execute(ids);
+  }
+
+  @Get(":id/avatar")
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("JWT-auth")
+  @ApiOperation({
+    summary: "Get user avatar by ID",
+    description:
+      "Retrieves only the user ID and resolved avatar URL for the specified user ID.",
+  })
+  @ApiParam({
+    name: "id",
+    description: "ID of the user to retrieve avatar for",
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "User avatar retrieved successfully",
+    type: UserAvatarDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing or invalid access token",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "User not found",
+  })
+  async getUserAvatar(
+    @Headers("authorization") authHeader: string,
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<UserAvatarDto> {
+    if (!authHeader) {
+      throw new UnauthorizedException("Missing Authorization header");
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, "")
+      .trim()
+      .replace(/^["']|["']$/g, "");
+    await this.tokenService.verifyAccessToken(token);
+
+    return this.getUserAvatarUseCase.execute(id);
   }
 
   @Get(":id")

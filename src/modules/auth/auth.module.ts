@@ -19,6 +19,8 @@ import { GetUserDevicesUseCase } from "./application/use-cases/get-user-devices.
 import { TerminateClientDeviceUseCase } from "./application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "./application/use-cases/terminate-all-client-devices.use-case";
 import { GetBulkUsersUseCase } from "./application/use-cases/get-bulk-users.use-case";
+import { GetUserAvatarUseCase } from "./application/use-cases/get-user-avatar.use-case";
+import { GetBulkAvatarsUseCase } from "./application/use-cases/get-bulk-avatars.use-case";
 import { UpdateDeviceTokenUseCase } from "./application/use-cases/update-device-token.use-case";
 import { GetDeviceTokenUseCase } from "./application/use-cases/get-device-token.use-case";
 import { ApiKeyGuard } from "../../common/guards/api-key.guard";
@@ -70,6 +72,8 @@ import { MediaModule } from "../media/media.module";
     TerminateClientDeviceUseCase,
     TerminateAllClientDevicesUseCase,
     GetBulkUsersUseCase,
+    GetUserAvatarUseCase,
+    GetBulkAvatarsUseCase,
     UpdateDeviceTokenUseCase,
     GetDeviceTokenUseCase,
     ApiKeyGuard,
@@ -88,6 +92,8 @@ import { MediaModule } from "../media/media.module";
     TerminateClientDeviceUseCase,
     TerminateAllClientDevicesUseCase,
     GetBulkUsersUseCase,
+    GetUserAvatarUseCase,
+    GetBulkAvatarsUseCase,
     UpdateDeviceTokenUseCase,
     GetDeviceTokenUseCase,
     ApiKeyGuard,

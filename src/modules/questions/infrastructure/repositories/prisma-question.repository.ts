@@ -3,6 +3,7 @@ import { QuestionType } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import {
   CreateQuestionData,
+  UpdateQuestionData,
   IQuestionRepository,
 } from '../../domain/repositories/question.repository.interface';
 import { QuestionEntity } from '../../domain/question.entity';

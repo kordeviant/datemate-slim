@@ -305,6 +305,21 @@ The User Gallery system enables users to upload, manage, and curate their photo 
   - Returns `404 Not Found` if the user does not exist.
   - Returns: `{ status: "success", message: "Device token retrieved successfully", data: { userId, token, deviceInfo } }`.
 
+### 7.9 User Avatar APIs (`GET /v1/users/:id/avatar`, `GET /v1/users/avatars/:ids`)
+- **Single User Avatar (`GET /v1/users/:id/avatar`)**:
+  - Path parameter: `id` (positive integer).
+  - **Authentication**: Authenticated user endpoint (`Bearer <token>`).
+  - **Resolution Priority**: Active gallery profile picture (`isProfilePicture: true`) -> `Profile.profilePictureUrl` -> `Profile.avatarUrl` -> First gallery photo -> `null`.
+  - **Response Contract (`UserAvatarDto`)**:
+    - `id`: User ID (`number`)
+    - `avatarUrl`: Publicly resolved avatar URL (`string | null`)
+  - **Error Handling**: Missing/invalid token returns `401 Unauthorized`; non-existent user returns `404 Not Found`.
+- **Multiple User Avatars (`GET /v1/users/avatars/:ids`)**:
+  - Path parameter: `ids` (comma-separated list of user IDs, e.g. `/v1/users/avatars/1,2,3`).
+  - **Authentication**: Authenticated user endpoint (`Bearer <token>`).
+  - **Response Contract**: Returns an array of `UserAvatarDto` (`[{ id, avatarUrl }]`), preserving the requested order of valid IDs.
+  - **Error Handling**: Missing/invalid token returns `401 Unauthorized`.
+
 ---
 
 

@@ -12,6 +12,8 @@ import { TerminateAllClientDevicesUseCase } from "../application/use-cases/termi
 import { GetBulkUsersUseCase } from "../application/use-cases/get-bulk-users.use-case";
 import { UpdateDeviceTokenUseCase } from "../application/use-cases/update-device-token.use-case";
 import { GetDeviceTokenUseCase } from "../application/use-cases/get-device-token.use-case";
+import { GetUserAvatarUseCase } from "../application/use-cases/get-user-avatar.use-case";
+import { GetBulkAvatarsUseCase } from "../application/use-cases/get-bulk-avatars.use-case";
 
 describe("UsersController", () => {
   let controller: UsersController;
@@ -26,6 +28,8 @@ describe("UsersController", () => {
   let mockGetBulkUsersUseCase: any;
   let mockUpdateDeviceTokenUseCase: any;
   let mockGetDeviceTokenUseCase: any;
+  let mockGetUserAvatarUseCase: any;
+  let mockGetBulkAvatarsUseCase: any;
 
   beforeEach(async () => {
     mockTokenService = {
@@ -72,6 +76,14 @@ describe("UsersController", () => {
       execute: jest.fn(),
     };
 
+    mockGetUserAvatarUseCase = {
+      execute: jest.fn(),
+    };
+
+    mockGetBulkAvatarsUseCase = {
+      execute: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
       providers: [
@@ -86,6 +98,8 @@ describe("UsersController", () => {
         { provide: GetBulkUsersUseCase, useValue: mockGetBulkUsersUseCase },
         { provide: UpdateDeviceTokenUseCase, useValue: mockUpdateDeviceTokenUseCase },
         { provide: GetDeviceTokenUseCase, useValue: mockGetDeviceTokenUseCase },
+        { provide: GetUserAvatarUseCase, useValue: mockGetUserAvatarUseCase },
+        { provide: GetBulkAvatarsUseCase, useValue: mockGetBulkAvatarsUseCase },
       ],
     }).compile();
 
@@ -817,6 +831,71 @@ describe("UsersController", () => {
       );
     });
   });
+
+  describe("GET /users/:id/avatar", () => {
+    it("should throw UnauthorizedException when auth header is missing", async () => {
+      await expect(controller.getUserAvatar("", 1)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should verify access token and call getUserAvatarUseCase", async () => {
+      const mockResult = {
+        id: 1,
+        avatarUrl: "http://localhost:3000/assets/avatars/avatar_1.webp",
+      };
+      mockGetUserAvatarUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.getUserAvatar("Bearer valid_token", 1);
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockGetUserAvatarUseCase.execute).toHaveBeenCalledWith(1);
+      expect(res).toEqual(mockResult);
+    });
+
+    it("should propagate NotFoundException when user does not exist", async () => {
+      mockGetUserAvatarUseCase.execute.mockRejectedValue(
+        new NotFoundException("User with ID 999 not found"),
+      );
+
+      await expect(
+        controller.getUserAvatar("Bearer valid_token", 999),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("GET /users/avatars/:ids", () => {
+    it("should throw UnauthorizedException when auth header is missing", async () => {
+      await expect(controller.getBulkAvatars("", "1,2,3")).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it("should verify access token, parse comma-separated IDs, and call getBulkAvatarsUseCase", async () => {
+      const mockResult = [
+        { id: 1, avatarUrl: "http://localhost:3000/assets/avatars/avatar_1.webp" },
+        { id: 2, avatarUrl: null },
+      ];
+      mockGetBulkAvatarsUseCase.execute.mockResolvedValue(mockResult);
+
+      const res = await controller.getBulkAvatars("Bearer valid_token", " 1, 2, abc, -5 ");
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockGetBulkAvatarsUseCase.execute).toHaveBeenCalledWith([1, 2]);
+      expect(res).toEqual(mockResult);
+    });
+
+    it("should handle empty or invalid rawIds string gracefully", async () => {
+      mockGetBulkAvatarsUseCase.execute.mockResolvedValue([]);
+
+      const res = await controller.getBulkAvatars("Bearer valid_token", "");
+
+      expect(mockTokenService.verifyAccessToken).toHaveBeenCalledWith("valid_token");
+      expect(mockGetBulkAvatarsUseCase.execute).toHaveBeenCalledWith([]);
+      expect(res).toEqual([]);
+    });
+  });
 });
+
 
 

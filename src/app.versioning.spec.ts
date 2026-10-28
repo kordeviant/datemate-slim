@@ -23,6 +23,8 @@ import { GetUserDevicesUseCase } from "./modules/auth/application/use-cases/get-
 import { TerminateClientDeviceUseCase } from "./modules/auth/application/use-cases/terminate-client-device.use-case";
 import { TerminateAllClientDevicesUseCase } from "./modules/auth/application/use-cases/terminate-all-client-devices.use-case";
 import { GetBulkUsersUseCase } from "./modules/auth/application/use-cases/get-bulk-users.use-case";
+import { GetUserAvatarUseCase } from "./modules/auth/application/use-cases/get-user-avatar.use-case";
+import { GetBulkAvatarsUseCase } from "./modules/auth/application/use-cases/get-bulk-avatars.use-case";
 import { UpdateDeviceTokenUseCase } from "./modules/auth/application/use-cases/update-device-token.use-case";
 import { GetDeviceTokenUseCase } from "./modules/auth/application/use-cases/get-device-token.use-case";
 import { GeoController } from "./infrastructure/geo/geo.controller";
@@ -66,6 +68,8 @@ describe("API Versioning (v1)", () => {
         { provide: GetBulkUsersUseCase, useValue: { execute: jest.fn().mockResolvedValue([]) } },
         { provide: UpdateDeviceTokenUseCase, useValue: { execute: jest.fn() } },
         { provide: GetDeviceTokenUseCase, useValue: { execute: jest.fn().mockResolvedValue({ userId: 1, token: "test_token", deviceInfo: "test_device" }) } },
+        { provide: GetUserAvatarUseCase, useValue: { execute: jest.fn().mockResolvedValue({ id: 1, avatarUrl: "http://localhost:3000/assets/avatars/avatar_1.webp" }) } },
+        { provide: GetBulkAvatarsUseCase, useValue: { execute: jest.fn().mockResolvedValue([{ id: 1, avatarUrl: "http://localhost:3000/assets/avatars/avatar_1.webp" }]) } },
       ],
     }).compile();
 
@@ -221,6 +225,16 @@ describe("API Versioning (v1)", () => {
       const res = await request(app.getHttpServer()).get("/v1/downloads/catalog");
       expect(res.status).toBe(200);
       expect(res.body.totalPackages).toBeGreaterThanOrEqual(4);
+    });
+
+    it("GET /v1/users/1/avatar requires authorization header (returns 401)", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/users/1/avatar");
+      expect(res.status).toBe(401);
+    });
+
+    it("GET /v1/users/avatars/1,2 requires authorization header (returns 401)", async () => {
+      const res = await request(app.getHttpServer()).get("/v1/users/avatars/1,2");
+      expect(res.status).toBe(401);
     });
   });
 });

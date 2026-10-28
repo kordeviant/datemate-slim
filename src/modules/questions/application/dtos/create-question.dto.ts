@@ -34,15 +34,15 @@ export class CreateQuestionAnswerDto {
 export class CreateQuestionDto {
   @ApiProperty({
     example: 'PREFERENCES',
-    description: 'Question type/category (e.g. PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES)',
-    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+    description: 'Question type/category (e.g. PREFERENCES, PERSONALITY, or any custom type)',
   })
-  @IsNotEmpty()
-  @IsString()
-  @Transform(({ value }) => typeof value === 'string' ? value.toUpperCase().trim() : value)
-  @IsEnum(['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'], {
-    message: 'Type must be one of: PREFERENCES, PERSONALITY, INTERESTS, LIFESTYLE, VALUES',
-  })
+  @IsNotEmpty({ message: 'type is required' })
+  @IsString({ message: 'type must be a string' })
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.trim().toUpperCase().replace(/[-\s.]+/g, '_')
+      : value,
+  )
   type: string;
 
   @ApiPropertyOptional({

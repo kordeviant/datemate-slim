@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { QuestionType } from '@prisma/client';
 import { PrismaService } from '../../../../infrastructure/database/prisma.service';
 import {
   CreateQuestionData,
@@ -39,9 +38,8 @@ export class PrismaQuestionRepository implements IQuestionRepository {
   }
 
   async findByType(type: string): Promise<QuestionEntity[]> {
-    const validTypes = Object.values(QuestionType);
-    const upperType = type.toUpperCase() as QuestionType;
-    if (!validTypes.includes(upperType)) {
+    const upperType = type.trim().toUpperCase().replace(/[-\s.]+/g, '_');
+    if (!upperType) {
       return [];
     }
 

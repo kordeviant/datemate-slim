@@ -68,8 +68,8 @@ export class QuestionsController {
   @ApiQuery({
     name: 'type',
     required: false,
-    description: 'Question type/category filter',
-    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+    description: 'Question type/category filter (e.g. PREFERENCES, PERSONALITY, or custom type)',
+    type: String,
   })
   @ApiQuery({
     name: 'language',
@@ -131,7 +131,7 @@ export class QuestionsController {
     name: 'type',
     required: true,
     description: 'Question type to search',
-    enum: ['PREFERENCES', 'PERSONALITY', 'INTERESTS', 'LIFESTYLE', 'VALUES'],
+    type: String,
   })
   @ApiQuery({
     name: 'language',

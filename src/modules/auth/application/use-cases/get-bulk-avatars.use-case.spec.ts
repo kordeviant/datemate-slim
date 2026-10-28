@@ -39,19 +39,13 @@ describe("GetBulkAvatarsUseCase", () => {
         id: 2,
         profile: {
           avatarUrl: "avatars/bob.webp",
-          profilePictureUrl: null,
         },
-        gallery: [],
       },
       {
         id: 1,
         profile: {
           avatarUrl: "avatars/alice.webp",
-          profilePictureUrl: null,
         },
-        gallery: [
-          { imageUrl: "gallery/alice_pic.webp", isProfilePicture: true },
-        ],
       },
     ]);
 
@@ -67,15 +61,7 @@ describe("GetBulkAvatarsUseCase", () => {
         profile: {
           select: {
             avatarUrl: true,
-            profilePictureUrl: true,
           },
-        },
-        gallery: {
-          select: {
-            imageUrl: true,
-            isProfilePicture: true,
-          },
-          orderBy: { createdAt: "asc" },
         },
       },
     });
@@ -83,7 +69,7 @@ describe("GetBulkAvatarsUseCase", () => {
     expect(result).toEqual([
       {
         id: 1,
-        avatarUrl: "http://localhost:3000/assets/gallery/alice_pic.webp",
+        avatarUrl: "http://localhost:3000/assets/avatars/alice.webp",
       },
       {
         id: 2,
@@ -97,15 +83,12 @@ describe("GetBulkAvatarsUseCase", () => {
       {
         id: 3,
         profile: null,
-        gallery: [],
       },
       {
         id: 4,
         profile: {
           avatarUrl: "",
-          profilePictureUrl: null,
         },
-        gallery: [],
       },
     ]);
 
@@ -129,9 +112,7 @@ describe("GetBulkAvatarsUseCase", () => {
         id: 10,
         profile: {
           avatarUrl: "avatars/ten.webp",
-          profilePictureUrl: null,
         },
-        gallery: [],
       },
     ]);
 

@@ -308,8 +308,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 ### 7.9 User Avatar APIs (`GET /v1/users/:id/avatar`, `GET /v1/users/avatars/:ids`)
 - **Single User Avatar (`GET /v1/users/:id/avatar`)**:
   - Path parameter: `id` (positive integer).
-  - **Authentication**: Authenticated user endpoint (`Bearer <token>`).
-  - **Resolution Priority**: Active gallery profile picture (`isProfilePicture: true`) -> `Profile.profilePictureUrl` -> `Profile.avatarUrl` -> First gallery photo -> `null`.
+  - **Resolution**: Resolves `Profile.avatarUrl` directly via `MediaUrlResolverService` without querying or falling back to gallery photos. Returns `null` if no avatar is set.
   - **Response Contract (`UserAvatarDto`)**:
     - `id`: User ID (`number`)
     - `avatarUrl`: Publicly resolved avatar URL (`string | null`)

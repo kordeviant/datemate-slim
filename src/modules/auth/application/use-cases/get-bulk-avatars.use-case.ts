@@ -36,27 +36,15 @@ export class GetBulkAvatarsUseCase {
         profile: {
           select: {
             avatarUrl: true,
-            profilePictureUrl: true,
           },
-        },
-        gallery: {
-          select: {
-            imageUrl: true,
-            isProfilePicture: true,
-          },
-          orderBy: { createdAt: "asc" },
         },
       },
     });
 
     const userMap = new Map<number, UserAvatarDto>();
     for (const user of users) {
-      const profilePicGallery = user.gallery?.find((g) => g.isProfilePicture);
       const rawAvatar =
-        profilePicGallery?.imageUrl ||
-        user.profile?.profilePictureUrl ||
         user.profile?.avatarUrl ||
-        user.gallery?.[0]?.imageUrl ||
         null;
 
       let resolvedAvatar: string | null = null;

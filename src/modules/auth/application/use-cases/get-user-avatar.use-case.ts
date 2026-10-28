@@ -27,16 +27,8 @@ export class GetUserAvatarUseCase {
         profile: {
           select: {
             avatarUrl: true,
-            profilePictureUrl: true,
           },
-        },
-        gallery: {
-          select: {
-            imageUrl: true,
-            isProfilePicture: true,
-          },
-          orderBy: { createdAt: "asc" },
-        },
+        }
       },
     });
 
@@ -44,12 +36,8 @@ export class GetUserAvatarUseCase {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    const profilePicGallery = user.gallery?.find((g) => g.isProfilePicture);
     const rawAvatar =
-      profilePicGallery?.imageUrl ||
-      user.profile?.profilePictureUrl ||
       user.profile?.avatarUrl ||
-      user.gallery?.[0]?.imageUrl ||
       null;
 
     let resolvedAvatar: string | null = null;

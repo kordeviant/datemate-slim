@@ -40,110 +40,51 @@ describe("GetUserAvatarUseCase", () => {
         profile: {
           select: {
             avatarUrl: true,
-            profilePictureUrl: true,
           },
-        },
-        gallery: {
-          select: {
-            imageUrl: true,
-            isProfilePicture: true,
-          },
-          orderBy: { createdAt: "asc" },
         },
       },
     });
   });
 
-  it("should prioritize active profile picture from gallery", async () => {
+  it("should return resolved avatarUrl from profile", async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 1,
       profile: {
         avatarUrl: "avatars/onboarding.webp",
-        profilePictureUrl: "gallery/old.webp",
       },
-      gallery: [
-        { imageUrl: "gallery/photo1.webp", isProfilePicture: false },
-        { imageUrl: "gallery/active_pic.webp", isProfilePicture: true },
-      ],
     });
 
     const result = await useCase.execute(1);
 
     expect(result).toEqual({
       id: 1,
-      avatarUrl: "http://localhost:3000/assets/gallery/active_pic.webp",
+      avatarUrl: "http://localhost:3000/assets/avatars/onboarding.webp",
     });
+    expect(mockMediaUrlResolver.resolveUrl).toHaveBeenCalledWith("avatars/onboarding.webp");
   });
 
-  it("should fallback to profilePictureUrl if no gallery photo has isProfilePicture true", async () => {
+  it("should return avatarUrl as null if user profile is null or has empty avatarUrl", async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 2,
-      profile: {
-        avatarUrl: "avatars/onboarding.webp",
-        profilePictureUrl: "gallery/profile_pic.webp",
-      },
-      gallery: [
-        { imageUrl: "gallery/photo1.webp", isProfilePicture: false },
-      ],
-    });
-
-    const result = await useCase.execute(2);
-
-    expect(result).toEqual({
-      id: 2,
-      avatarUrl: "http://localhost:3000/assets/gallery/profile_pic.webp",
-    });
-  });
-
-  it("should fallback to profile avatarUrl if no profilePictureUrl or gallery isProfilePicture", async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 3,
-      profile: {
-        avatarUrl: "avatars/avatar_1.webp",
-        profilePictureUrl: null,
-      },
-      gallery: [],
-    });
-
-    const result = await useCase.execute(3);
-
-    expect(result).toEqual({
-      id: 3,
-      avatarUrl: "http://localhost:3000/assets/avatars/avatar_1.webp",
-    });
-  });
-
-  it("should fallback to first gallery photo if other sources are null", async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 4,
-      profile: {
-        avatarUrl: null,
-        profilePictureUrl: null,
-      },
-      gallery: [
-        { imageUrl: "gallery/first_photo.webp", isProfilePicture: false },
-      ],
-    });
-
-    const result = await useCase.execute(4);
-
-    expect(result).toEqual({
-      id: 4,
-      avatarUrl: "http://localhost:3000/assets/gallery/first_photo.webp",
-    });
-  });
-
-  it("should return avatarUrl as null if user has no avatar or photos", async () => {
-    mockPrisma.user.findUnique.mockResolvedValue({
-      id: 5,
       profile: null,
-      gallery: [],
     });
 
-    const result = await useCase.execute(5);
+    const result1 = await useCase.execute(2);
+    expect(result1).toEqual({
+      id: 2,
+      avatarUrl: null,
+    });
 
-    expect(result).toEqual({
-      id: 5,
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 3,
+      profile: {
+        avatarUrl: "   ",
+      },
+    });
+
+    const result2 = await useCase.execute(3);
+    expect(result2).toEqual({
+      id: 3,
       avatarUrl: null,
     });
   });
@@ -151,19 +92,17 @@ describe("GetUserAvatarUseCase", () => {
   it("should return raw path if mediaUrlResolver is not provided", async () => {
     const useCaseWithoutResolver = new GetUserAvatarUseCase(mockPrisma);
     mockPrisma.user.findUnique.mockResolvedValue({
-      id: 6,
+      id: 4,
       profile: {
-        avatarUrl: "avatars/avatar_6.webp",
-        profilePictureUrl: null,
+        avatarUrl: "avatars/avatar_4.webp",
       },
-      gallery: [],
     });
 
-    const result = await useCaseWithoutResolver.execute(6);
+    const result = await useCaseWithoutResolver.execute(4);
 
     expect(result).toEqual({
-      id: 6,
-      avatarUrl: "avatars/avatar_6.webp",
+      id: 4,
+      avatarUrl: "avatars/avatar_4.webp",
     });
   });
 });

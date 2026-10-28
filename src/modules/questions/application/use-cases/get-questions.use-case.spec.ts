@@ -42,6 +42,8 @@ describe('GetQuestionsUseCase', () => {
       create: jest.fn(),
       count: jest.fn(),
       countUserAnswers: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     };
 
     useCase = new GetQuestionsUseCase(mockRepo);

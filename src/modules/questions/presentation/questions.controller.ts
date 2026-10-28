@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -9,8 +10,11 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   UnauthorizedException,
+  UploadedFile,
+  UseInterceptors,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
 import {
@@ -20,12 +24,18 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { GetQuestionsUseCase } from '../application/use-cases/get-questions.use-case';
 import { CreateQuestionUseCase } from '../application/use-cases/create-question.use-case';
+import { UpdateQuestionUseCase } from '../application/use-cases/update-question.use-case';
+import { DeleteQuestionUseCase } from '../application/use-cases/delete-question.use-case';
 import { CreateQuestionDto } from '../application/dtos/create-question.dto';
+import { UpdateQuestionDto } from '../application/dtos/update-question.dto';
 import { QuestionListResponseDto } from '../application/dtos/question-response.dto';
 import { TokenService } from '../../auth/application/services/token.service';
+import { UploadMediaUseCase } from '../../media/application/use-cases/upload-media.use-case';
 
 @ApiTags('Questions')
 @Controller({ path: 'questions', version: ['1', VERSION_NEUTRAL] })
@@ -33,6 +43,9 @@ export class QuestionsController {
   constructor(
     private readonly getQuestionsUseCase: GetQuestionsUseCase,
     private readonly createQuestionUseCase: CreateQuestionUseCase,
+    private readonly updateQuestionUseCase: UpdateQuestionUseCase,
+    private readonly deleteQuestionUseCase: DeleteQuestionUseCase,
+    private readonly uploadMediaUseCase: UploadMediaUseCase,
     private readonly tokenService: TokenService,
   ) {}
 
@@ -247,11 +260,13 @@ export class QuestionsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FileInterceptor('icon'))
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiOperation({
     summary: 'Create a new question (admin only)',
     description:
       'Creates a new question with bilingual name and answer options. ' +
-      'Each question is stored with both English and Farsi text. ' +
+      'Supports uploading an icon file directly via multipart/form-data (field "icon") or providing a relative path/URL in JSON. ' +
       'Requires admin role.',
   })
   @ApiResponse({
@@ -269,6 +284,7 @@ export class QuestionsController {
   async createQuestion(
     @Headers('authorization') authHeader: string,
     @Body() dto: CreateQuestionDto,
+    @UploadedFile() iconFile?: Express.Multer.File,
   ) {
     if (!authHeader) {
       throw new UnauthorizedException('Missing Authorization header');
@@ -284,6 +300,115 @@ export class QuestionsController {
       throw new UnauthorizedException('Only administrators can create questions');
     }
 
+    if (iconFile) {
+      const uploadResult = await this.uploadMediaUseCase.execute('icons', iconFile);
+      dto.icon = uploadResult.relativePath;
+    }
+
     return this.createQuestionUseCase.execute(dto);
+  }
+
+  @Put(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FileInterceptor('icon'))
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiOperation({
+    summary: 'Update an existing question (admin only)',
+    description:
+      'Updates question details, bilingual text, answers, and icon. ' +
+      'Supports uploading a new icon file directly via multipart/form-data (field "icon") or providing path/URL. ' +
+      'Requires admin role.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'Question ID to update',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Question updated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient permissions',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Question not found',
+  })
+  async updateQuestion(
+    @Headers('authorization') authHeader: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateQuestionDto,
+    @UploadedFile() iconFile?: Express.Multer.File,
+  ) {
+    if (!authHeader) {
+      throw new UnauthorizedException('Missing Authorization header');
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    const decoded = await this.tokenService.verifyAccessToken(token);
+
+    if (decoded.role !== 'ADMIN') {
+      throw new UnauthorizedException('Only administrators can update questions');
+    }
+
+    if (iconFile) {
+      const uploadResult = await this.uploadMediaUseCase.execute('icons', iconFile);
+      dto.icon = uploadResult.relativePath;
+    }
+
+    return this.updateQuestionUseCase.execute(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Delete a question (admin only)',
+    description: 'Deletes a question and its answers. Requires admin role.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    description: 'Question ID to delete',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Question deleted successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing/invalid token or insufficient permissions',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Question not found',
+  })
+  async deleteQuestion(
+    @Headers('authorization') authHeader: string,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    if (!authHeader) {
+      throw new UnauthorizedException('Missing Authorization header');
+    }
+    const token = authHeader
+      .replace(/^(Bearer\s*)+/i, '')
+      .trim()
+      .replace(/^["']|["']$/g, '');
+    const decoded = await this.tokenService.verifyAccessToken(token);
+
+    if (decoded.role !== 'ADMIN') {
+      throw new UnauthorizedException('Only administrators can delete questions');
+    }
+
+    return this.deleteQuestionUseCase.execute(id);
   }
 }

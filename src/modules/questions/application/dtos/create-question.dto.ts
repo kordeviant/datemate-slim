@@ -97,6 +97,16 @@ export class CreateQuestionDto {
     type: [CreateQuestionAnswerDto],
     description: 'Answer options for the question (must include both en and fa)',
   })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateQuestionAnswerDto)

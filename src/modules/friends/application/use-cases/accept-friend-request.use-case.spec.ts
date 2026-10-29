@@ -2,10 +2,12 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { AcceptFriendRequestUseCase } from './accept-friend-request.use-case';
 import { IFriendRepository } from '../../domain/repositories/friend.repository.interface';
 import { FriendRequestStatus } from '../../domain/enums/friend-request-status.enum';
+import { IPushNotificationService } from '../../../../infrastructure/notification/push-notification.service.interface';
 
 describe('AcceptFriendRequestUseCase', () => {
   let useCase: AcceptFriendRequestUseCase;
   let mockRepo: jest.Mocked<IFriendRepository>;
+  let mockPushNotificationService: jest.Mocked<IPushNotificationService>;
 
   beforeEach(() => {
     mockRepo = {
@@ -21,7 +23,19 @@ describe('AcceptFriendRequestUseCase', () => {
       createFriendRequestNotification: jest.fn(),
     };
 
-    useCase = new AcceptFriendRequestUseCase(mockRepo);
+    mockPushNotificationService = {
+      sendPush: jest.fn(),
+      sendFriendRequestNotification: jest.fn(),
+      sendFriendRequestAcceptedNotification: jest.fn(),
+      sendLikeUserNotification: jest.fn(),
+      sendSelfieAcceptedNotification: jest.fn(),
+      sendSelfieRejectedNotification: jest.fn(),
+    };
+
+    useCase = new AcceptFriendRequestUseCase(
+      mockRepo,
+      mockPushNotificationService,
+    );
   });
 
   it('should throw NotFoundException when request is not found', async () => {
@@ -58,6 +72,9 @@ describe('AcceptFriendRequestUseCase', () => {
     const result = await useCase.execute(1, 5);
     expect(result.status).toBe(FriendRequestStatus.ACCEPTED);
     expect(mockRepo.updateRequestStatus).not.toHaveBeenCalled();
+    expect(
+      mockPushNotificationService.sendFriendRequestAcceptedNotification,
+    ).not.toHaveBeenCalled();
   });
 
   it('should throw BadRequestException if request was CANCELLED', async () => {
@@ -73,7 +90,7 @@ describe('AcceptFriendRequestUseCase', () => {
     await expect(useCase.execute(1, 5)).rejects.toThrow(BadRequestException);
   });
 
-  it('should accept request successfully and update status to ACCEPTED', async () => {
+  it('should accept request successfully, update status to ACCEPTED and fire push notifications to both users', async () => {
     mockRepo.findRequestById.mockResolvedValueOnce({
       id: 5,
       senderId: 10,
@@ -92,10 +109,32 @@ describe('AcceptFriendRequestUseCase', () => {
       updatedAt: new Date(),
     });
 
+    mockRepo.findUserById
+      .mockResolvedValueOnce({ id: 10, isBanned: false, fullName: 'Sender User' })
+      .mockResolvedValueOnce({ id: 1, isBanned: false, fullName: 'Receiver User' });
+
     const result = await useCase.execute(1, 5);
 
     expect(result.status).toBe(FriendRequestStatus.ACCEPTED);
-    expect(mockRepo.updateRequestStatus).toHaveBeenCalledWith(5, FriendRequestStatus.ACCEPTED);
+    expect(mockRepo.updateRequestStatus).toHaveBeenCalledWith(
+      5,
+      FriendRequestStatus.ACCEPTED,
+    );
+    expect(
+      mockPushNotificationService.sendFriendRequestAcceptedNotification,
+    ).toHaveBeenCalledTimes(2);
+    expect(
+      mockPushNotificationService.sendFriendRequestAcceptedNotification,
+    ).toHaveBeenCalledWith({
+      recipientUserId: 10,
+      otherUserFullName: 'Receiver User',
+    });
+    expect(
+      mockPushNotificationService.sendFriendRequestAcceptedNotification,
+    ).toHaveBeenCalledWith({
+      recipientUserId: 1,
+      otherUserFullName: 'Sender User',
+    });
   });
 
   it('should fallback to lookup by sender userId if request not found by ID', async () => {
@@ -117,9 +156,19 @@ describe('AcceptFriendRequestUseCase', () => {
       updatedAt: new Date(),
     });
 
+    mockRepo.findUserById
+      .mockResolvedValueOnce({ id: 10, isBanned: false, fullName: 'Sender User' })
+      .mockResolvedValueOnce({ id: 1, isBanned: false, fullName: 'Receiver User' });
+
     const result = await useCase.execute(1, 10);
 
     expect(result.status).toBe(FriendRequestStatus.ACCEPTED);
-    expect(mockRepo.updateRequestStatus).toHaveBeenCalledWith(12, FriendRequestStatus.ACCEPTED);
+    expect(mockRepo.updateRequestStatus).toHaveBeenCalledWith(
+      12,
+      FriendRequestStatus.ACCEPTED,
+    );
+    expect(
+      mockPushNotificationService.sendFriendRequestAcceptedNotification,
+    ).toHaveBeenCalledTimes(2);
   });
 });

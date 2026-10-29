@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   FRIEND_REPOSITORY,
@@ -11,6 +12,10 @@ import {
 } from '../../domain/repositories/friend.repository.interface';
 import { FriendRequestStatus } from '../../domain/enums/friend-request-status.enum';
 import { FriendRequestEntity } from '../../domain/entities/friend-request.entity';
+import {
+  IPushNotificationService,
+  PUSH_NOTIFICATION_SERVICE,
+} from '../../../../infrastructure/notification/push-notification.service.interface';
 
 export interface AddFriendResult {
   request: FriendRequestEntity;
@@ -23,9 +28,15 @@ export class AddFriendUseCase {
   constructor(
     @Inject(FRIEND_REPOSITORY)
     private readonly friendRepository: IFriendRepository,
+    @Optional()
+    @Inject(PUSH_NOTIFICATION_SERVICE)
+    private readonly pushNotificationService?: IPushNotificationService,
   ) {}
 
-  async execute(currentUserId: number, targetUserId: number): Promise<AddFriendResult> {
+  async execute(
+    currentUserId: number,
+    targetUserId: number,
+  ): Promise<AddFriendResult> {
     if (currentUserId === targetUserId) {
       throw new BadRequestException('Cannot add yourself as a friend');
     }
@@ -70,6 +81,25 @@ export class AddFriendUseCase {
           existing.id,
           FriendRequestStatus.ACCEPTED,
         );
+
+        // Fire push notification for both users when accepted
+        try {
+          const currentName = currentUser?.fullName || 'User';
+          const targetName = targetUser.fullName || 'User';
+
+          await this.pushNotificationService?.sendFriendRequestAcceptedNotification({
+            recipientUserId: currentUserId,
+            otherUserFullName: targetName,
+          });
+
+          await this.pushNotificationService?.sendFriendRequestAcceptedNotification({
+            recipientUserId: targetUserId,
+            otherUserFullName: currentName,
+          });
+        } catch {
+          // Non-blocking notification failure
+        }
+
         return {
           request: accepted,
           message: 'Friend request accepted and friendship established',
@@ -83,12 +113,23 @@ export class AddFriendUseCase {
       targetUserId,
     );
 
-    // Fire notification for receiver
+    // Fire in-app notification for receiver
     try {
       await this.friendRepository.createFriendRequestNotification(
         targetUserId,
         currentUserId,
       );
+    } catch {
+      // Non-blocking notification failure
+    }
+
+    // Fire push notification for receiver
+    try {
+      const senderName = currentUser?.fullName || 'User';
+      await this.pushNotificationService?.sendFriendRequestNotification({
+        recipientUserId: targetUserId,
+        senderFullName: senderName,
+      });
     } catch {
       // Non-blocking notification failure
     }

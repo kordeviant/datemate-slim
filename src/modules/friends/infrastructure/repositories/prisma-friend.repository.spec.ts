@@ -47,7 +47,7 @@ describe('PrismaFriendRepository', () => {
       });
 
       const result = await repository.findUserById(10);
-      expect(result).toEqual({ id: 10, isBanned: true });
+      expect(result).toEqual({ id: 10, isBanned: true, fullName: 'Unknown name' });
     });
 
     it('should return user status with isBanned false if bannedUntil is null', async () => {
@@ -57,7 +57,7 @@ describe('PrismaFriendRepository', () => {
       });
 
       const result = await repository.findUserById(10);
-      expect(result).toEqual({ id: 10, isBanned: false });
+      expect(result).toEqual({ id: 10, isBanned: false, fullName: 'Unknown name' });
     });
   });
 

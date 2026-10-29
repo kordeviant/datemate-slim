@@ -218,7 +218,39 @@ describe('Admin Use Cases', () => {
   });
 
   describe('ApproveVerificationUseCase', () => {
-    it('should delegate approval to repository', async () => {
+    it('should delegate approval to repository and send push notification', async () => {
+      const approvalResult = {
+        id: 101,
+        userId: 202,
+        status: 'APPROVED',
+        verifiedAt: '2026-10-05T12:15:00.000Z',
+      };
+      (mockAdminRepository.approveVerification as jest.Mock).mockResolvedValue(
+        approvalResult,
+      );
+      const mockPushService = {
+        sendPush: jest.fn(),
+        sendFriendRequestNotification: jest.fn(),
+        sendFriendRequestAcceptedNotification: jest.fn(),
+        sendLikeUserNotification: jest.fn(),
+        sendSelfieAcceptedNotification: jest.fn().mockResolvedValue(true),
+        sendSelfieRejectedNotification: jest.fn(),
+      };
+
+      const useCase = new ApproveVerificationUseCase(
+        mockAdminRepository as IAdminRepository,
+        mockPushService as any,
+      );
+      const result = await useCase.execute(101);
+
+      expect(result).toEqual(approvalResult);
+      expect(mockAdminRepository.approveVerification).toHaveBeenCalledWith(101);
+      expect(mockPushService.sendSelfieAcceptedNotification).toHaveBeenCalledWith({
+        recipientUserId: 202,
+      });
+    });
+
+    it('should handle missing push service gracefully', async () => {
       const approvalResult = {
         id: 101,
         status: 'APPROVED',
@@ -236,10 +268,77 @@ describe('Admin Use Cases', () => {
       expect(result).toEqual(approvalResult);
       expect(mockAdminRepository.approveVerification).toHaveBeenCalledWith(101);
     });
+
+    it('should not throw if push notification fails', async () => {
+      const approvalResult = {
+        id: 101,
+        userId: 202,
+        status: 'APPROVED',
+        verifiedAt: '2026-10-05T12:15:00.000Z',
+      };
+      (mockAdminRepository.approveVerification as jest.Mock).mockResolvedValue(
+        approvalResult,
+      );
+      const mockPushService = {
+        sendPush: jest.fn(),
+        sendFriendRequestNotification: jest.fn(),
+        sendFriendRequestAcceptedNotification: jest.fn(),
+        sendLikeUserNotification: jest.fn(),
+        sendSelfieAcceptedNotification: jest
+          .fn()
+          .mockRejectedValue(new Error('Gateway down')),
+        sendSelfieRejectedNotification: jest.fn(),
+      };
+
+      const useCase = new ApproveVerificationUseCase(
+        mockAdminRepository as IAdminRepository,
+        mockPushService as any,
+      );
+      const result = await useCase.execute(101);
+
+      expect(result).toEqual(approvalResult);
+    });
   });
 
   describe('RejectVerificationUseCase', () => {
-    it('should delegate rejection with reason to repository', async () => {
+    it('should delegate rejection with reason to repository and send push notification', async () => {
+      const rejectionResult = {
+        id: 101,
+        userId: 202,
+        status: 'REJECTED',
+        reason: 'Blurry face',
+        rejectedAt: '2026-10-05T12:16:00.000Z',
+      };
+      (mockAdminRepository.rejectVerification as jest.Mock).mockResolvedValue(
+        rejectionResult,
+      );
+      const mockPushService = {
+        sendPush: jest.fn(),
+        sendFriendRequestNotification: jest.fn(),
+        sendFriendRequestAcceptedNotification: jest.fn(),
+        sendLikeUserNotification: jest.fn(),
+        sendSelfieAcceptedNotification: jest.fn(),
+        sendSelfieRejectedNotification: jest.fn().mockResolvedValue(true),
+      };
+
+      const useCase = new RejectVerificationUseCase(
+        mockAdminRepository as IAdminRepository,
+        mockPushService as any,
+      );
+      const result = await useCase.execute(101, 'Blurry face');
+
+      expect(result).toEqual(rejectionResult);
+      expect(mockAdminRepository.rejectVerification).toHaveBeenCalledWith(
+        101,
+        'Blurry face',
+      );
+      expect(mockPushService.sendSelfieRejectedNotification).toHaveBeenCalledWith({
+        recipientUserId: 202,
+        rejectionReason: 'Blurry face',
+      });
+    });
+
+    it('should handle missing push service gracefully', async () => {
       const rejectionResult = {
         id: 101,
         status: 'REJECTED',
@@ -256,10 +355,37 @@ describe('Admin Use Cases', () => {
       const result = await useCase.execute(101, 'Blurry face');
 
       expect(result).toEqual(rejectionResult);
-      expect(mockAdminRepository.rejectVerification).toHaveBeenCalledWith(
-        101,
-        'Blurry face',
+    });
+
+    it('should not throw if push notification fails', async () => {
+      const rejectionResult = {
+        id: 101,
+        userId: 202,
+        status: 'REJECTED',
+        reason: 'Blurry face',
+        rejectedAt: '2026-10-05T12:16:00.000Z',
+      };
+      (mockAdminRepository.rejectVerification as jest.Mock).mockResolvedValue(
+        rejectionResult,
       );
+      const mockPushService = {
+        sendPush: jest.fn(),
+        sendFriendRequestNotification: jest.fn(),
+        sendFriendRequestAcceptedNotification: jest.fn(),
+        sendLikeUserNotification: jest.fn(),
+        sendSelfieAcceptedNotification: jest.fn(),
+        sendSelfieRejectedNotification: jest
+          .fn()
+          .mockRejectedValue(new Error('Gateway timeout')),
+      };
+
+      const useCase = new RejectVerificationUseCase(
+        mockAdminRepository as IAdminRepository,
+        mockPushService as any,
+      );
+      const result = await useCase.execute(101, 'Blurry face');
+
+      expect(result).toEqual(rejectionResult);
     });
   });
 

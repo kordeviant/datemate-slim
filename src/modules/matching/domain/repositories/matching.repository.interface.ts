@@ -23,4 +23,6 @@ export interface IMatchingRepository {
   findTargetUserStatus(
     userId: number,
   ): Promise<{ exists: boolean; isBanned: boolean }>;
+
+  getUserFullName(userId: number): Promise<string | null>;
 }

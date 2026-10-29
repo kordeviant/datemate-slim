@@ -25,10 +25,14 @@ export class PrismaFriendRepository implements IFriendRepository {
 
   async findUserById(
     userId: number,
-  ): Promise<{ id: number; isBanned: boolean } | null> {
+  ): Promise<{ id: number; isBanned: boolean; fullName?: string } | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, bannedUntil: true },
+      select: {
+        id: true,
+        bannedUntil: true,
+        profile: { select: { fullName: true } },
+      },
     });
 
     if (!user) {
@@ -36,7 +40,11 @@ export class PrismaFriendRepository implements IFriendRepository {
     }
 
     const isBanned = !!user.bannedUntil && user.bannedUntil > new Date();
-    return { id: user.id, isBanned };
+    return {
+      id: user.id,
+      isBanned,
+      fullName: user.profile?.fullName || 'Unknown name',
+    };
   }
 
   async createRequest(

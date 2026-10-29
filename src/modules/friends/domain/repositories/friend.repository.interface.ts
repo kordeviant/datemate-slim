@@ -5,7 +5,9 @@ import { FriendItemEntity } from '../entities/friend-item.entity';
 export const FRIEND_REPOSITORY = 'FRIEND_REPOSITORY';
 
 export interface IFriendRepository {
-  findUserById(userId: number): Promise<{ id: number; isBanned: boolean } | null>;
+  findUserById(
+    userId: number,
+  ): Promise<{ id: number; isBanned: boolean; fullName?: string } | null>;
   createRequest(senderId: number, receiverId: number): Promise<FriendRequestEntity>;
   findRequestById(id: number): Promise<FriendRequestEntity | null>;
   findRequestBetweenUsers(userAId: number, userBId: number): Promise<FriendRequestEntity | null>;

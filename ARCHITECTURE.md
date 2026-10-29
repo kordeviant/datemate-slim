@@ -93,6 +93,8 @@ registry.register({
 | `THROTTLE_TTL` | `60000` | Global rate limit rolling window duration in milliseconds (default: 60000 = 60s) |
 | `THROTTLE_LIMIT` | `120` | Global maximum requests per IP permitted within THROTTLE_TTL window (default: 120) |
 | `TRUST_PROXY` | `loopback` | Express trust proxy mode (`loopback`, `1`, `true`, CIDR). Prevents client IP spoofing |
+| `PUSH_NOTIFICATION_BASE_URL` | *(required for push)* | External push notification gateway base URL |
+| `PUSH_NOTIFICATION_API_KEY` | *(required for push)* | API key sent in `X-API-Key` header to push notification service |
 
 ---
 
@@ -764,6 +766,59 @@ The Friends module provides social connections, friend request workflows, and fr
 - `DELETE /v1/friends/:friendId`: Removes an existing friend by user ID (or friendship request ID).
   - Param: `friendId` (integer)
   - Response: `{ "status": "success", "message": "Friend removed successfully" }`
+
+---
+
+## 12. Push Notification Subsystem (`src/infrastructure/notification`)
+
+### 12.1 Centralized Template Registry (`notification-templates.ts`)
+All push notification templates, strongly typed payload interfaces, and priorities are centralized in a single file: `src/infrastructure/notification/notification-templates.ts`. This provides a single authoritative source for editing notification copy and ensures type safety.
+
+#### Supported Notification Types & Priorities
+| Notification Type | `data.type` (lowercase) | Priority | Title Template | Body Template |
+| :--- | :--- | :--- | :--- | :--- |
+| `FRIEND_REQUEST` | `friend_request` | `NORMAL` | `[Target/SenderFullName]` | `[FullName] sent you friend request` |
+| `FRIEND_REQUEST_ACCEPTED` | `friend_request_accepted` | `NORMAL` | `[Target/OtherFullName]` | `Now [fullName] is your friend` (sent to both users) |
+| `LIKE_USER` | `like_user` | `NORMAL` | `[LikerFullName]` | `user [fullName] like your profile` |
+| `SELFIE_ACCEPTED` | `selfie_accepted` | `NORMAL` | `Selfie Accepted` | `your selfie accepted, now your profile completed` |
+| `SELFIE_REJECTED` | `selfie_rejected` | `NORMAL` | `Selfie Rejected` | `[Rejection Reason]` |
+
+### 12.2 External Push Gateway Contract
+The service interacts with an external push gateway service configured via environment variables:
+- `PUSH_NOTIFICATION_BASE_URL`: Base URL of the push notification service. Normalized dynamically to `${baseUrl}/v1/push`.
+- `PUSH_NOTIFICATION_API_KEY`: Authentication secret sent in the `X-API-Key` HTTP header.
+
+#### Request Format
+```bash
+POST /v1/push
+Content-Type: application/json
+X-API-Key: <PUSH_NOTIFICATION_API_KEY>
+
+{
+  "title": "Parsa Moloudie",
+  "body": "Parsa Moloudie sent you friend request",
+  "user_id": "10",
+  "data": {
+    "user_id": "10",
+    "type": "friend_request"
+  },
+  "priority": "NORMAL"
+}
+```
+
+### 12.3 Trigger Integrations & Resilience
+- **Add Friend** (`AddFriendUseCase`):
+  - When friend request is created: fires `FRIEND_REQUEST` notification to target user.
+  - When reciprocal request exists (auto-accepted): fires `FRIEND_REQUEST_ACCEPTED` notification to both users.
+- **Accept Friend Request** (`AcceptFriendRequestUseCase`):
+  - When request is accepted: fires `FRIEND_REQUEST_ACCEPTED` notification to both users with counterpart's full name.
+- **Swipe / Like User** (`RecordSwipeUseCase`):
+  - When a user swipes `RIGHT`: fires `LIKE_USER` notification to target user.
+- **Selfie Verification** (`ApproveVerificationUseCase`, `RejectVerificationUseCase`):
+  - On admin approval: fires `SELFIE_ACCEPTED` notification to user (`your selfie accepted, now your profile completed`).
+  - On admin rejection: fires `SELFIE_REJECTED` notification with rejection reason to user.
+- **Non-blocking Resilience**: All push notification dispatches are non-blocking; external gateway failures or network timeouts never interrupt or roll back primary database transactions.
+
 
 
 

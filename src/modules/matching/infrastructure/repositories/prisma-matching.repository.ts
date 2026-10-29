@@ -357,4 +357,12 @@ export class PrismaMatchingRepository implements IMatchingRepository {
       };
     }));
   }
+
+  async getUserFullName(userId: number): Promise<string | null> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { fullName: true },
+    });
+    return profile?.fullName || null;
+  }
 }

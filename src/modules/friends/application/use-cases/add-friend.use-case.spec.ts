@@ -2,10 +2,12 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { AddFriendUseCase } from './add-friend.use-case';
 import { IFriendRepository } from '../../domain/repositories/friend.repository.interface';
 import { FriendRequestStatus } from '../../domain/enums/friend-request-status.enum';
+import { IPushNotificationService } from '../../../../infrastructure/notification/push-notification.service.interface';
 
 describe('AddFriendUseCase', () => {
   let useCase: AddFriendUseCase;
   let mockRepo: jest.Mocked<IFriendRepository>;
+  let mockPushNotificationService: jest.Mocked<IPushNotificationService>;
 
   beforeEach(() => {
     mockRepo = {
@@ -21,7 +23,16 @@ describe('AddFriendUseCase', () => {
       createFriendRequestNotification: jest.fn(),
     };
 
-    useCase = new AddFriendUseCase(mockRepo);
+    mockPushNotificationService = {
+      sendPush: jest.fn(),
+      sendFriendRequestNotification: jest.fn(),
+      sendFriendRequestAcceptedNotification: jest.fn(),
+      sendLikeUserNotification: jest.fn(),
+      sendSelfieAcceptedNotification: jest.fn(),
+      sendSelfieRejectedNotification: jest.fn(),
+    };
+
+    useCase = new AddFriendUseCase(mockRepo, mockPushNotificationService);
   });
 
   it('should throw BadRequestException when trying to add self', async () => {
@@ -35,23 +46,23 @@ describe('AddFriendUseCase', () => {
   });
 
   it('should throw ForbiddenException when target user is banned', async () => {
-    mockRepo.findUserById.mockResolvedValueOnce({ id: 2, isBanned: true });
+    mockRepo.findUserById.mockResolvedValueOnce({ id: 2, isBanned: true, fullName: 'Target' });
 
     await expect(useCase.execute(1, 2)).rejects.toThrow(ForbiddenException);
   });
 
   it('should throw ForbiddenException when current user is banned', async () => {
     mockRepo.findUserById
-      .mockResolvedValueOnce({ id: 2, isBanned: false })
-      .mockResolvedValueOnce({ id: 1, isBanned: true });
+      .mockResolvedValueOnce({ id: 2, isBanned: false, fullName: 'Target' })
+      .mockResolvedValueOnce({ id: 1, isBanned: true, fullName: 'Current' });
 
     await expect(useCase.execute(1, 2)).rejects.toThrow(ForbiddenException);
   });
 
   it('should throw BadRequestException when users are already friends', async () => {
     mockRepo.findUserById
-      .mockResolvedValueOnce({ id: 2, isBanned: false })
-      .mockResolvedValueOnce({ id: 1, isBanned: false });
+      .mockResolvedValueOnce({ id: 2, isBanned: false, fullName: 'Target' })
+      .mockResolvedValueOnce({ id: 1, isBanned: false, fullName: 'Current' });
     mockRepo.findRequestBetweenUsers.mockResolvedValueOnce({
       id: 10,
       senderId: 1,
@@ -66,8 +77,8 @@ describe('AddFriendUseCase', () => {
 
   it('should throw BadRequestException when request is already pending from current user', async () => {
     mockRepo.findUserById
-      .mockResolvedValueOnce({ id: 2, isBanned: false })
-      .mockResolvedValueOnce({ id: 1, isBanned: false });
+      .mockResolvedValueOnce({ id: 2, isBanned: false, fullName: 'Target' })
+      .mockResolvedValueOnce({ id: 1, isBanned: false, fullName: 'Current' });
     mockRepo.findRequestBetweenUsers.mockResolvedValueOnce({
       id: 10,
       senderId: 1,
@@ -80,10 +91,10 @@ describe('AddFriendUseCase', () => {
     await expect(useCase.execute(1, 2)).rejects.toThrow(BadRequestException);
   });
 
-  it('should auto-accept if a reciprocal pending request already exists from target user', async () => {
+  it('should auto-accept and fire push notifications to both users if a reciprocal pending request exists', async () => {
     mockRepo.findUserById
-      .mockResolvedValueOnce({ id: 2, isBanned: false })
-      .mockResolvedValueOnce({ id: 1, isBanned: false });
+      .mockResolvedValueOnce({ id: 2, isBanned: false, fullName: 'Bob Builder' })
+      .mockResolvedValueOnce({ id: 1, isBanned: false, fullName: 'Alice Wonder' });
     mockRepo.findRequestBetweenUsers.mockResolvedValueOnce({
       id: 10,
       senderId: 2,
@@ -106,12 +117,21 @@ describe('AddFriendUseCase', () => {
     expect(result.autoAccepted).toBe(true);
     expect(result.request.status).toBe(FriendRequestStatus.ACCEPTED);
     expect(mockRepo.updateRequestStatus).toHaveBeenCalledWith(10, FriendRequestStatus.ACCEPTED);
+    expect(mockPushNotificationService.sendFriendRequestAcceptedNotification).toHaveBeenCalledTimes(2);
+    expect(mockPushNotificationService.sendFriendRequestAcceptedNotification).toHaveBeenCalledWith({
+      recipientUserId: 1,
+      otherUserFullName: 'Bob Builder',
+    });
+    expect(mockPushNotificationService.sendFriendRequestAcceptedNotification).toHaveBeenCalledWith({
+      recipientUserId: 2,
+      otherUserFullName: 'Alice Wonder',
+    });
   });
 
-  it('should create new friend request and fire notification on success', async () => {
+  it('should create new friend request and fire push notification on success', async () => {
     mockRepo.findUserById
-      .mockResolvedValueOnce({ id: 2, isBanned: false })
-      .mockResolvedValueOnce({ id: 1, isBanned: false });
+      .mockResolvedValueOnce({ id: 2, isBanned: false, fullName: 'Bob Builder' })
+      .mockResolvedValueOnce({ id: 1, isBanned: false, fullName: 'Parsa Moloudie' });
     mockRepo.findRequestBetweenUsers.mockResolvedValueOnce(null);
     mockRepo.createRequest.mockResolvedValueOnce({
       id: 15,
@@ -128,5 +148,9 @@ describe('AddFriendUseCase', () => {
     expect(result.request.id).toBe(15);
     expect(mockRepo.createRequest).toHaveBeenCalledWith(1, 2);
     expect(mockRepo.createFriendRequestNotification).toHaveBeenCalledWith(2, 1);
+    expect(mockPushNotificationService.sendFriendRequestNotification).toHaveBeenCalledWith({
+      recipientUserId: 2,
+      senderFullName: 'Parsa Moloudie',
+    });
   });
 });

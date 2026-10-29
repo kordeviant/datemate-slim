@@ -6,6 +6,7 @@ import { PrismaModule } from "./infrastructure/database/prisma.module";
 import { RedisModule } from "./infrastructure/redis/redis.module";
 import { MailModule } from "./infrastructure/mail/mail.module";
 import { GeoModule } from "./infrastructure/geo/geo.module";
+import { NotificationModule } from "./infrastructure/notification/notification.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { QuestionsModule } from "./modules/questions/questions.module";
 import { MediaModule } from "./modules/media/media.module";
@@ -56,6 +57,7 @@ import { DocsProtectionMiddleware } from "./common/middleware/docs-protection.mi
     RedisModule,
     MailModule,
     GeoModule,
+    NotificationModule,
     AuthModule,
     QuestionsModule,
     MediaModule,

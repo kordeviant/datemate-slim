@@ -25,6 +25,7 @@ describe('GetFeedUseCase', () => {
       getUserDemographicGender: jest.fn(),
       findLikesReceived: jest.fn(),
       findTargetUserStatus: jest.fn(),
+      getUserFullName: jest.fn(),
     };
 
     const mockConfigService = {

@@ -13,6 +13,7 @@ describe('GetLikesReceivedUseCase', () => {
       getUserDemographicGender: jest.fn(),
       findLikesReceived: jest.fn(),
       findTargetUserStatus: jest.fn(),
+      getUserFullName: jest.fn(),
     };
     useCase = new GetLikesReceivedUseCase(mockMatchingRepository);
   });

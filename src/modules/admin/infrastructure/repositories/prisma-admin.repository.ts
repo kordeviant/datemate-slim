@@ -1108,7 +1108,7 @@ export class PrismaAdminRepository implements IAdminRepository {
           type: NotificationType.PROFILE_VERIFIED,
           metadata: {
             status: 'APPROVED',
-            message: 'Your profile has been verified successfully.',
+            message: 'your selfie accepted, now your profile completed',
             verifiedAt: verifiedAt.toISOString(),
           },
           isRead: false,
@@ -1122,6 +1122,7 @@ export class PrismaAdminRepository implements IAdminRepository {
 
     return {
       id: targetId,
+      userId: user.id,
       status: 'APPROVED',
       verifiedAt: verifiedAt.toISOString(),
     };
@@ -1181,6 +1182,7 @@ export class PrismaAdminRepository implements IAdminRepository {
 
     return {
       id: targetId,
+      userId: user.id,
       status: 'REJECTED',
       reason: rejectionReason,
       rejectedAt: rejectedAt.toISOString(),

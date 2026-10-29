@@ -23,12 +23,14 @@ export interface AdminVerificationsPaginatedResult {
 
 export interface ApproveVerificationResult {
   id: number;
+  userId?: number;
   status: string;
   verifiedAt: string;
 }
 
 export interface RejectVerificationResult {
   id: number;
+  userId?: number;
   status: string;
   reason: string;
   rejectedAt: string;

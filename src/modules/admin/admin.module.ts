@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../infrastructure/database/prisma.module';
 import { MediaModule } from '../media/media.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationModule } from '../../infrastructure/notification/notification.module';
 import { ADMIN_REPOSITORY } from './domain/repositories/admin.repository.interface';
 import { PrismaAdminRepository } from './infrastructure/repositories/prisma-admin.repository';
 import { AdminAuthGuard } from './application/guards/admin-auth.guard';
@@ -26,7 +27,7 @@ import { AdminUsersController } from './presentation/admin-users.controller';
 import { AdminVerificationsController } from './presentation/admin-verifications.controller';
 
 @Module({
-  imports: [PrismaModule, MediaModule, AuthModule],
+  imports: [PrismaModule, MediaModule, AuthModule, NotificationModule],
   controllers: [
     AdminDashboardController,
     AdminUsersController,

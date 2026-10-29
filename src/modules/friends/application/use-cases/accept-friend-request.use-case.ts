@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   FRIEND_REPOSITORY,
@@ -11,12 +12,19 @@ import {
 } from '../../domain/repositories/friend.repository.interface';
 import { FriendRequestStatus } from '../../domain/enums/friend-request-status.enum';
 import { FriendRequestEntity } from '../../domain/entities/friend-request.entity';
+import {
+  IPushNotificationService,
+  PUSH_NOTIFICATION_SERVICE,
+} from '../../../../infrastructure/notification/push-notification.service.interface';
 
 @Injectable()
 export class AcceptFriendRequestUseCase {
   constructor(
     @Inject(FRIEND_REPOSITORY)
     private readonly friendRepository: IFriendRepository,
+    @Optional()
+    @Inject(PUSH_NOTIFICATION_SERVICE)
+    private readonly pushNotificationService?: IPushNotificationService,
   ) {}
 
   async execute(
@@ -54,9 +62,36 @@ export class AcceptFriendRequestUseCase {
       throw new BadRequestException('Friend request has been cancelled');
     }
 
-    return this.friendRepository.updateRequestStatus(
+    const updated = await this.friendRepository.updateRequestStatus(
       request.id,
       FriendRequestStatus.ACCEPTED,
     );
+
+    // Fire push notification for both users when accepted
+    try {
+      const senderUser = await this.friendRepository.findUserById(
+        request.senderId,
+      );
+      const receiverUser = await this.friendRepository.findUserById(
+        request.receiverId,
+      );
+
+      const senderName = senderUser?.fullName || 'User';
+      const receiverName = receiverUser?.fullName || 'User';
+
+      await this.pushNotificationService?.sendFriendRequestAcceptedNotification({
+        recipientUserId: request.senderId,
+        otherUserFullName: receiverName,
+      });
+
+      await this.pushNotificationService?.sendFriendRequestAcceptedNotification({
+        recipientUserId: request.receiverId,
+        otherUserFullName: senderName,
+      });
+    } catch {
+      // Non-blocking notification failure
+    }
+
+    return updated;
   }
 }

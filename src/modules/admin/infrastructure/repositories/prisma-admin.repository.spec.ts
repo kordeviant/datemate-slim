@@ -588,7 +588,7 @@ describe('PrismaAdminRepository', () => {
       );
     });
 
-    it('should validate profile and fire notification', async () => {
+    it('should validate profile and fire in-app notification', async () => {
       mockPrisma.user.findFirst.mockResolvedValueOnce({
         id: 101,
         profile: { id: 1 },
@@ -598,6 +598,7 @@ describe('PrismaAdminRepository', () => {
 
       expect(result).toEqual({
         id: 101,
+        userId: 101,
         status: 'APPROVED',
         verifiedAt: expect.any(String),
       });
@@ -624,6 +625,7 @@ describe('PrismaAdminRepository', () => {
 
       expect(result).toEqual({
         id: 101,
+        userId: 101,
         status: 'REJECTED',
         reason: 'Face does not match',
         rejectedAt: expect.any(String),

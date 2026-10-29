@@ -16,7 +16,7 @@ export enum PushNotificationTypeValue {
 export type PushNotificationPriority = 'high' | 'normal';
 
 export interface PushNotificationData {
-  user_id: string;
+  userId: string;
   type: string;
   [key: string]: any;
 }
@@ -26,7 +26,7 @@ export interface PushNotificationPayload<
 > {
   title: string;
   body: string;
-  user_id: string;
+  userId: string;
   data: TData;
   priority: PushNotificationPriority;
 }
@@ -77,9 +77,9 @@ export const NOTIFICATION_TEMPLATES = {
       return {
         title: senderName,
         body: `${senderName} sent you friend request`,
-        user_id: recipientId,
+        userId: recipientId,
         data: {
-          user_id: recipientId,
+          userId: recipientId,
           type: PushNotificationTypeValue.FRIEND_REQUEST,
         },
         priority: 'normal',
@@ -98,9 +98,9 @@ export const NOTIFICATION_TEMPLATES = {
       return {
         title: otherName,
         body: `Now ${otherName} is your friend`,
-        user_id: recipientId,
+        userId: recipientId,
         data: {
-          user_id: recipientId,
+          userId: recipientId,
           type: PushNotificationTypeValue.FRIEND_REQUEST_ACCEPTED,
         },
         priority: 'normal',
@@ -117,9 +117,9 @@ export const NOTIFICATION_TEMPLATES = {
       return {
         title: likerName,
         body: `user ${likerName} like your profile`,
-        user_id: recipientId,
+        userId: recipientId,
         data: {
-          user_id: recipientId,
+          userId: recipientId,
           type: PushNotificationTypeValue.LIKE_USER,
         },
         priority: 'normal',
@@ -137,9 +137,9 @@ export const NOTIFICATION_TEMPLATES = {
       return {
         title: 'Selfie Accepted',
         body: 'your selfie accepted, now your profile completed',
-        user_id: recipientId,
+        userId: recipientId,
         data: {
-          user_id: recipientId,
+          userId: recipientId,
           type: PushNotificationTypeValue.SELFIE_ACCEPTED,
         },
         priority: 'normal',
@@ -159,9 +159,9 @@ export const NOTIFICATION_TEMPLATES = {
       return {
         title: 'Selfie Rejected',
         body: reason,
-        user_id: recipientId,
+        userId: recipientId,
         data: {
-          user_id: recipientId,
+          userId: recipientId,
           type: PushNotificationTypeValue.SELFIE_REJECTED,
         },
         priority: 'normal',

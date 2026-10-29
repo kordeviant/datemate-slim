@@ -799,9 +799,9 @@ X-API-Key: <PUSH_NOTIFICATION_API_KEY>
 {
   "title": "Parsa Moloudie",
   "body": "Parsa Moloudie sent you friend request",
-  "user_id": "10",
+  "userId": "10",
   "data": {
-    "user_id": "10",
+    "userId": "10",
     "type": "friend_request"
   },
   "priority": "normal"

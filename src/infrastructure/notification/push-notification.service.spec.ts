@@ -41,9 +41,9 @@ describe('PushNotificationService and Templates', () => {
       expect(payload).toEqual({
         title: 'Parsa Moloudie',
         body: 'Parsa Moloudie sent you friend request',
-        user_id: '42',
+        userId: '42',
         data: {
-          user_id: '42',
+          userId: '42',
           type: 'friend_request',
         },
         priority: 'normal',
@@ -69,9 +69,9 @@ describe('PushNotificationService and Templates', () => {
       expect(payload).toEqual({
         title: 'Sarah Connor',
         body: 'Now Sarah Connor is your friend',
-        user_id: '10',
+        userId: '10',
         data: {
-          user_id: '10',
+          userId: '10',
           type: 'friend_request_accepted',
         },
         priority: 'normal',
@@ -87,9 +87,9 @@ describe('PushNotificationService and Templates', () => {
       expect(payload).toEqual({
         title: 'Alex Mercer',
         body: 'user Alex Mercer like your profile',
-        user_id: '55',
+        userId: '55',
         data: {
-          user_id: '55',
+          userId: '55',
           type: 'like_user',
         },
         priority: 'normal',
@@ -104,9 +104,9 @@ describe('PushNotificationService and Templates', () => {
       expect(payload).toEqual({
         title: 'Selfie Accepted',
         body: 'your selfie accepted, now your profile completed',
-        user_id: '101',
+        userId: '101',
         data: {
-          user_id: '101',
+          userId: '101',
           type: 'selfie_accepted',
         },
         priority: 'normal',
@@ -122,9 +122,9 @@ describe('PushNotificationService and Templates', () => {
       expect(payload).toEqual({
         title: 'Selfie Rejected',
         body: 'Face is not clearly visible in lighting',
-        user_id: '101',
+        userId: '101',
         data: {
-          user_id: '101',
+          userId: '101',
           type: 'selfie_rejected',
         },
         priority: 'normal',
@@ -265,7 +265,7 @@ describe('PushNotificationService and Templates', () => {
       });
       expect(sendPushSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { user_id: '1', type: 'friend_request' },
+          data: { userId: '1', type: 'friend_request' },
         }),
       );
 
@@ -275,7 +275,7 @@ describe('PushNotificationService and Templates', () => {
       });
       expect(sendPushSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { user_id: '2', type: 'friend_request_accepted' },
+          data: { userId: '2', type: 'friend_request_accepted' },
         }),
       );
 
@@ -285,7 +285,7 @@ describe('PushNotificationService and Templates', () => {
       });
       expect(sendPushSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { user_id: '3', type: 'like_user' },
+          data: { userId: '3', type: 'like_user' },
         }),
       );
 
@@ -294,7 +294,7 @@ describe('PushNotificationService and Templates', () => {
       });
       expect(sendPushSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { user_id: '4', type: 'selfie_accepted' },
+          data: { userId: '4', type: 'selfie_accepted' },
         }),
       );
 
@@ -304,12 +304,12 @@ describe('PushNotificationService and Templates', () => {
       });
       expect(sendPushSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { user_id: '5', type: 'selfie_rejected' },
+          data: { userId: '5', type: 'selfie_rejected' },
         }),
       );
     });
 
-    it('should normalize uppercase or custom priority to lowercase high or normal', async () => {
+    it('should normalize uppercase priority and legacy user_id to userId', async () => {
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
@@ -320,13 +320,16 @@ describe('PushNotificationService and Templates', () => {
       await service.sendPush({
         title: 'Important Alert',
         body: 'Urgent notification',
-        user_id: '99',
-        data: { user_id: '99', type: 'custom' },
+        userId: '99',
+        data: { userId: '99', type: 'custom' },
         priority: 'HIGH' as any,
       });
 
       const bodySent = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(bodySent.priority).toBe('high');
+      expect(bodySent.userId).toBe('99');
+      expect(bodySent.data.userId).toBe('99');
+      expect(bodySent.user_id).toBeUndefined();
     });
   });
 });

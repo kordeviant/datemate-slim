@@ -59,12 +59,28 @@ export class PushNotificationService implements IPushNotificationService {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
+    const targetUserId = String(
+      payload.userId || (payload as any).user_id || '',
+    );
+    const dataUserId = String(
+      payload.data?.userId || (payload.data as any)?.user_id || targetUserId,
+    );
     const normalizedPriority =
       payload.priority?.toLowerCase() === 'high' ? 'high' : 'normal';
+
     const payloadToSend: PushNotificationPayload = {
       ...payload,
+      userId: targetUserId,
+      data: {
+        ...payload.data,
+        userId: dataUserId,
+      },
       priority: normalizedPriority,
     };
+    delete (payloadToSend as any).user_id;
+    if (payloadToSend.data) {
+      delete (payloadToSend.data as any).user_id;
+    }
 
     try {
       const response = await fetch(config.url, {
@@ -80,18 +96,18 @@ export class PushNotificationService implements IPushNotificationService {
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         this.logger.warn(
-          `Push notification delivery failed for user ${payloadToSend.user_id} [type: ${payloadToSend.data.type}]. Status: ${response.status} ${response.statusText} - ${errorText}`,
+          `Push notification delivery failed for user ${payloadToSend.userId} [type: ${payloadToSend.data.type}]. Status: ${response.status} ${response.statusText} - ${errorText}`,
         );
         return false;
       }
 
       this.logger.log(
-        `Push notification sent successfully to user ${payloadToSend.user_id} [type: ${payloadToSend.data.type}, priority: ${payloadToSend.priority}]`,
+        `Push notification sent successfully to user ${payloadToSend.userId} [type: ${payloadToSend.data.type}, priority: ${payloadToSend.priority}]`,
       );
       return true;
     } catch (err: any) {
       this.logger.warn(
-        `Push notification error for user ${payload.user_id} [type: ${payload.data.type}]: ${err?.message || err}`,
+        `Push notification error for user ${payloadToSend.userId} [type: ${payloadToSend.data.type}]: ${err?.message || err}`,
       );
       return false;
     } finally {

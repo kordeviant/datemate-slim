@@ -59,6 +59,13 @@ export class PushNotificationService implements IPushNotificationService {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
+    const normalizedPriority =
+      payload.priority?.toLowerCase() === 'high' ? 'high' : 'normal';
+    const payloadToSend: PushNotificationPayload = {
+      ...payload,
+      priority: normalizedPriority,
+    };
+
     try {
       const response = await fetch(config.url, {
         method: 'POST',
@@ -66,20 +73,20 @@ export class PushNotificationService implements IPushNotificationService {
           'Content-Type': 'application/json',
           'X-API-Key': config.apiKey,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadToSend),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
         this.logger.warn(
-          `Push notification delivery failed for user ${payload.user_id} [type: ${payload.data.type}]. Status: ${response.status} ${response.statusText} - ${errorText}`,
+          `Push notification delivery failed for user ${payloadToSend.user_id} [type: ${payloadToSend.data.type}]. Status: ${response.status} ${response.statusText} - ${errorText}`,
         );
         return false;
       }
 
       this.logger.log(
-        `Push notification sent successfully to user ${payload.user_id} [type: ${payload.data.type}, priority: ${payload.priority}]`,
+        `Push notification sent successfully to user ${payloadToSend.user_id} [type: ${payloadToSend.data.type}, priority: ${payloadToSend.priority}]`,
       );
       return true;
     } catch (err: any) {

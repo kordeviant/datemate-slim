@@ -13,7 +13,7 @@ export enum PushNotificationTypeValue {
   LIKE_USER = 'like_user',
 }
 
-export type PushNotificationPriority = 'HIGH' | 'NORMAL';
+export type PushNotificationPriority = 'high' | 'normal';
 
 export interface PushNotificationData {
   user_id: string;
@@ -68,7 +68,7 @@ export interface NotificationTemplateDefinition<TParams> {
 export const NOTIFICATION_TEMPLATES = {
   FRIEND_REQUEST: {
     type: PushNotificationTypeValue.FRIEND_REQUEST,
-    priority: 'NORMAL' as PushNotificationPriority,
+    priority: 'normal' as PushNotificationPriority,
     build: (
       params: FriendRequestNotificationParams,
     ): PushNotificationPayload => {
@@ -82,14 +82,14 @@ export const NOTIFICATION_TEMPLATES = {
           user_id: recipientId,
           type: PushNotificationTypeValue.FRIEND_REQUEST,
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       };
     },
   },
 
   FRIEND_REQUEST_ACCEPTED: {
     type: PushNotificationTypeValue.FRIEND_REQUEST_ACCEPTED,
-    priority: 'NORMAL' as PushNotificationPriority,
+    priority: 'normal' as PushNotificationPriority,
     build: (
       params: FriendRequestAcceptedNotificationParams,
     ): PushNotificationPayload => {
@@ -103,14 +103,14 @@ export const NOTIFICATION_TEMPLATES = {
           user_id: recipientId,
           type: PushNotificationTypeValue.FRIEND_REQUEST_ACCEPTED,
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       };
     },
   },
 
   LIKE_USER: {
     type: PushNotificationTypeValue.LIKE_USER,
-    priority: 'NORMAL' as PushNotificationPriority,
+    priority: 'normal' as PushNotificationPriority,
     build: (params: LikeUserNotificationParams): PushNotificationPayload => {
       const likerName = params.likerFullName?.trim() || 'User';
       const recipientId = String(params.recipientUserId);
@@ -122,14 +122,14 @@ export const NOTIFICATION_TEMPLATES = {
           user_id: recipientId,
           type: PushNotificationTypeValue.LIKE_USER,
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       };
     },
   },
 
   SELFIE_ACCEPTED: {
     type: PushNotificationTypeValue.SELFIE_ACCEPTED,
-    priority: 'NORMAL' as PushNotificationPriority,
+    priority: 'normal' as PushNotificationPriority,
     build: (
       params: SelfieAcceptedNotificationParams,
     ): PushNotificationPayload => {
@@ -142,14 +142,14 @@ export const NOTIFICATION_TEMPLATES = {
           user_id: recipientId,
           type: PushNotificationTypeValue.SELFIE_ACCEPTED,
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       };
     },
   },
 
   SELFIE_REJECTED: {
     type: PushNotificationTypeValue.SELFIE_REJECTED,
-    priority: 'NORMAL' as PushNotificationPriority,
+    priority: 'normal' as PushNotificationPriority,
     build: (
       params: SelfieRejectedNotificationParams,
     ): PushNotificationPayload => {
@@ -164,7 +164,7 @@ export const NOTIFICATION_TEMPLATES = {
           user_id: recipientId,
           type: PushNotificationTypeValue.SELFIE_REJECTED,
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       };
     },
   },

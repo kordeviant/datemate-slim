@@ -46,7 +46,7 @@ describe('PushNotificationService and Templates', () => {
           user_id: '42',
           type: 'friend_request',
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       });
     });
 
@@ -74,7 +74,7 @@ describe('PushNotificationService and Templates', () => {
           user_id: '10',
           type: 'friend_request_accepted',
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       });
     });
 
@@ -92,11 +92,11 @@ describe('PushNotificationService and Templates', () => {
           user_id: '55',
           type: 'like_user',
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       });
     });
 
-    it('should build SELFIE_ACCEPTED template with static body and NORMAL priority', () => {
+    it('should build SELFIE_ACCEPTED template with static body and normal priority', () => {
       const payload = NOTIFICATION_TEMPLATES.SELFIE_ACCEPTED.build({
         recipientUserId: 101,
       });
@@ -109,11 +109,11 @@ describe('PushNotificationService and Templates', () => {
           user_id: '101',
           type: 'selfie_accepted',
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       });
     });
 
-    it('should build SELFIE_REJECTED template with rejection reason and NORMAL priority', () => {
+    it('should build SELFIE_REJECTED template with rejection reason and normal priority', () => {
       const payload = NOTIFICATION_TEMPLATES.SELFIE_REJECTED.build({
         recipientUserId: 101,
         rejectionReason: 'Face is not clearly visible in lighting',
@@ -127,7 +127,7 @@ describe('PushNotificationService and Templates', () => {
           user_id: '101',
           type: 'selfie_rejected',
         },
-        priority: 'NORMAL',
+        priority: 'normal',
       });
     });
   });
@@ -307,6 +307,26 @@ describe('PushNotificationService and Templates', () => {
           data: { user_id: '5', type: 'selfie_rejected' },
         }),
       );
+    });
+
+    it('should normalize uppercase or custom priority to lowercase high or normal', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: jest.fn().mockResolvedValue('ok'),
+      });
+      globalThis.fetch = mockFetch;
+
+      await service.sendPush({
+        title: 'Important Alert',
+        body: 'Urgent notification',
+        user_id: '99',
+        data: { user_id: '99', type: 'custom' },
+        priority: 'HIGH' as any,
+      });
+
+      const bodySent = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(bodySent.priority).toBe('high');
     });
   });
 });

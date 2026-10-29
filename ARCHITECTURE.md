@@ -775,13 +775,15 @@ The Friends module provides social connections, friend request workflows, and fr
 All push notification templates, strongly typed payload interfaces, and priorities are centralized in a single file: `src/infrastructure/notification/notification-templates.ts`. This provides a single authoritative source for editing notification copy and ensures type safety.
 
 #### Supported Notification Types & Priorities
+Allowed priority values are `'high'` and `'normal'` (mapped to FCM Android priority `'high'`/`'normal'`, and APNs iOS header `'apns-priority': '10'`/`'5'`).
+
 | Notification Type | `data.type` (lowercase) | Priority | Title Template | Body Template |
 | :--- | :--- | :--- | :--- | :--- |
-| `FRIEND_REQUEST` | `friend_request` | `NORMAL` | `[Target/SenderFullName]` | `[FullName] sent you friend request` |
-| `FRIEND_REQUEST_ACCEPTED` | `friend_request_accepted` | `NORMAL` | `[Target/OtherFullName]` | `Now [fullName] is your friend` (sent to both users) |
-| `LIKE_USER` | `like_user` | `NORMAL` | `[LikerFullName]` | `user [fullName] like your profile` |
-| `SELFIE_ACCEPTED` | `selfie_accepted` | `NORMAL` | `Selfie Accepted` | `your selfie accepted, now your profile completed` |
-| `SELFIE_REJECTED` | `selfie_rejected` | `NORMAL` | `Selfie Rejected` | `[Rejection Reason]` |
+| `FRIEND_REQUEST` | `friend_request` | `normal` | `[Target/SenderFullName]` | `[FullName] sent you friend request` |
+| `FRIEND_REQUEST_ACCEPTED` | `friend_request_accepted` | `normal` | `[Target/OtherFullName]` | `Now [fullName] is your friend` (sent to both users) |
+| `LIKE_USER` | `like_user` | `normal` | `[LikerFullName]` | `user [fullName] like your profile` |
+| `SELFIE_ACCEPTED` | `selfie_accepted` | `normal` | `Selfie Accepted` | `your selfie accepted, now your profile completed` |
+| `SELFIE_REJECTED` | `selfie_rejected` | `normal` | `Selfie Rejected` | `[Rejection Reason]` |
 
 ### 12.2 External Push Gateway Contract
 The service interacts with an external push gateway service configured via environment variables:
@@ -802,7 +804,7 @@ X-API-Key: <PUSH_NOTIFICATION_API_KEY>
     "user_id": "10",
     "type": "friend_request"
   },
-  "priority": "NORMAL"
+  "priority": "normal"
 }
 ```
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   IPushNotificationService,
@@ -12,12 +12,16 @@ import {
   SelfieAcceptedNotificationParams,
   SelfieRejectedNotificationParams,
 } from './notification-templates';
+import { PushService } from '../../modules/notifications/application/services/push.service';
 
 @Injectable()
 export class PushNotificationService implements IPushNotificationService {
   private readonly logger = new Logger(PushNotificationService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Optional() private readonly pushService?: PushService,
+  ) {}
 
   private getPushEndpoint(): { url: string; apiKey: string } | null {
     const rawBaseUrl = this.configService.get<string>(
@@ -53,6 +57,25 @@ export class PushNotificationService implements IPushNotificationService {
   async sendPush(payload: PushNotificationPayload): Promise<boolean> {
     const config = this.getPushEndpoint();
     if (!config) {
+      if (this.pushService) {
+        try {
+          const targetUserId = payload.userId || (payload as any).user_id;
+          await this.pushService.enqueue({
+            title: payload.title,
+            body: payload.body,
+            userId: targetUserId,
+            data: payload.data,
+            priority: payload.priority?.toLowerCase() === 'high' ? 'high' : 'normal',
+          });
+          this.logger.log(
+            `Push notification enqueued directly in-process for user ${targetUserId} [type: ${payload.data?.type}]`,
+          );
+          return true;
+        } catch (err: any) {
+          this.logger.warn(`Direct in-process push enqueue failed: ${err?.message}`);
+          return false;
+        }
+      }
       return false;
     }
 

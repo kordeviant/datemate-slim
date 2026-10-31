@@ -22,7 +22,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Ensure uploads directory exists
-RUN mkdir -p uploads
+RUN mkdir -p uploads uploads/chat
 
 EXPOSE 2020
 

@@ -6,13 +6,19 @@ import { AppConfigService } from './app-config.service';
 describe('Configuration Module', () => {
   let appConfigService: AppConfigService;
   let configService: ConfigService;
+  const originalEnv = { ...process.env };
 
   beforeEach(async () => {
+    process.env = { ...originalEnv };
+    delete process.env.PORT;
+    delete process.env.JWT_ACCESS_SECRET;
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
           isGlobal: true,
           load: [configuration],
+          ignoreEnvFile: true,
         }),
       ],
       providers: [AppConfigService],
@@ -20,6 +26,10 @@ describe('Configuration Module', () => {
 
     appConfigService = module.get<AppConfigService>(AppConfigService);
     configService = module.get<ConfigService>(ConfigService);
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   it('should initialize and provide strongly-typed app config with sensible defaults', () => {

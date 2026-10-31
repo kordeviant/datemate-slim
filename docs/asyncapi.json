@@ -7,7 +7,7 @@
   },
   "servers": {
     "production": {
-      "url": "https://chat-datemate.testdevvvv.site/",
+      "url": "https://api-datemate.testdevvvv.site/",
       "protocol": "socketio",
       "pathname": "/chat",
       "description": "Production Socket.IO Gateway"

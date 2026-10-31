@@ -47,7 +47,7 @@ sequenceDiagram
 When the application launches and the user has a valid access token:
 1. Establish a persistent Socket.IO connection to `/chat`:
    ```javascript
-   const socket = io("https://chat-datemate.testdevvvv.site/chat", {
+   const socket = io("https://api-datemate.testdevvvv.site/chat", {
      transports: ["websocket"],
      auth: {
        accessToken: userJwtToken

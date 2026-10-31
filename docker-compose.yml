@@ -23,6 +23,21 @@ services:
     volumes:
       - datemate_redisdata:/data
 
+  cassandra:
+    image: cassandra:4.1
+    container_name: datemate_cassandra
+    restart: always
+    environment:
+      - CASSANDRA_CLUSTER_NAME=datemate_chat_cluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=128M
+    ports:
+      - "9042:9042"
+    volumes:
+      - datemate_cassandradata:/var/lib/cassandra
+
   backend:
     build:
       context: .
@@ -37,6 +52,7 @@ services:
     depends_on:
       - postgres
       - redis
+      - cassandra
 
   nginx:
     image: nginx:alpine
@@ -54,3 +70,4 @@ services:
 volumes:
   datemate_pgdata:
   datemate_redisdata:
+  datemate_cassandradata:

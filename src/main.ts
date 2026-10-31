@@ -93,9 +93,14 @@ async function bootstrap() {
 
   // Swagger Documentation Setup
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("DateMate Backend API")
+    .setTitle("DateMate Consolidated Backend API")
     .setDescription(
-      'DateMate REST API documentation covering Authentication, Users, Matching, Messaging, and Platform services.<br><br>👉 <b>Authoritative Client Validation Rules & Protocols</b>: <a href="/docs/rules" target="_blank"><b>/docs/rules</b></a> (Updated on every backend release)',
+      "DateMate Unified Backend API microservice consolidating User, Matching, Chat (Cassandra + Socket.IO), and Notification (FCM) domains.\n\n" +
+      "### Subdomain Specifications & Interactive Portals\n" +
+      "- **Authoritative Client Validation Rules**: [Open /docs/rules](/docs/rules)\n" +
+      "- **AsyncAPI JSON Specification**: [Open /docs/asyncapi-json](/docs/asyncapi-json)\n" +
+      "- **WebSocket Gateway Endpoint**: `ws://<host>/chat` (Namespace: `/chat`)\n" +
+      "- **WebSocket Handshake Authentication**: `{ auth: { accessToken: '<JWT>' } }`",
     )
     .setVersion("1.0.0")
     .addBearerAuth(
@@ -114,10 +119,25 @@ async function bootstrap() {
         type: "apiKey",
         name: "x-api-key",
         in: "header",
-        description: "Internal Service API Key (e.g. for retrieving device tokens)",
+        description: "Internal Service API Key (e.g. for push notifications or device tokens)",
       },
       "api-key",
     )
+    .addTag("Auth", "User registration, OTP login, token refresh, and session management")
+    .addTag("Users", "Profile retrieval, demographic details, avatar and gallery management")
+    .addTag("Matching", "User discovery feed, swipes (likes/passes), mutual matches")
+    .addTag("Recommended", "Personalized user recommendations and discovery algorithms")
+    .addTag("Friends", "Social friend requests, accepts, rejects, and friendship management")
+    .addTag("Conversations", "1-on-1 direct conversations, group chats, message history pagination")
+    .addTag("Groups", "Group creation, participant invitations, member roles, and metadata updates")
+    .addTag("Chat Presence", "Real-time user online/offline status and last seen activity tracking")
+    .addTag("Chat Upload", "Direct upload for chat photos, voice messages, audio, and attachments")
+    .addTag("Notifications", "High-throughput immediate async push notification dispatch and aliased endpoints")
+    .addTag("Questions", "Compatibility questionnaire questions, categories, and choices")
+    .addTag("Interests", "Hobbies and user interest tags")
+    .addTag("Media", "Static assets and media processing")
+    .addTag("Admin", "Administrator user management, selfie verification triage, dashboard metrics")
+    .addTag("System", "Platform health, server time, and dynamic API specifications")
     .build();
 
   // Protect Swagger UI, documentation static assets, and Rules via IP Whitelist & HTTP Basic Auth
@@ -128,7 +148,7 @@ async function bootstrap() {
 
   // Prevent caching for Swagger documentation so each backend deployment is visible immediately
   app.use(
-    ["/docs", "/docs-json", "/v1/docs"],
+    ["/docs", "/docs-json", "/v1/docs", "/docs/asyncapi-json", "/asyncapi-json", "/docs/rules"],
     (req: any, res: any, next: any) => {
       res.setHeader(
         "Cache-Control",

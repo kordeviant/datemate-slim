@@ -792,4 +792,31 @@ export class AppService {
 </body>
 </html>`;
   }
+
+  getAsyncApiJson(): Record<string, any> {
+    const candidatePaths = [
+      path.join(process.cwd(), 'docs', 'asyncapi.json'),
+      path.join(__dirname, '..', 'docs', 'asyncapi.json'),
+      path.join(__dirname, 'docs', 'asyncapi.json'),
+    ];
+
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        try {
+          const raw = fs.readFileSync(p, 'utf-8');
+          return JSON.parse(raw);
+        } catch (err: any) {
+          this.logger.warn(`Failed reading asyncapi.json from ${p}: ${err.message}`);
+        }
+      }
+    }
+
+    return {
+      asyncapi: '2.6.0',
+      info: {
+        title: 'DateMate Real-Time Chat WebSocket Gateway',
+        version: '1.0.0',
+      },
+    };
+  }
 }

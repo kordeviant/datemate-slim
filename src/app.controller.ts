@@ -141,4 +141,20 @@ export class AppController {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.send(html);
   }
+
+  @Version([VERSION_NEUTRAL, "1"])
+  @Get(["docs/asyncapi-json", "asyncapi-json"])
+  @ApiOperation({
+    summary: "AsyncAPI 2.6 Specification JSON",
+    description: "Returns the authoritative machine-readable AsyncAPI 2.6 schema for DateMate WebSocket Gateway.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "AsyncAPI JSON specification",
+  })
+  getAsyncApiJson(@Res() res: Response) {
+    const data = this.appService.getAsyncApiJson();
+    res.setHeader("Content-Type", "application/json");
+    return res.json(data);
+  }
 }

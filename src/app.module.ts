@@ -15,15 +15,19 @@ import { AdminModule } from "./modules/admin/admin.module";
 import { MatchingModule } from "./modules/matching/matching.module";
 import { RecommendedModule } from "./modules/recommended/recommended.module";
 import { FriendsModule } from "./modules/friends/friends.module";
+import { ChatModule } from "./modules/chat/chat.module";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { DocsProtectionMiddleware } from "./common/middleware/docs-protection.middleware";
+import configuration from "./config/configuration";
+import { AppConfigService } from "./config/app-config.service";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ".env",
+      load: [configuration],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -66,16 +70,19 @@ import { DocsProtectionMiddleware } from "./common/middleware/docs-protection.mi
     MatchingModule,
     RecommendedModule,
     FriendsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
+    AppConfigService,
     DocsProtectionMiddleware,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
   ],
+  exports: [AppConfigService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

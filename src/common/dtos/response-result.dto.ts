@@ -1,4 +1,5 @@
 export interface ResponseResult<T> {
+  success?: boolean;
   status: 'success' | 'error';
   message: string;
   data: T | null;
@@ -6,7 +7,7 @@ export interface ResponseResult<T> {
 }
 
 export interface CallbackError {
-  type: CallbackErrorTypes;
+  type: CallbackErrorTypes | string;
   message: string;
 }
 

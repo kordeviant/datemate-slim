@@ -6,12 +6,12 @@ Unified, scalable real-time backend microservice for the DateMate platform conso
 
 ## Documentation
 
-- **[Consolidated Backend Architecture & Business Rules Manual](file:///home/kord/backend/docs/CONSOLIDATED_BACKEND_ARCHITECTURE_AND_BUSINESS_RULES.md)**: Comprehensive guide covering consolidated subdomains, Cassandra chat architecture, FCM push notifications, centralized configuration, and troubleshooting runbooks.
-- **[Client Rules & Validation Specification (RULES.md)](file:///home/kord/backend/docs/RULES.md)**: Authoritative rules for media uploads, username, full name, DOB/age, languages, demographics, and security.
+- **[Consolidated Backend Architecture & Business Rules Manual](file:///home/kord/datemate/docs/CONSOLIDATED_BACKEND_ARCHITECTURE_AND_BUSINESS_RULES.md)**: Comprehensive guide covering consolidated subdomains, Cassandra chat architecture, FCM push notifications, centralized configuration, and troubleshooting runbooks.
+- **[Client Rules & Validation Specification (RULES.md)](file:///home/kord/datemate/docs/RULES.md)**: Authoritative rules for media uploads, username, full name, DOB/age, languages, demographics, and security.
   - *Live Online Endpoint*: `http://localhost:3000/docs/rules` (HTML, JSON, raw Markdown, or download).
 - **[Swagger OpenAPI Documentation]**: Full interactive REST documentation at `http://localhost:3000/docs` (JSON at `/docs-json`).
 - **[Real-Time Chat AsyncAPI Specification]**: Schema specification at `http://localhost:3000/docs/asyncapi-json` with Socket.IO gateway at `ws://localhost:3000/chat`.
-- **[Engineering Rules & Guidelines (AGENTS.md)](file:///home/kord/backend/AGENTS.md)**: SOLID principles, Clean Architecture, and development standards.
+- **[Engineering Rules & Guidelines (AGENTS.md)](file:///home/kord/datemate/AGENTS.md)**: SOLID principles, Clean Architecture, and development standards.
 
 ---
 

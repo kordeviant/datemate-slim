@@ -547,8 +547,9 @@ CREATE TABLE IF NOT EXISTS "conversations_by_user" (
     "last_message_preview" TEXT,
     "last_message_sender_id" BIGINT,
     "title" TEXT,
-    PRIMARY KEY ("user_id", "last_message_at", "conversation_id")
+    PRIMARY KEY ("user_id", "conversation_id")
 );
+CREATE INDEX IF NOT EXISTS "idx_conv_by_user_last_msg" ON "conversations_by_user" ("user_id", "last_message_at" DESC);
 
 CREATE TABLE IF NOT EXISTS "direct_conversations_by_pair" (
     "canonical_pair_key" TEXT PRIMARY KEY,

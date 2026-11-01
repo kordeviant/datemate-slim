@@ -21,6 +21,9 @@ UPDATE users SET profile_validated = $2, updated_at = CURRENT_TIMESTAMP WHERE id
 -- name: UpdateUserIsPremium :exec
 UPDATE users SET is_premium = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
+-- name: UpdateUserRole :exec
+UPDATE users SET role = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
+
 -- name: BanUser :exec
 UPDATE users SET banned_until = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
@@ -80,7 +83,7 @@ INSERT INTO profiles (
     $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT (user_id) DO UPDATE SET
-    first_name = EXCLUDED.first_name,
+    first_name = CASE WHEN EXCLUDED.first_name != '' THEN EXCLUDED.first_name ELSE profiles.first_name END,
     username = COALESCE(EXCLUDED.username, profiles.username),
     phone_number = COALESCE(EXCLUDED.phone_number, profiles.phone_number),
     languages = COALESCE(EXCLUDED.languages, profiles.languages),
@@ -90,9 +93,9 @@ ON CONFLICT (user_id) DO UPDATE SET
     profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, profiles.profile_picture_url),
     is_private = EXCLUDED.is_private,
     relation_type = COALESCE(EXCLUDED.relation_type, profiles.relation_type),
-    latitude = EXCLUDED.latitude,
-    longitude = EXCLUDED.longitude,
-    geohash = EXCLUDED.geohash,
+    latitude = CASE WHEN EXCLUDED.latitude != 0 THEN EXCLUDED.latitude ELSE profiles.latitude END,
+    longitude = CASE WHEN EXCLUDED.longitude != 0 THEN EXCLUDED.longitude ELSE profiles.longitude END,
+    geohash = COALESCE(EXCLUDED.geohash, profiles.geohash),
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
@@ -553,10 +556,12 @@ INSERT INTO conversations_by_user (
     user_id, last_message_at, conversation_id, conversation_type,
     last_message_preview, last_message_sender_id, title
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (user_id, last_message_at, conversation_id) DO UPDATE SET
+ON CONFLICT (user_id, conversation_id) DO UPDATE SET
+    last_message_at = EXCLUDED.last_message_at,
+    conversation_type = EXCLUDED.conversation_type,
     last_message_preview = EXCLUDED.last_message_preview,
     last_message_sender_id = EXCLUDED.last_message_sender_id,
-    title = EXCLUDED.title;
+    title = COALESCE(EXCLUDED.title, conversations_by_user.title);
 
 -- name: ListConversationsByUser :many
 SELECT * FROM conversations_by_user

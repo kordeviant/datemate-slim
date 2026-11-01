@@ -32,6 +32,12 @@ func GetAuthUser(ctx context.Context) (*AuthUser, bool) {
 }
 
 func JwtAuthGuard(cfg *config.Config, pool *pgxpool.Pool) func(http.Handler) http.Handler {
+	if cfg == nil || pool == nil {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
+
 	queries := db.New(pool)
 
 	return func(next http.Handler) http.Handler {
@@ -106,6 +112,12 @@ func JwtAuthGuard(cfg *config.Config, pool *pgxpool.Pool) func(http.Handler) htt
 }
 
 func ApiKeyGuard(cfg *config.Config) func(http.Handler) http.Handler {
+	if cfg == nil {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("x-api-key")

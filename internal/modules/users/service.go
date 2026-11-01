@@ -49,6 +49,22 @@ func (s *Service) resolveAssetURL(raw string) string {
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
+func toInt32(val interface{}) (int32, bool) {
+	switch n := val.(type) {
+	case float64:
+		return int32(n), true
+	case int:
+		return int32(n), true
+	case int64:
+		return int32(n), true
+	case string:
+		if parsed, err := strconv.Atoi(n); err == nil {
+			return int32(parsed), true
+		}
+	}
+	return 0, false
+}
+
 func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileResponseDto, error) {
 	u, err := s.queries.GetUserByID(ctx, int32(userID))
 	if err != nil {
@@ -116,24 +132,29 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 	var cityDto *CityResponseDto
 	if d.CityID.Valid && d.CityID.Int32 > 0 {
 		cID := int(d.CityID.Int32)
-		cityName, stateName, countryName, ok := s.geoService.ResolveCityHierarchy(cID)
-		if ok {
-			stateID := 1
-			countryID := 1
-			code := "IR"
+		city, state, country, ok := s.geoService.ResolveCityHierarchy(cID)
+		if ok && city != nil {
+			var stateDto *StateResponseDto
+			if state != nil {
+				var countryDto *CountryResponseDto
+				if country != nil {
+					countryDto = &CountryResponseDto{
+						ID:   &country.ID,
+						Name: &country.Name,
+						Code: &country.Code,
+					}
+				}
+				stateDto = &StateResponseDto{
+					ID:        &state.ID,
+					Name:      &state.Name,
+					CountryID: &state.CountryID,
+					Country:   countryDto,
+				}
+			}
 			cityDto = &CityResponseDto{
-				ID:   &cID,
-				Name: &cityName,
-				State: &StateResponseDto{
-					ID:        &stateID,
-					Name:      &stateName,
-					CountryID: &countryID,
-					Country: &CountryResponseDto{
-						ID:   &countryID,
-						Name: &countryName,
-						Code: &code,
-					},
-				},
+				ID:    &city.ID,
+				Name:  &city.Name,
+				State: stateDto,
 			}
 		} else if d.CityName.Valid && d.CityName.String != "" {
 			cName := d.CityName.String
@@ -506,6 +527,107 @@ func (s *Service) UpdateProfile(
 				CityID:         cityID,
 				CityName:       cityName,
 			})
+		}
+
+		// User Question Answers persistence
+		var rawAnswers interface{}
+		if payload.Answers != nil {
+			rawAnswers = payload.Answers
+		} else if payload.Profile != nil && payload.Profile.Answers != nil {
+			rawAnswers = payload.Profile.Answers
+		}
+
+		if rawAnswers != nil {
+			var answerIDs []int32
+			switch v := rawAnswers.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if id, ok := toInt32(item); ok && id > 0 {
+						answerIDs = append(answerIDs, id)
+					} else if m, ok := item.(map[string]interface{}); ok {
+						for _, k := range []string{"questionAnswerId", "answerId", "id"} {
+							if idVal, exists := m[k]; exists {
+								if id, ok := toInt32(idVal); ok && id > 0 {
+									answerIDs = append(answerIDs, id)
+									break
+								}
+							}
+						}
+					}
+				}
+			case map[string]interface{}:
+				for _, val := range v {
+					if id, ok := toInt32(val); ok && id > 0 {
+						answerIDs = append(answerIDs, id)
+					} else if arr, ok := val.([]interface{}); ok {
+						for _, item := range arr {
+							if id, ok := toInt32(item); ok && id > 0 {
+								answerIDs = append(answerIDs, id)
+							}
+						}
+					}
+				}
+			}
+
+			if len(answerIDs) > 0 {
+				_ = s.queries.DeleteUserQuestionAnswers(ctx, int32(userID))
+				for _, aID := range answerIDs {
+					_ = s.queries.InsertUserQuestionAnswer(ctx, db.InsertUserQuestionAnswerParams{
+						UserID:           int32(userID),
+						QuestionAnswerID: aID,
+					})
+				}
+			}
+		}
+
+		// Liked Activities / Interests persistence
+		var rawInterests interface{}
+		if payload.LikedActivities != nil {
+			rawInterests = payload.LikedActivities
+		} else if payload.Profile != nil && payload.Profile.LikedActivities != nil {
+			rawInterests = payload.Profile.LikedActivities
+		}
+
+		if rawInterests != nil {
+			var interestIDs []int32
+			switch v := rawInterests.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if id, ok := toInt32(item); ok && id > 0 {
+						interestIDs = append(interestIDs, id)
+					} else if m, ok := item.(map[string]interface{}); ok {
+						for _, k := range []string{"interestId", "id"} {
+							if idVal, exists := m[k]; exists {
+								if id, ok := toInt32(idVal); ok && id > 0 {
+									interestIDs = append(interestIDs, id)
+									break
+								}
+							}
+						}
+					}
+				}
+			case map[string]interface{}:
+				for _, val := range v {
+					if id, ok := toInt32(val); ok && id > 0 {
+						interestIDs = append(interestIDs, id)
+					} else if arr, ok := val.([]interface{}); ok {
+						for _, item := range arr {
+							if id, ok := toInt32(item); ok && id > 0 {
+								interestIDs = append(interestIDs, id)
+							}
+						}
+					}
+				}
+			}
+
+			_ = s.queries.DeleteUserInterests(ctx, int32(userID))
+			for _, iID := range interestIDs {
+				_ = s.queries.InsertUserInterest(ctx, db.InsertUserInterestParams{
+					UserID:     int32(userID),
+					InterestID: iID,
+					IsLiked:    true,
+				})
+			}
 		}
 	}
 

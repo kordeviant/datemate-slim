@@ -6,7 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"datemate/internal/platform/database/db"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type NotificationJob struct {
@@ -29,6 +32,8 @@ type DispatchResult struct {
 }
 
 type Dispatcher struct {
+	pool     *pgxpool.Pool
+	queries  *db.Queries
 	mockMode bool
 	queue    chan NotificationJob
 	wg       sync.WaitGroup
@@ -36,9 +41,16 @@ type Dispatcher struct {
 	cancel   context.CancelFunc
 }
 
-func NewDispatcher(mockMode bool, workerCount, queueBuffer int) *Dispatcher {
+func NewDispatcher(pool *pgxpool.Pool, mockMode bool, workerCount, queueBuffer int) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
+	var q *db.Queries
+	if pool != nil {
+		q = db.New(pool)
+	}
+
 	d := &Dispatcher{
+		pool:     pool,
+		queries:  q,
 		mockMode: mockMode,
 		queue:    make(chan NotificationJob, queueBuffer),
 		ctx:      ctx,
@@ -93,6 +105,13 @@ func (d *Dispatcher) worker(id int) {
 }
 
 func (d *Dispatcher) processJob(job NotificationJob) {
+	if len(job.Tokens) == 0 && job.UserID != nil && d.queries != nil {
+		tokenRow, err := d.queries.GetUserDeviceToken(d.ctx, int32(*job.UserID))
+		if err == nil && tokenRow.FcmToken.Valid && tokenRow.FcmToken.String != "" {
+			job.Tokens = append(job.Tokens, tokenRow.FcmToken.String)
+		}
+	}
+
 	if d.mockMode {
 		log.Printf("[FCM-MOCK] Dispatched notification %s: %q - %q (target tokens: %d, userId: %v)",
 			job.ID, job.Title, job.Body, len(job.Tokens), job.UserID)

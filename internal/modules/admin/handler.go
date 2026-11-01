@@ -38,9 +38,16 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 		pr.Get("/admin/users", h.GetUsers)
 		pr.Get("/admin/users/count", h.GetUsersCount)
 		pr.Get("/admin/users/pending-selfies/count", h.GetPendingSelfiesCount)
+		pr.Get("/admin/users/{id}", h.GetUserDetails)
+		pr.Patch("/admin/users/{id}", h.UpdateUser)
+		pr.Put("/admin/users/{id}", h.UpdateUser)
 		pr.Post("/admin/users/{id}/ban", h.BanUser)
 		pr.Post("/admin/users/{id}/unban", h.UnbanUser)
 		pr.Delete("/admin/users/{id}", h.DeleteUser)
+		pr.Delete("/admin/users/{userId}/gallery/{galleryId}", h.DeleteUserGallery)
+		pr.Get("/admin/users/{userId}/devices", h.GetUserDevices)
+		pr.Delete("/admin/users/{userId}/devices/{deviceId}", h.TerminateUserDevice)
+		pr.Delete("/admin/users/{userId}/devices", h.TerminateAllUserDevices)
 
 		// Verifications
 		pr.Get("/admin/verifications", h.GetPendingVerifications)
@@ -53,6 +60,10 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 func (h *Handler) requireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.cfg == nil || h.pool == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
 		u, ok := middleware.GetAuthUser(r.Context())
 		if !ok || u.Role != "ADMIN" {
 			common.RespondError(w, http.StatusForbidden, "Missing or insufficient administrator privileges", common.ErrForbidden)
@@ -133,17 +144,131 @@ func (h *Handler) BanUser(w http.ResponseWriter, r *http.Request) {
 	var payload BanUserPayload
 	_ = json.NewDecoder(r.Body).Decode(&payload)
 
-	dur := 30
-	if payload.DurationDays != nil {
-		dur = *payload.DurationDays
-	}
-
-	if err := h.svc.BanUser(r.Context(), id, dur, payload.Reason); err != nil {
+	if err := h.svc.BanUser(r.Context(), id, payload.DurationHours, payload.DurationDays, payload.Reason); err != nil {
 		common.RespondAppError(w, err)
 		return
 	}
 
 	common.RespondSuccess[any](w, http.StatusOK, "User banned successfully", nil)
+}
+
+func (h *Handler) GetUserDetails(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	details, err := h.svc.GetUserDetails(r.Context(), id)
+	if err != nil {
+		common.RespondError(w, http.StatusNotFound, "User not found", common.ErrNotFound)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "User details retrieved successfully", details)
+}
+
+func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	var payload AdminUpdateUserPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid request payload", common.ErrBadRequest)
+		return
+	}
+
+	updated, err := h.svc.UpdateUser(r.Context(), id, &payload)
+	if err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "User updated successfully", updated)
+}
+
+func (h *Handler) DeleteUserGallery(w http.ResponseWriter, r *http.Request) {
+	userIdStr := chi.URLParam(r, "userId")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	galleryIdStr := chi.URLParam(r, "galleryId")
+	galleryId, err := strconv.Atoi(galleryIdStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid gallery ID", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.DeleteUserGallery(r.Context(), userId, galleryId); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess[any](w, http.StatusOK, "Gallery image deleted successfully", nil)
+}
+
+func (h *Handler) GetUserDevices(w http.ResponseWriter, r *http.Request) {
+	userIdStr := chi.URLParam(r, "userId")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	devices, err := h.svc.GetUserDevices(r.Context(), userId)
+	if err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "User devices retrieved successfully", devices)
+}
+
+func (h *Handler) TerminateUserDevice(w http.ResponseWriter, r *http.Request) {
+	userIdStr := chi.URLParam(r, "userId")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	deviceIdStr := chi.URLParam(r, "deviceId")
+	deviceId, err := strconv.Atoi(deviceIdStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid device ID", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.TerminateDevice(r.Context(), userId, deviceId); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess[any](w, http.StatusOK, "Device session terminated successfully", nil)
+}
+
+func (h *Handler) TerminateAllUserDevices(w http.ResponseWriter, r *http.Request) {
+	userIdStr := chi.URLParam(r, "userId")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.TerminateAllDevices(r.Context(), userId); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess[any](w, http.StatusOK, "All user device sessions terminated successfully", nil)
 }
 
 func (h *Handler) UnbanUser(w http.ResponseWriter, r *http.Request) {

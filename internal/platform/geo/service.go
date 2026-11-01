@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -92,10 +93,12 @@ func NormalizeCityQuery(input string) string {
 }
 
 type Country struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Code      string `json:"code"`
-	PhoneCode string `json:"phone_code,omitempty"`
+	ID        int     `json:"id"`
+	Name      string  `json:"name"`
+	Code      string  `json:"code,omitempty"`
+	Native    *string `json:"native,omitempty"`
+	Emoji     *string `json:"emoji,omitempty"`
+	PhoneCode string  `json:"phone_code,omitempty"`
 }
 
 type State struct {
@@ -115,6 +118,7 @@ type City struct {
 
 type Service struct {
 	mu           sync.RWMutex
+	dataDir      string
 	countries    []Country
 	states       []State
 	cities       []City
@@ -128,6 +132,7 @@ type Service struct {
 
 func NewService(dataDir string) *Service {
 	s := &Service{
+		dataDir:      dataDir,
 		cityByID:     make(map[int]*City),
 		stateByID:    make(map[int]*State),
 		countryByID:  make(map[int]*Country),
@@ -138,6 +143,12 @@ func NewService(dataDir string) *Service {
 
 	_ = s.loadFromDir(dataDir)
 	return s
+}
+
+func (s *Service) GetDataDir() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.dataDir
 }
 
 func (s *Service) loadFromDir(dataDir string) error {
@@ -163,6 +174,7 @@ func (s *Service) loadFromDir(dataDir string) error {
 		log.Println("Geo data files not found in candidate paths, skipping in-memory geo preloading.")
 		return nil
 	}
+	s.dataDir = foundDir
 
 	cData, err := os.ReadFile(filepath.Join(foundDir, "countries.json"))
 	if err == nil {
@@ -230,25 +242,199 @@ func (s *Service) GetCountry(id int) (*Country, bool) {
 	return co, ok
 }
 
-func (s *Service) ResolveCityHierarchy(cityID int) (cityName, stateName, countryName string, ok bool) {
+func (s *Service) ResolveCityHierarchy(cityID int) (*City, *State, *Country, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	c, hasCity := s.cityByID[cityID]
 	if !hasCity {
-		return "", "", "", false
+		return nil, nil, nil, false
 	}
-	cityName = c.Name
 
-	st, hasState := s.stateByID[c.StateID]
-	if hasState {
-		stateName = st.Name
-		if co, hasCountry := s.countryByID[st.CountryID]; hasCountry {
-			countryName = co.Name
+	st, _ := s.stateByID[c.StateID]
+	var co *Country
+	if st != nil {
+		co = s.countryByID[st.CountryID]
+	}
+
+	return c, st, co, true
+}
+
+func (s *Service) ResolveCountry(idOrName string) *Country {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id, err := strconv.Atoi(idOrName); err == nil {
+		if c, ok := s.countryByID[id]; ok {
+			return c
+		}
+	}
+	clean := strings.ToLower(strings.TrimSpace(idOrName))
+	for i := range s.countries {
+		if strings.ToLower(s.countries[i].Name) == clean || strings.ToLower(s.countries[i].Code) == clean {
+			return &s.countries[i]
+		}
+	}
+	return nil
+}
+
+func (s *Service) ResolveState(idOrName string) *State {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id, err := strconv.Atoi(idOrName); err == nil {
+		if st, ok := s.stateByID[id]; ok {
+			return st
+		}
+	}
+	clean := strings.ToLower(strings.TrimSpace(idOrName))
+	for i := range s.states {
+		if strings.ToLower(s.states[i].Name) == clean || strings.ToLower(s.states[i].Code) == clean {
+			return &s.states[i]
+		}
+	}
+	return nil
+}
+
+func (s *Service) ResolveCity(idOrName string) *City {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if id, err := strconv.Atoi(idOrName); err == nil {
+		if c, ok := s.cityByID[id]; ok {
+			return c
+		}
+	}
+	res := s.SearchCity(idOrName)
+	if len(res) > 0 {
+		return &res[0]
+	}
+	return nil
+}
+
+func (s *Service) GetCountries(search string) []Country {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if search == "" {
+		res := make([]Country, len(s.countries))
+		copy(res, s.countries)
+		return res
+	}
+	clean := strings.ToLower(search)
+	var res []Country
+	for _, c := range s.countries {
+		if strings.Contains(strings.ToLower(c.Name), clean) || strings.Contains(strings.ToLower(c.Code), clean) {
+			res = append(res, c)
+		}
+	}
+	return res
+}
+
+func (s *Service) GetStates(countryID int, search string) []State {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var base []*State
+	if countryID > 0 {
+		base = s.statesByCID[countryID]
+	} else {
+		for i := range s.states {
+			base = append(base, &s.states[i])
+		}
+	}
+	if search == "" {
+		res := make([]State, 0, len(base))
+		for _, st := range base {
+			res = append(res, *st)
+		}
+		return res
+	}
+	clean := strings.ToLower(search)
+	var res []State
+	for _, st := range base {
+		if strings.Contains(strings.ToLower(st.Name), clean) || strings.Contains(strings.ToLower(st.Code), clean) {
+			res = append(res, *st)
+		}
+	}
+	return res
+}
+
+func (s *Service) GetCities(stateID, countryID int, search string, limit, offset int) ([]City, int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var base []*City
+	if stateID > 0 {
+		base = s.citiesBySID[stateID]
+	} else if countryID > 0 {
+		states := s.statesByCID[countryID]
+		for _, st := range states {
+			base = append(base, s.citiesBySID[st.ID]...)
+		}
+	} else {
+		for i := range s.cities {
+			base = append(base, &s.cities[i])
 		}
 	}
 
-	return cityName, stateName, countryName, true
+	cleanSearch := strings.ToLower(NormalizeCityQuery(search))
+	if mapped, exists := PersianToEnglishCityMap[cleanSearch]; exists {
+		cleanSearch = strings.ToLower(mapped)
+	}
+
+	var filtered []City
+	for _, c := range base {
+		if cleanSearch == "" || strings.Contains(strings.ToLower(c.Name), cleanSearch) {
+			filtered = append(filtered, *c)
+		}
+	}
+
+	total := len(filtered)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= total {
+		return []City{}, total
+	}
+	end := offset + limit
+	if limit <= 0 || end > total {
+		end = total
+	}
+	return filtered[offset:end], total
+}
+
+func (s *Service) GetCountryHierarchy(idOrName string) map[string]interface{} {
+	country := s.ResolveCountry(idOrName)
+	if country == nil {
+		return nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	states := s.statesByCID[country.ID]
+	stateList := make([]map[string]interface{}, 0, len(states))
+	for _, st := range states {
+		cities := s.citiesBySID[st.ID]
+		cityList := make([]map[string]interface{}, 0, len(cities))
+		for _, ct := range cities {
+			cityList = append(cityList, map[string]interface{}{
+				"id":   ct.ID,
+				"name": ct.Name,
+			})
+		}
+		stateList = append(stateList, map[string]interface{}{
+			"id":     st.ID,
+			"name":   st.Name,
+			"cities": cityList,
+		})
+	}
+
+	return map[string]interface{}{
+		"country": country,
+		"states":  stateList,
+	}
 }
 
 func (s *Service) SearchCity(query string) []City {

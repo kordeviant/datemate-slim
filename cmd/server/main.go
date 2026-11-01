@@ -88,13 +88,13 @@ func main() {
 	}
 
 	// 6. Initialize Geo Service
-	geoService := geo.NewService("data/geo")
+	geoService := geo.NewService(cfg.GeoDataDir)
 
 	// 7. Initialize Mailer Service
 	mailer := mail.NewService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
 
 	// 8. Initialize FCM Push Dispatcher
-	fcmDispatcher := fcm.NewDispatcher(cfg.FCMMockMode, 4, 1000)
+	fcmDispatcher := fcm.NewDispatcher(pool, cfg.FCMMockMode, 4, 1000)
 	defer fcmDispatcher.Close()
 
 	// 9. Initialize Domain Services
@@ -109,7 +109,7 @@ func main() {
 	adminSvc := admin.NewService(cfg, pool, rdb)
 
 	// 10. Initialize Handlers
-	authHandler := auth.NewHandler(authSvc)
+	authHandler := auth.NewHandler(authSvc, cfg, pool)
 	usersHandler := users.NewHandler(userSvc, cfg, pool)
 	matchingHandler := matching.NewHandler(matchingSvc, cfg, pool)
 	recommendedHandler := recommended.NewHandler(recommendedSvc, cfg, pool)
@@ -122,6 +122,7 @@ func main() {
 	interestsHandler := interests.NewHandler(interestsSvc, cfg, pool)
 	adminHandler := admin.NewHandler(adminSvc, cfg, pool)
 	systemHandler := system.NewHandler("docs")
+	geoHandler := geo.NewHandler(geoService)
 
 	// 11. Root Router & Global Middlewares
 	r := chi.NewRouter()
@@ -166,6 +167,13 @@ func main() {
 		interestsHandler.RegisterRoutes(sub)
 		adminHandler.RegisterRoutes(sub)
 		systemHandler.RegisterRoutes(sub)
+		geoHandler.RegisterRoutes(sub)
+	}
+
+	// Mount static file serving for /static/* from geoService.GetDataDir()
+	staticDir := geoService.GetDataDir()
+	if staticDir != "" {
+		r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
 	}
 
 	// Register version-neutral routes (e.g. /health, /auth/signin, /assets/..., etc.)
@@ -173,6 +181,9 @@ func main() {
 
 	// Register /v1/ prefixed routes (e.g. /v1/health, /v1/auth/signin, /v1/feed, etc.)
 	r.Route("/v1", func(v1 chi.Router) {
+		if staticDir != "" {
+			v1.Handle("/static/*", http.StripPrefix("/v1/static/", http.FileServer(http.Dir(staticDir))))
+		}
 		registerDomainRoutes(v1)
 	})
 

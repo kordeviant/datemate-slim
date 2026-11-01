@@ -27,31 +27,52 @@ func NewHandler(svc *Service, cfg *config.Config, pool *pgxpool.Pool) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	jwtAuth := middleware.JwtAuthGuard(h.cfg, h.pool)
-	apiKeyAuth := middleware.ApiKeyGuard(h.cfg)
+	r.Route("/users", func(ur chi.Router) {
+		if h.cfg != nil && h.pool != nil {
+			jwtAuth := middleware.JwtAuthGuard(h.cfg, h.pool)
+			apiKeyAuth := middleware.ApiKeyGuard(h.cfg)
 
-	// API key protected endpoint
-	r.With(apiKeyAuth).Get("/{userId}/device-token", h.GetDeviceTokenByUserId)
+			// API key protected endpoint
+			ur.With(apiKeyAuth).Get("/{userId}/device-token", h.GetDeviceTokenByUserId)
 
-	// JWT protected endpoints
-	r.Group(func(pr chi.Router) {
-		pr.Use(jwtAuth)
+			// JWT protected endpoints
+			ur.Group(func(pr chi.Router) {
+				pr.Use(jwtAuth)
 
-		pr.Delete("/me", h.DeleteAccount)
-		pr.Delete("/account", h.DeleteAccount)
-		pr.Delete("/gallery/{galleryId}", h.DeleteGalleryImage)
-		pr.Get("/devices", h.GetUserDevices)
-		pr.Delete("/devices/{deviceId}", h.TerminateDevice)
-		pr.Delete("/devices", h.TerminateAllDevices)
-		pr.Put("/device-token", h.UpdateDeviceToken)
-		pr.Get("/me", h.GetMe)
-		pr.Get("/profile", h.CheckProfileStatus)
-		pr.Put("/profile", h.UpdateProfile)
-		pr.Post("/profile", h.UpdateProfile)
-		pr.Post("/bulk", h.GetBulkUsers)
-		pr.Get("/avatars/{ids}", h.GetBulkAvatars)
-		pr.Get("/{id}/avatar", h.GetUserAvatar)
-		pr.Get("/{id}", h.GetUserProfile)
+				pr.Delete("/me", h.DeleteAccount)
+				pr.Delete("/account", h.DeleteAccount)
+				pr.Delete("/gallery/{galleryId}", h.DeleteGalleryImage)
+				pr.Get("/devices", h.GetUserDevices)
+				pr.Delete("/devices/{deviceId}", h.TerminateDevice)
+				pr.Delete("/devices", h.TerminateAllDevices)
+				pr.Put("/device-token", h.UpdateDeviceToken)
+				pr.Get("/me", h.GetMe)
+				pr.Get("/profile", h.CheckProfileStatus)
+				pr.Put("/profile", h.UpdateProfile)
+				pr.Post("/profile", h.UpdateProfile)
+				pr.Post("/bulk", h.GetBulkUsers)
+				pr.Get("/avatars/{ids}", h.GetBulkAvatars)
+				pr.Get("/{id}/avatar", h.GetUserAvatar)
+				pr.Get("/{id}", h.GetUserProfile)
+			})
+		} else {
+			ur.Get("/{userId}/device-token", h.GetDeviceTokenByUserId)
+			ur.Delete("/me", h.DeleteAccount)
+			ur.Delete("/account", h.DeleteAccount)
+			ur.Delete("/gallery/{galleryId}", h.DeleteGalleryImage)
+			ur.Get("/devices", h.GetUserDevices)
+			ur.Delete("/devices/{deviceId}", h.TerminateDevice)
+			ur.Delete("/devices", h.TerminateAllDevices)
+			ur.Put("/device-token", h.UpdateDeviceToken)
+			ur.Get("/me", h.GetMe)
+			ur.Get("/profile", h.CheckProfileStatus)
+			ur.Put("/profile", h.UpdateProfile)
+			ur.Post("/profile", h.UpdateProfile)
+			ur.Post("/bulk", h.GetBulkUsers)
+			ur.Get("/avatars/{ids}", h.GetBulkAvatars)
+			ur.Get("/{id}/avatar", h.GetUserAvatar)
+			ur.Get("/{id}", h.GetUserProfile)
+		}
 	})
 }
 

@@ -183,17 +183,372 @@ func (s *Service) GetPendingSelfiesCount(ctx context.Context) (int64, error) {
 	return s.queries.CountPendingVerificationsAdmin(ctx)
 }
 
-func (s *Service) BanUser(ctx context.Context, userID int, durationDays int, reason *string) error {
-	dur := durationDays
-	if dur <= 0 {
-		dur = 30 // default 30 days
+func (s *Service) BanUser(ctx context.Context, userID int, durationHours, durationDays *int, reason *string) error {
+	var until time.Time
+	if durationHours != nil && *durationHours > 0 {
+		until = time.Now().UTC().Add(time.Duration(*durationHours) * time.Hour)
+	} else if durationDays != nil && *durationDays > 0 {
+		until = time.Now().UTC().AddDate(0, 0, *durationDays)
+	} else {
+		// Permanent ban
+		until = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 	}
-	until := time.Now().UTC().AddDate(0, 0, dur)
 
+	_ = s.queries.DeleteUserSessionsByUserID(ctx, int32(userID))
 	return s.queries.BanUser(ctx, db.BanUserParams{
 		ID:          int32(userID),
 		BannedUntil: pgtype.Timestamp{Time: until, Valid: true},
 	})
+}
+
+func (s *Service) GetUserDetails(ctx context.Context, userID int) (*AdminUserDetailsDto, error) {
+	u, err := s.queries.GetUserByID(ctx, int32(userID))
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	p, _ := s.queries.GetProfileByUserID(ctx, int32(userID))
+	d, _ := s.queries.GetDemographicByUserID(ctx, int32(userID))
+	galleries, _ := s.queries.ListUserGalleries(ctx, int32(userID))
+	interests, _ := s.queries.ListUserInterests(ctx, int32(userID))
+	sessions, _ := s.queries.ListUserSessions(ctx, int32(userID))
+
+	now := time.Now().UTC()
+	var age *int
+	if d.BirthDate.Valid {
+		birth := d.BirthDate.Time
+		a := now.Year() - birth.Year()
+		if now.YearDay() < birth.YearDay() {
+			a--
+		}
+		age = &a
+	}
+
+	hasPendingSelfie := !u.ProfileValidated && p.SelfieUrl.Valid && strings.TrimSpace(p.SelfieUrl.String) != ""
+
+	galleryDtos := make([]AdminUserGalleryItemDto, 0, len(galleries))
+	for _, g := range galleries {
+		cStr := ""
+		if g.CreatedAt.Valid {
+			cStr = g.CreatedAt.Time.UTC().Format(time.RFC3339)
+		}
+		galleryDtos = append(galleryDtos, AdminUserGalleryItemDto{
+			ID:         g.ID,
+			URL:        s.resolveAssetURL(g.ImageUrl),
+			LikesCount: g.LikesCount,
+			CreatedAt:  cStr,
+		})
+	}
+
+	var demoDto *AdminUserDemographicDto
+	var cityName *string
+	if d.CityName.Valid && d.CityName.String != "" {
+		cityName = &d.CityName.String
+	}
+	var bDateStr *string
+	if d.BirthDate.Valid {
+		str := d.BirthDate.Time.Format("2006-01-02")
+		bDateStr = &str
+	}
+	var gStr *string
+	if d.Gender != "" {
+		str := string(d.Gender)
+		gStr = &str
+	}
+	var jobStr *string
+	if d.Profession.Valid {
+		jobStr = &d.Profession.String
+	}
+	var degStr *string
+	if d.Degree.Valid {
+		str := string(d.Degree.EducationStatus)
+		degStr = &str
+	}
+	var relStr *string
+	if d.RelationStatus.Valid {
+		str := string(d.RelationStatus.RelationshipStatus)
+		relStr = &str
+	}
+	var heightVal *int
+	if d.Height.Valid {
+		h := int(d.Height.Int16)
+		heightVal = &h
+	}
+	demoDto = &AdminUserDemographicDto{
+		BirthDate:      bDateStr,
+		Gender:         gStr,
+		Age:            age,
+		CityName:       cityName,
+		Job:            jobStr,
+		Degree:         degStr,
+		Height:         heightVal,
+		RelationStatus: relStr,
+	}
+
+	interestNames := make([]string, 0, len(interests))
+	for _, in := range interests {
+		if in.NameEn != "" {
+			interestNames = append(interestNames, in.NameEn)
+		} else if in.NameFa != "" {
+			interestNames = append(interestNames, in.NameFa)
+		}
+	}
+
+	deviceDtos := make([]AdminUserDeviceDto, 0, len(sessions))
+	for _, sess := range sessions {
+		devInfo := "Unknown Device"
+		if sess.DeviceInfo.Valid && sess.DeviceInfo.String != "" {
+			devInfo = sess.DeviceInfo.String
+		}
+		var fcm *string
+		if sess.FcmToken.Valid && sess.FcmToken.String != "" {
+			fcm = &sess.FcmToken.String
+		}
+		expStr := sess.ExpiresAt.Time.UTC().Format(time.RFC3339)
+		createStr := sess.CreatedAt.Time.UTC().Format(time.RFC3339)
+		isActive := sess.ExpiresAt.Time.After(now)
+		deviceDtos = append(deviceDtos, AdminUserDeviceDto{
+			ID:         sess.ID,
+			DeviceInfo: devInfo,
+			FcmToken:   fcm,
+			IsActive:   isActive,
+			ExpiresAt:  expStr,
+			CreatedAt:  createStr,
+		})
+	}
+
+	var bannedUntilStr *string
+	isBanned := false
+	if u.BannedUntil.Valid && u.BannedUntil.Time.After(now) {
+		isBanned = true
+		str := u.BannedUntil.Time.UTC().Format(time.RFC3339)
+		bannedUntilStr = &str
+	}
+
+	var avUrl *string
+	if p.AvatarUrl != "" {
+		resolved := s.resolveAssetURL(p.AvatarUrl)
+		avUrl = &resolved
+	}
+	var sfUrl *string
+	if p.SelfieUrl.Valid && p.SelfieUrl.String != "" {
+		resolved := s.resolveAssetURL(p.SelfieUrl.String)
+		sfUrl = &resolved
+	}
+	var un *string
+	if p.Username.Valid && p.Username.String != "" {
+		un = &p.Username.String
+	}
+	var phone *string
+	if p.PhoneNumber.Valid && p.PhoneNumber.String != "" {
+		phone = &p.PhoneNumber.String
+	}
+	var bio *string
+	if p.Bio.Valid && p.Bio.String != "" {
+		bio = &p.Bio.String
+	}
+
+	return &AdminUserDetailsDto{
+		ID:               u.ID,
+		Email:            u.Email,
+		Role:             string(u.Role),
+		Language:         string(u.Language),
+		FullName:         p.FirstName,
+		Username:         un,
+		City:             cityName,
+		PhoneNumber:      phone,
+		Bio:              bio,
+		Gender:           gStr,
+		Age:              age,
+		AvatarUrl:        avUrl,
+		SelfieUrl:        sfUrl,
+		ProfileValidated: u.ProfileValidated,
+		HasPendingSelfie: hasPendingSelfie,
+		BannedUntil:      bannedUntilStr,
+		IsBanned:         isBanned,
+		IsPremium:        u.IsPremium,
+		CreatedAt:        u.CreatedAt.Time.UTC().Format(time.RFC3339),
+		Gallery:          galleryDtos,
+		Demographic:      demoDto,
+		Interests:        interestNames,
+		Devices:          deviceDtos,
+		Likes:            []AdminUserLikeDto{},
+	}, nil
+}
+
+func (s *Service) UpdateUser(ctx context.Context, userID int, payload *AdminUpdateUserPayload) (*AdminUserItemDto, error) {
+	if payload == nil {
+		return nil, fmt.Errorf("empty payload")
+	}
+
+	_, err := s.queries.GetUserByID(ctx, int32(userID))
+	if err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if payload.ConfirmSelfie != nil {
+		_ = s.queries.UpdateUserProfileValidated(ctx, db.UpdateUserProfileValidatedParams{
+			ID:               int32(userID),
+			ProfileValidated: *payload.ConfirmSelfie,
+		})
+	} else if payload.SelfieVerified != nil {
+		_ = s.queries.UpdateUserProfileValidated(ctx, db.UpdateUserProfileValidatedParams{
+			ID:               int32(userID),
+			ProfileValidated: *payload.SelfieVerified,
+		})
+	} else if payload.ProfileValidated != nil {
+		_ = s.queries.UpdateUserProfileValidated(ctx, db.UpdateUserProfileValidatedParams{
+			ID:               int32(userID),
+			ProfileValidated: *payload.ProfileValidated,
+		})
+	}
+
+	if payload.IsPremium != nil {
+		_ = s.queries.UpdateUserIsPremium(ctx, db.UpdateUserIsPremiumParams{
+			ID:        int32(userID),
+			IsPremium: *payload.IsPremium,
+		})
+	}
+
+	if payload.Role != nil && *payload.Role != "" {
+		_ = s.queries.UpdateUserRole(ctx, db.UpdateUserRoleParams{
+			ID:   int32(userID),
+			Role: db.Role(*payload.Role),
+		})
+	}
+
+	var firstName string
+	var username pgtype.Text
+	var phone pgtype.Text
+	var bio pgtype.Text
+	if payload.FullName != nil {
+		firstName = *payload.FullName
+	}
+	if payload.Username != nil {
+		username = pgtype.Text{String: *payload.Username, Valid: true}
+	}
+	if payload.PhoneNumber != nil {
+		phone = pgtype.Text{String: *payload.PhoneNumber, Valid: true}
+	}
+	if payload.Bio != nil {
+		bio = pgtype.Text{String: *payload.Bio, Valid: true}
+	}
+
+	if firstName != "" || username.Valid || phone.Valid || bio.Valid {
+		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+			UserID:      int32(userID),
+			FirstName:   firstName,
+			Username:    username,
+			PhoneNumber: phone,
+			Bio:         bio,
+		})
+	}
+
+	uUpdated, _ := s.queries.GetUserByID(ctx, int32(userID))
+	pUpdated, _ := s.queries.GetProfileByUserID(ctx, int32(userID))
+	dUpdated, _ := s.queries.GetDemographicByUserID(ctx, int32(userID))
+
+	var fn *string
+	if pUpdated.FirstName != "" {
+		fn = &pUpdated.FirstName
+	}
+	var unUpdated *string
+	if pUpdated.Username.Valid && pUpdated.Username.String != "" {
+		unUpdated = &pUpdated.Username.String
+	}
+	var avUpdated *string
+	if pUpdated.AvatarUrl != "" {
+		resolved := s.resolveAssetURL(pUpdated.AvatarUrl)
+		avUpdated = &resolved
+	}
+	var sfUpdated *string
+	if pUpdated.SelfieUrl.Valid && pUpdated.SelfieUrl.String != "" {
+		resolved := s.resolveAssetURL(pUpdated.SelfieUrl.String)
+		sfUpdated = &resolved
+	}
+	var gen *string
+	if dUpdated.Gender != "" {
+		g := string(dUpdated.Gender)
+		gen = &g
+	}
+	var bd *string
+	if dUpdated.BirthDate.Valid {
+		b := dUpdated.BirthDate.Time.Format("2006-01-02")
+		bd = &b
+	}
+
+	isBanned := false
+	var bannedUntil *time.Time
+	if uUpdated.BannedUntil.Valid && uUpdated.BannedUntil.Time.After(time.Now().UTC()) {
+		isBanned = true
+		bannedUntil = &uUpdated.BannedUntil.Time
+	}
+
+	return &AdminUserItemDto{
+		ID:               uUpdated.ID,
+		Email:            uUpdated.Email,
+		FirstName:        fn,
+		Username:         unUpdated,
+		AvatarUrl:        avUpdated,
+		SelfieUrl:        sfUpdated,
+		Gender:           gen,
+		BirthDate:        bd,
+		ProfileValidated: uUpdated.ProfileValidated,
+		IsPremium:        uUpdated.IsPremium,
+		IsBanned:         isBanned,
+		BannedUntil:      bannedUntil,
+		CreatedAt:        uUpdated.CreatedAt.Time,
+	}, nil
+}
+
+func (s *Service) DeleteUserGallery(ctx context.Context, userID, galleryID int) error {
+	return s.queries.DeleteUserGallery(ctx, db.DeleteUserGalleryParams{
+		ID:     int32(galleryID),
+		UserID: int32(userID),
+	})
+}
+
+func (s *Service) GetUserDevices(ctx context.Context, userID int) ([]AdminUserDeviceDto, error) {
+	sessions, err := s.queries.ListUserSessions(ctx, int32(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	deviceDtos := make([]AdminUserDeviceDto, 0, len(sessions))
+	for _, sess := range sessions {
+		devInfo := "Unknown Device"
+		if sess.DeviceInfo.Valid && sess.DeviceInfo.String != "" {
+			devInfo = sess.DeviceInfo.String
+		}
+		var fcm *string
+		if sess.FcmToken.Valid && sess.FcmToken.String != "" {
+			fcm = &sess.FcmToken.String
+		}
+		expStr := sess.ExpiresAt.Time.UTC().Format(time.RFC3339)
+		createStr := sess.CreatedAt.Time.UTC().Format(time.RFC3339)
+		isActive := sess.ExpiresAt.Time.After(now)
+		deviceDtos = append(deviceDtos, AdminUserDeviceDto{
+			ID:         sess.ID,
+			DeviceInfo: devInfo,
+			FcmToken:   fcm,
+			IsActive:   isActive,
+			ExpiresAt:  expStr,
+			CreatedAt:  createStr,
+		})
+	}
+	return deviceDtos, nil
+}
+
+func (s *Service) TerminateDevice(ctx context.Context, userID, deviceID int) error {
+	return s.queries.DeleteUserSessionByDeviceID(ctx, db.DeleteUserSessionByDeviceIDParams{
+		UserID: int32(userID),
+		ID:     int32(deviceID),
+	})
+}
+
+func (s *Service) TerminateAllDevices(ctx context.Context, userID int) error {
+	return s.queries.DeleteUserSessionsByUserID(ctx, int32(userID))
 }
 
 func (s *Service) UnbanUser(ctx context.Context, userID int) error {

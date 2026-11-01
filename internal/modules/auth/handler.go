@@ -6,30 +6,42 @@ import (
 	"strings"
 
 	"datemate/internal/common"
+	"datemate/internal/config"
 	"datemate/internal/middleware"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Handler struct {
-	svc *Service
+	svc  *Service
+	cfg  *config.Config
+	pool *pgxpool.Pool
 }
 
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, cfg *config.Config, pool *pgxpool.Pool) *Handler {
+	return &Handler{svc: svc, cfg: cfg, pool: pool}
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Post("/signup", h.SignUp)
-	r.Post("/verify", h.Verify)
-	r.Post("/signin", h.SignIn)
-	r.Post("/refresh", h.Refresh)
-	r.Post("/forgot-password", h.ForgotPassword)
-	r.Post("/reset-password", h.ResetPassword)
-	r.Post("/nonce", h.Nonce)
-	r.Post("/google", h.Google)
-	r.Post("/apple", h.Apple)
-	r.Post("/logout", h.Logout)
+	r.Route("/auth", func(ar chi.Router) {
+		ar.Post("/signup", h.SignUp)
+		ar.Post("/verify", h.Verify)
+		ar.Post("/signin", h.SignIn)
+		ar.Post("/refresh", h.Refresh)
+		ar.Post("/forgot-password", h.ForgotPassword)
+		ar.Post("/reset-password", h.ResetPassword)
+		ar.Post("/nonce", h.Nonce)
+		ar.Post("/google", h.Google)
+		ar.Post("/apple", h.Apple)
+
+		if h.cfg != nil && h.pool != nil {
+			jwtAuth := middleware.JwtAuthGuard(h.cfg, h.pool)
+			ar.With(jwtAuth).Post("/logout", h.Logout)
+		} else {
+			ar.Post("/logout", h.Logout)
+		}
+	})
 }
 
 type SignUpRequest struct {

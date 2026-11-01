@@ -115,6 +115,8 @@ type UpdateProfilePayload struct {
 	Lon              *float64           `json:"lon,omitempty"`
 	ProfilePictureID *int               `json:"profilePictureId,omitempty"`
 	Gallery          *GalleryPayloadDto `json:"gallery,omitempty"`
+	Answers          interface{}        `json:"answers,omitempty"`
+	LikedActivities  interface{}        `json:"likedActivities,omitempty"`
 	Profile          *struct {
 		FullName    *string   `json:"fullName,omitempty"`
 		Username    *string   `json:"username,omitempty"`
@@ -134,6 +136,8 @@ type UpdateProfilePayload struct {
 		Preferences *struct {
 			Relation *string `json:"relation,omitempty"`
 		} `json:"Preferences,omitempty"`
-		RelationType *string `json:"relationType,omitempty"`
+		RelationType    *string     `json:"relationType,omitempty"`
+		Answers         interface{} `json:"answers,omitempty"`
+		LikedActivities interface{} `json:"likedActivities,omitempty"`
 	} `json:"Profile,omitempty"`
 }

@@ -635,15 +635,24 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 		LastMessagePreview:  pgtype.Text{String: preview, Valid: true},
 	})
 
+	conv, _ := s.queries.GetConversationByID(ctx, pgUUID)
+	convType := "DIRECT"
+	var convTitle pgtype.Text
+	if conv.ConversationType != "" {
+		convType = conv.ConversationType
+		convTitle = conv.Title
+	}
+
 	// 7. Update conversations_by_user for all members
 	for _, rID := range recipients {
 		_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
 			UserID:              rID,
 			LastMessageAt:       pgtype.Timestamptz{Time: now, Valid: true},
 			ConversationID:      pgUUID,
-			ConversationType:    "DIRECT",
+			ConversationType:    convType,
 			LastMessagePreview:  pgtype.Text{String: preview, Valid: true},
 			LastMessageSenderID: pgtype.Int8{Int64: senderID, Valid: true},
+			Title:               convTitle,
 		})
 	}
 
@@ -902,4 +911,133 @@ func (s *Service) SetUserPresence(ctx context.Context, userID int64, isOnline bo
 		IsOnline:   isOnline,
 		LastSeenAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
 	})
+}
+
+func (s *Service) ListGroupParticipants(ctx context.Context, conversationID string, currentUserID int64) ([]GroupParticipantResponseDto, error) {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return nil, common.NewAppError(400, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	pgUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	_, err = s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         currentUserID,
+	})
+	if err != nil {
+		return nil, common.NewAppError(403, common.ErrForbidden, "You are not a member of this group")
+	}
+
+	members, err := s.queries.ListConversationMembers(ctx, pgUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]GroupParticipantResponseDto, 0, len(members))
+	for _, m := range members {
+		result = append(result, GroupParticipantResponseDto{
+			UserID:   m.UserID,
+			Status:   "ACTIVE",
+			Role:     m.Role,
+			JoinedAt: m.JoinedAt.Time,
+		})
+	}
+	return result, nil
+}
+
+func (s *Service) GetGroupParticipant(ctx context.Context, conversationID string, currentUserID, targetUserID int64) (*GroupParticipantResponseDto, error) {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return nil, common.NewAppError(400, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	pgUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	_, err = s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         currentUserID,
+	})
+	if err != nil {
+		return nil, common.NewAppError(403, common.ErrForbidden, "You are not a member of this group")
+	}
+
+	m, err := s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         targetUserID,
+	})
+	if err != nil {
+		return nil, common.NewAppError(404, common.ErrNotFound, "Participant not found in this group")
+	}
+
+	return &GroupParticipantResponseDto{
+		UserID:   m.UserID,
+		Status:   "ACTIVE",
+		Role:     m.Role,
+		JoinedAt: m.JoinedAt.Time,
+	}, nil
+}
+
+func (s *Service) AcceptGroupInvitation(ctx context.Context, conversationID string, currentUserID int64) error {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return common.NewAppError(400, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	pgUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	conv, err := s.queries.GetConversationByID(ctx, pgUUID)
+	if err != nil {
+		return common.NewAppError(404, common.ErrNotFound, "Group conversation not found")
+	}
+
+	_, _ = s.queries.AddConversationMember(ctx, db.AddConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         currentUserID,
+		Role:           "MEMBER",
+	})
+
+	_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
+		UserID:           currentUserID,
+		LastMessageAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ConversationID:   pgUUID,
+		ConversationType: "GROUP",
+		Title:            conv.Title,
+	})
+
+	return nil
+}
+
+func (s *Service) ApproveJoinRequest(ctx context.Context, conversationID string, currentUserID, applicantID int64) error {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return common.NewAppError(400, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	pgUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	member, err := s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         currentUserID,
+	})
+	if err != nil || (member.Role != "ADMIN" && member.Role != "OWNER") {
+		return common.NewAppError(403, common.ErrForbidden, "Only group administrators or owners can approve join requests")
+	}
+
+	conv, err := s.queries.GetConversationByID(ctx, pgUUID)
+	if err != nil {
+		return common.NewAppError(404, common.ErrNotFound, "Group conversation not found")
+	}
+
+	_, _ = s.queries.AddConversationMember(ctx, db.AddConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         applicantID,
+		Role:           "MEMBER",
+	})
+
+	_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
+		UserID:           applicantID,
+		LastMessageAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ConversationID:   pgUUID,
+		ConversationType: "GROUP",
+		Title:            conv.Title,
+	})
+
+	return nil
 }

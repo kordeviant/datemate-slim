@@ -2797,6 +2797,20 @@ func (q *Queries) UpdateUserProfileValidated(ctx context.Context, arg UpdateUser
 	return err
 }
 
+const updateUserRole = `-- name: UpdateUserRole :exec
+UPDATE users SET role = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+`
+
+type UpdateUserRoleParams struct {
+	ID   int32 `json:"id"`
+	Role Role  `json:"role"`
+}
+
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error {
+	_, err := q.db.Exec(ctx, updateUserRole, arg.ID, arg.Role)
+	return err
+}
+
 const updateUserSessionDeviceToken = `-- name: UpdateUserSessionDeviceToken :exec
 UPDATE user_sessions
 SET fcm_token = $2, device_info = COALESCE($3, device_info)
@@ -2819,10 +2833,12 @@ INSERT INTO conversations_by_user (
     user_id, last_message_at, conversation_id, conversation_type,
     last_message_preview, last_message_sender_id, title
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (user_id, last_message_at, conversation_id) DO UPDATE SET
+ON CONFLICT (user_id, conversation_id) DO UPDATE SET
+    last_message_at = EXCLUDED.last_message_at,
+    conversation_type = EXCLUDED.conversation_type,
     last_message_preview = EXCLUDED.last_message_preview,
     last_message_sender_id = EXCLUDED.last_message_sender_id,
-    title = EXCLUDED.title
+    title = COALESCE(EXCLUDED.title, conversations_by_user.title)
 `
 
 type UpsertConversationByUserParams struct {
@@ -3067,7 +3083,7 @@ INSERT INTO profiles (
     $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT (user_id) DO UPDATE SET
-    first_name = EXCLUDED.first_name,
+    first_name = CASE WHEN EXCLUDED.first_name != '' THEN EXCLUDED.first_name ELSE profiles.first_name END,
     username = COALESCE(EXCLUDED.username, profiles.username),
     phone_number = COALESCE(EXCLUDED.phone_number, profiles.phone_number),
     languages = COALESCE(EXCLUDED.languages, profiles.languages),
@@ -3077,9 +3093,9 @@ ON CONFLICT (user_id) DO UPDATE SET
     profile_picture_url = COALESCE(EXCLUDED.profile_picture_url, profiles.profile_picture_url),
     is_private = EXCLUDED.is_private,
     relation_type = COALESCE(EXCLUDED.relation_type, profiles.relation_type),
-    latitude = EXCLUDED.latitude,
-    longitude = EXCLUDED.longitude,
-    geohash = EXCLUDED.geohash,
+    latitude = CASE WHEN EXCLUDED.latitude != 0 THEN EXCLUDED.latitude ELSE profiles.latitude END,
+    longitude = CASE WHEN EXCLUDED.longitude != 0 THEN EXCLUDED.longitude ELSE profiles.longitude END,
+    geohash = COALESCE(EXCLUDED.geohash, profiles.geohash),
     updated_at = CURRENT_TIMESTAMP
 RETURNING id, user_id, first_name, username, phone_number, languages, bio, avatar_url, selfie_url, is_private, latitude, longitude, geohash, is_online, last_seen_at, updated_at, relation_type, profile_picture_url
 `

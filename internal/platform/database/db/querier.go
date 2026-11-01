@@ -124,6 +124,7 @@ type Querier interface {
 	UpdateUserLanguage(ctx context.Context, arg UpdateUserLanguageParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserProfileValidated(ctx context.Context, arg UpdateUserProfileValidatedParams) error
+	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error
 	UpdateUserSessionDeviceToken(ctx context.Context, arg UpdateUserSessionDeviceTokenParams) error
 	UpsertConversationByUser(ctx context.Context, arg UpsertConversationByUserParams) error
 	UpsertDemographic(ctx context.Context, arg UpsertDemographicParams) (Demographics, error)

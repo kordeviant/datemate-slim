@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"datemate/internal/common"
 	"datemate/internal/config"
 	"datemate/internal/platform/storage"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type AssetTypeConfig struct {
@@ -101,10 +103,14 @@ type Handler struct {
 }
 
 func NewHandler(cfg *config.Config, engine storage.Engine) *Handler {
+	var accel bool
+	if cfg != nil {
+		accel = cfg.NginxAccelRedirect
+	}
 	return &Handler{
 		cfg:          cfg,
 		engine:       engine,
-		assetHandler: storage.NewAssetHandler(engine, cfg.NginxAccelRedirect),
+		assetHandler: storage.NewAssetHandler(engine, accel),
 	}
 }
 
@@ -201,21 +207,47 @@ func (h *Handler) uploadAssetType(w http.ResponseWriter, r *http.Request, assetT
 		return
 	}
 
-	safeName, err := storage.ValidateAssetUpload(assetType, header.Filename, data, config.AllowedMimeTypes, config.MaxSizeBytes)
+	detectedMime, err := storage.ValidateAssetUpload(assetType, header.Filename, data, config.AllowedMimeTypes, config.MaxSizeBytes)
 	if err != nil {
 		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
 		return
 	}
 
-	detectedMime := storage.DetectMimeType(data)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext == "" {
+		if detectedMime == "image/jpeg" {
+			ext = ".jpg"
+		} else if detectedMime == "image/png" {
+			ext = ".png"
+		} else if detectedMime == "image/webp" {
+			ext = ".webp"
+		} else if detectedMime == "image/svg+xml" {
+			ext = ".svg"
+		}
+	}
+	ext = filepath.Clean(ext)
+	if strings.Contains(ext, "/") || strings.Contains(ext, "\\") || strings.Contains(ext, "..") || strings.Contains(ext, "\x00") {
+		common.RespondError(w, http.StatusBadRequest, "Invalid file extension", common.ErrBadRequest)
+		return
+	}
+
+	u := strings.ReplaceAll(uuid.New().String(), "-", "")
+	uuidHex8 := u[:8]
+	timestampMs := time.Now().UnixMilli()
+	safeFilename := fmt.Sprintf("%s_%s_%d%s", assetType, uuidHex8, timestampMs, ext)
+
+	if strings.Contains(safeFilename, "..") || strings.Contains(safeFilename, "/") || strings.Contains(safeFilename, "\\") || strings.Contains(safeFilename, "\x00") {
+		common.RespondError(w, http.StatusBadRequest, "Invalid filename generated", common.ErrBadRequest)
+		return
+	}
+
 	if detectedMime == "application/octet-stream" {
-		ext := strings.ToLower(filepath.Ext(safeName))
 		if ext == ".svg" {
 			detectedMime = "image/svg+xml"
 		}
 	}
 
-	relPath, err := h.engine.Save(r.Context(), assetType, safeName, bytes.NewReader(data), int64(len(data)), detectedMime)
+	relPath, err := h.engine.Save(r.Context(), assetType, safeFilename, bytes.NewReader(data), int64(len(data)), detectedMime)
 	if err != nil {
 		common.RespondError(w, http.StatusInternalServerError, "Failed to store asset", common.ErrUnknownError)
 		return
@@ -225,7 +257,7 @@ func (h *Handler) uploadAssetType(w http.ResponseWriter, r *http.Request, assetT
 
 	common.RespondSuccess(w, http.StatusCreated, "Media successfully uploaded", MediaUploadResponseDto{
 		URL:          fullURL,
-		FileName:     safeName,
+		FileName:     safeFilename,
 		MimeType:     detectedMime,
 		SizeBytes:    int64(len(data)),
 		OriginalName: header.Filename,

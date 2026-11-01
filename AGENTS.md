@@ -56,6 +56,62 @@
 ## 9. Commit & Push Policy
 - **Never Commit or Push Automatically**: Do NOT run `git commit` or `git push` unless the user explicitly instructs to commit or push. Always keep changes in the working directory and wait for the user to explicitly request a commit/push.
 
+### Git Workflow & Commit Guidelines
+
+To maintain a clean, consistent, and traceable Git history, all developers must follow these rules:
+
+#### 1. Branch Management
+- Do not push directly to the `develop` branch.
+- All changes must be developed on a dedicated feature, bugfix, or hotfix branch.
+- Push changes only to your own working branch.
+- Changes must be integrated into `develop` through a Merge Request (MR).
+- All Merge Requests must be reviewed and approved before merging.
+
+#### 2. Hotfix Workflow
+- Hotfix branches are intended for critical issues that require immediate fixes.
+- Create a dedicated `hotfix` branch for urgent production issues.
+- Hotfixes should be prioritized and addressed immediately.
+- Submit a Merge Request as soon as the fix is ready.
+- Hotfixes must still follow the code review and approval process.
+- After merging, ensure the fix is also applied to other relevant branches (such as `develop`) to prevent the issue from reoccurring.
+
+**Branch naming examples:**
+- `feature/add-user-authentication`
+- `bugfix/fix-email-validation`
+- `hotfix/fix-payment-failure`
+
+#### 3. Commit Message Convention
+- Follow the Conventional Commits standard for every commit.
+- Each commit must represent one logical change (Atomic Commit).
+- Commit messages must be clear, concise, and meaningful.
+- Use the appropriate commit type:
+  - `feat`: New feature
+  - `fix`: Bug fix
+  - `hotfix`: Urgent production fix
+  - `refactor`: Code restructuring
+  - `docs`: Documentation changes
+  - `test`: Test-related changes
+  - `chore`: Maintenance tasks
+
+**Commit message format:**
+
+`<type>(<scope>): <description>`
+
+**Examples:**
+- `feat(auth): add JWT authentication`
+- `fix(user): resolve email validation issue`
+- `hotfix(payment): resolve payment processing failure`
+- `refactor(api): simplify response handling`
+- `docs(readme): update installation instructions`
+
+#### 4. General Rules
+- Keep commits focused on a single logical change.
+- Avoid vague commit messages such as `update`, `changes`, or `fix`.
+- Review your changes before committing and pushing.
+- Keep your feature or hotfix branch up to date with the relevant target branch.
+
+**Important:** Direct pushes to `develop` are not allowed. All changes must go through the Merge Request process.
+
 ## 10. Feed & Recommended Discovery Invariants (`profileValidated` vs `selfieUrl`)
 - For candidate discovery in both Feed (`GET /v1/feed`) and Recommended (`GET /v1/recommended`), strictly enforce `User.profileValidated == true`.
 - Do NOT check or require an existing `selfieUrl` on candidate profiles. Users with `profileValidated == true` must be eligible regardless of whether `selfieUrl` is present or null.

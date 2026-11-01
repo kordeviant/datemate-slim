@@ -48,7 +48,7 @@ test:
         export SERVER_USER="${SERVER_USER_DEV:-$SERVER_USER}"
         export SERVER_IP="${SERVER_IP_DEV:-$SERVER_IP}"
         export SSH_PORT="${SSH_PORT_DEV:-${SSH_PORT:-22}}"
-        export DEPLOY_DIR="${DEPLOY_DIR_DEV:-${DEPLOY_DIR:-~/backend}}"
+        export DEPLOY_DIR="${DEPLOY_DIR_DEV:-${DEPLOY_DIR:-~/backend-dev}}"
         export GIT_REPO_URL="${GIT_REPO_URL_DEV:-${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}}"
         SSH_KEY="${SSH_PRIVATE_KEY_DEV:-$SSH_PRIVATE_KEY}"
         ENV_CONTENT="${ENV_FILE_CONTENT_DEV:-$ENV_FILE_CONTENT}"
@@ -93,9 +93,9 @@ test:
         fi
       fi
 
-.deploy_script: &deploy_script
+.deploy_script_dev: &deploy_script_dev
   - |
-    TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
+    TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend-dev}" | sed "s|^~|/home/$SERVER_USER|")
     REPO_URL="${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}"
     TARGET_BRANCH="${CI_COMMIT_REF_NAME:-develop}"
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
@@ -142,28 +142,122 @@ test:
         exit 1
       fi
 
-      echo '===> Starting database and cache services...'
+      # Read COMPOSE_PROJECT_NAME from .env or default to datemate_dev
+      export COMPOSE_PROJECT_NAME=\$(grep '^COMPOSE_PROJECT_NAME=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo 'datemate_dev')
+      export COMPOSE_PROJECT_NAME=\${COMPOSE_PROJECT_NAME:-datemate_dev}
+
+      echo \"===> Starting isolated development database and cache (\$COMPOSE_PROJECT_NAME)...\"
       \$DC up -d postgres redis
 
-      echo '===> Waiting for database readiness...'
+      echo '===> Waiting for development database readiness...'
+      PG_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_postgres\"
       for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-        if docker exec datemate_postgres pg_isready -U postgres >/dev/null 2>&1; then
-          echo 'Database is ready!'
+        if docker exec \$PG_CONTAINER pg_isready -U postgres >/dev/null 2>&1; then
+          echo 'Development database is ready!'
           break
         fi
         echo 'Waiting for database...'
         sleep 1
       done
 
-      echo '===> Building and starting Go backend and nginx in Docker...'
+      echo '===> Building and starting Go backend (Nginx excluded in develop)...'
+      \$DC up -d --build --remove-orphans backend
+
+      echo '===> Waiting for Go backend readiness...'
+      PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '2021')
+      PORT=\${PORT:-2021}
+      BACKEND_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_backend\"
+      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        if docker exec \$BACKEND_CONTAINER wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
+          echo \"Go develop backend is healthy on port \$PORT!\"
+          break
+        fi
+        echo 'Waiting for Go backend startup...'
+        sleep 1
+      done
+
+      echo '===> Reloading shared Nginx proxy...'
+      docker exec datemate_nginx nginx -s reload || true
+
+      echo '===> Go Modular Monolith develop deployment completed successfully!'
+    "
+
+.deploy_script_prod: &deploy_script_prod
+  - |
+    TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
+    REPO_URL="${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}"
+    TARGET_BRANCH="${CI_COMMIT_REF_NAME:-main}"
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      set -e
+      mkdir -p $TARGET_DIR
+      cd $TARGET_DIR
+      export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+      if [ ! -d .git ]; then
+        echo '===> Git repository not found on server. Initializing and linking origin...'
+        git init
+        git remote add origin '$REPO_URL' || git remote set-url origin '$REPO_URL'
+      fi
+      echo \"===> Pulling latest code for branch \$TARGET_BRANCH...\"
+      git fetch origin \"\$TARGET_BRANCH\"
+      git reset --hard HEAD || true
+      git checkout -f -B \"\$TARGET_BRANCH\" \"origin/\$TARGET_BRANCH\"
+      git reset --hard \"origin/\$TARGET_BRANCH\"
+    "
+
+    if [ -f /tmp/env_content ]; then
+      echo '===> Deploying .env file to target server...'
+      scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} -i /tmp/deploy_key /tmp/env_content $SERVER_USER@$SERVER_IP:$TARGET_DIR/.env
+    else
+      echo 'Warning: Neither ENV_FILE_CONTENT nor ENV_FILE_CONTENT_PROD is set in GitLab CI variables'
+    fi
+
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      set -e
+      cd $TARGET_DIR
+
+      # Stop legacy host PM2 process if running
+      if command -v pm2 >/dev/null 2>&1; then
+        pm2 stop datemate-backend >/dev/null 2>&1 || true
+        pm2 delete datemate-backend >/dev/null 2>&1 || true
+      fi
+
+      echo '===> Detecting docker compose...'
+      if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        DC='docker compose'
+      elif command -v docker-compose >/dev/null 2>&1; then
+        DC='docker-compose'
+      else
+        echo 'Error: Neither docker compose nor docker-compose found on server'
+        exit 1
+      fi
+
+      export COMPOSE_PROJECT_NAME=\$(grep '^COMPOSE_PROJECT_NAME=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo 'datemate')
+      export COMPOSE_PROJECT_NAME=\${COMPOSE_PROJECT_NAME:-datemate}
+
+      echo '===> Starting production database and cache services...'
+      \$DC up -d postgres redis
+
+      echo '===> Waiting for database readiness...'
+      PG_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_postgres\"
+      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        if docker exec \$PG_CONTAINER pg_isready -U postgres >/dev/null 2>&1; then
+          echo 'Production database is ready!'
+          break
+        fi
+        echo 'Waiting for database...'
+        sleep 1
+      done
+
+      echo '===> Building and starting Go backend and Nginx in Docker...'
       \$DC up -d --build --remove-orphans backend nginx
 
       echo '===> Waiting for Go backend readiness...'
-      PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '3000')
-      PORT=\${PORT:-3000}
+      PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '2020')
+      PORT=\${PORT:-2020}
+      BACKEND_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_backend\"
       for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-        if docker exec datemate_backend wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
-          echo 'Go backend is healthy and responding!'
+        if docker exec \$BACKEND_CONTAINER wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
+          echo \"Go production backend is healthy on port \$PORT!\"
           break
         fi
         echo 'Waiting for Go backend startup...'
@@ -173,7 +267,7 @@ test:
       echo '===> Reloading Nginx proxy...'
       docker exec datemate_nginx nginx -s reload || true
 
-      echo '===> Go Modular Monolith deployment completed successfully with Docker!'
+      echo '===> Go Modular Monolith production deployment completed successfully with Docker!'
     "
 
 deploy:develop:
@@ -182,7 +276,7 @@ deploy:develop:
     - develop
   environment:
     name: development
-  script: *deploy_script
+  script: *deploy_script_dev
 
 deploy:production:
   <<: *deploy_template
@@ -190,4 +284,4 @@ deploy:production:
     - main
   environment:
     name: production
-  script: *deploy_script
+  script: *deploy_script_prod

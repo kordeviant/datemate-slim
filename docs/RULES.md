@@ -59,7 +59,7 @@ DateMate strictly verifies image files at the binary level using magic bytes to 
 | **Supported Formats by Asset Type** | **Icons**: SVG, PNG, WebP<br>**Images**: JPEG, PNG, WebP, GIF<br>**Avatars**: JPEG, PNG, WebP<br>**Audio**: MP3, OGG, WAV, WebM, AAC | Binary magic bytes validated per asset type rules |
 | **Prohibited Formats** | Scripts, Executables (APK, EXE, ZIP), Malicious SVG with scripts | Strictly rejected with `400 Bad Request` |
 | **File Size Limits by Type** | **Icons**: Max 2 MB<br>**Images**: Max 15 MB<br>**Avatars**: Min 10 KB, Max 10 MB<br>**Audio**: Max 20 MB | Files exceeding type bounds rejected with `400 Bad Request` |
-| **Server Processing** | Auto-oriented via EXIF, resized, WebP conversion, GPS metadata stripped | Sharp library cleans image metadata |
+| **Server Processing** | Auto-oriented via EXIF, resized, WebP conversion, GPS metadata stripped | Go image processor (`imaging` + `chai2010/webp`) cleans image metadata |
 | **Scalable Public Routes** | `/assets/icons/{filename}`<br>`/assets/images/{filename}`<br>`/assets/avatars/{filename}`<br>`/assets/selfies/{filename}`<br>`/assets/{type}/{filename}` | Dynamic asset controller with ETag and immutable caching |
 | **Storage Independence** | Files stored on disk or S3/object storage by asset type; public URL generated dynamically via `baseUrl` | DB stores relative key; domain changes require zero DB migrations |
 | **Unique Safe Filenames** | `<assetType>_<uuidHex>_<timestamp>.<ext>` | URL-safe, collision-proof, path-traversal protected |

@@ -18,7 +18,7 @@
 
 ## 3. Extensibility & Ease of Change
 - Design every module so adding or modifying a feature requires minimal friction and zero breaking changes to existing components.
-- Keep business logic decoupled from infrastructure (Prisma, Redis, Socket.IO, HTTP).
+- Keep business logic decoupled from infrastructure (PostgreSQL/pgx/sqlc, Redis, Socket.IO, HTTP).
 - Use DTOs, domain events, and modular services to ensure loose coupling.
 
 ## 4. Mandatory Testing

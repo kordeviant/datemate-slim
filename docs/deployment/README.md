@@ -1,15 +1,15 @@
 # Deployment & Getting Started Guide
 
-This guide covers local development setup, environment configuration, and production deployment for the **DateMate Backend**.
+This guide covers local development setup, environment configuration, database seeding, and production deployment for the **DateMate Go Modular Monolith**.
 
 ---
 
 ## 1. Prerequisites
 
-- **Node.js**: `v20.x` LTS or higher
-- **npm**: `v10.x` or higher
-- **Docker & Docker Compose**: For local PostgreSQL, Redis, and Elasticsearch containers
+- **Go**: `v1.24.x` or higher
+- **Docker & Docker Compose**: For PostgreSQL, Redis, and Nginx containers
 - **Git**: For version control
+- **GCC / Musl-dev**: (Only required when compiling Go with `CGO_ENABLED=1` for image processing)
 
 ---
 
@@ -23,11 +23,13 @@ cp .env.example .env
 Key environment variables:
 ```ini
 # Application
-NODE_ENV=development
 PORT=3000
+HOST=0.0.0.0
+NODE_ENV=development
+BASE_URL=http://localhost:3000
 
 # PostgreSQL
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/datemate?schema=public"
+DATABASE_URL="postgres://postgres:postgrespassword@localhost:5432/datemate_db?sslmode=disable"
 
 # Redis
 REDIS_HOST=localhost
@@ -39,13 +41,14 @@ JWT_ACCESS_SECRET="your-access-secret-key"
 JWT_REFRESH_SECRET="your-refresh-secret-key"
 
 # Media Storage
-UPLOAD_DIR="./uploads"
+STORAGE_DRIVER=local
+UPLOADS_DIR="./uploads"
+
+# Geographic Data
+GEO_DATA_DIR="./data/geo"
 
 # Firebase Cloud Messaging
-FIREBASE_SERVICE_ACCOUNT_KEY="./firebase-service-account.json"
-
-# Zarinpal Gateway
-ZARINPAL_MERCHANT_ID="your-merchant-id"
+FCM_MOCK_MODE=true
 ```
 
 ---
@@ -54,21 +57,39 @@ ZARINPAL_MERCHANT_ID="your-merchant-id"
 
 ### 3.1 Start Backing Services
 ```bash
-docker compose up -d
+docker compose up -d postgres redis
 ```
 
-### 3.2 Install Dependencies & Seed Database
+### 3.2 Seed Database
+Run the integrated Go seeder to populate geography, icons, questions, interest categories, and test/admin users:
 ```bash
-npm install
-npx prisma migrate dev
-npx prisma db seed
+# Run all seeders
+go run ./cmd/seed --all
+
+# Or run specific seeders:
+go run ./cmd/seed --geo        # Geographic dataset (countries, states, cities)
+go run ./cmd/seed --icons      # Profile and interest icons into uploads/
+go run ./cmd/seed --questions  # Lifestyle & personality questions
+go run ./cmd/seed --interests  # Interest categories and hobbies
+go run ./cmd/seed --users      # Test users & admin (admin / admin@datemate.com)
 ```
 
 ### 3.3 Run Development Server
 ```bash
-npm run start:dev
+go run ./cmd/server
 ```
-The API server will listen on `http://localhost:3000` and Socket.IO on `ws://localhost:3000`.
+- The backend automatically executes pending SQL migrations from `migrations/` on boot.
+- The HTTP REST API server listens on `http://localhost:3000`.
+- Real-time WebSocket (Socket.IO) gateway is active on `ws://localhost:3000/chat` and `ws://localhost:3000/socket.io`.
+
+### 3.4 Run Tests
+```bash
+# Run all unit and integration tests
+go test -v ./...
+
+# Hardware-aware bounded tests (for high-core workstations)
+go test -v -p 4 ./...
+```
 
 ---
 
@@ -79,96 +100,75 @@ DateMate uses an **Nginx** reverse proxy configured with **HTTPS/TLS**, HTTP-to-
 ### 4.1 Generate Local SSL Certificates
 For local development and testing, generate a self-signed certificate with SAN (Subject Alternative Name) for `localhost` and `127.0.0.1`:
 ```bash
-cd backend/nginx
+cd nginx
 ./generate-certs.sh
+cd ..
 ```
-This generates `certs/fullchain.pem` and `certs/privkey.pem`.
+This generates `nginx/certs/fullchain.pem` and `nginx/certs/privkey.pem`.
 
 ### 4.2 Start Nginx
 ```bash
 docker compose up -d nginx
 ```
 
-Nginx will listen on:
-- **Port 80 (HTTP)**: Handles ACME challenges (`/.well-known/acme-challenge/`) and domain routing.
-- **Port 443 (HTTPS)**: Proxies traffic with HTTP/2 and modern TLS protocols:
-  - `api-datemate.testdevvvv.site`: Reverse proxies to DateMate Backend (NestJS, port 2020).
-  - `dl-datemate.testdevvvv.site`: Reverse proxies to DateMate Downloads Server (Docker container, port 5454) with streaming buffering disabled for high-throughput geographic file downloads.
-
-### 4.3 Geographic Database Seeding
-To populate `countries`, `states`, and `cities` for location validation matching the download service:
-```bash
-npx ts-node prisma/seed-geo.ts
-```
-This reads `countries.json`, `states.json`, and `cities.json` and seeds 250 countries, 5,308 states, and 152,970 cities into PostgreSQL.
-
-### 4.4 Production SSL with Let's Encrypt / Certbot
-In production, obtain certificates for your domain:
-```bash
-certbot certonly --webroot -w /var/www/certbot \
-  -d api.datemate.com \
-  --email admin@datemate.com \
-  --agree-tos --no-eff-email
-```
-Mount the Let's Encrypt certificate directory (`/etc/letsencrypt/live/api.datemate.com/`) to `/etc/nginx/certs/` in `docker-compose.yml`.
+Nginx listens on:
+- **Port 80 (HTTP)**: Handles ACME challenges and 301 redirects to HTTPS.
+- **Port 443 (HTTPS)**: Proxies traffic to DateMate Backend on port 3000 with WebSocket upgrading and rate limiting.
 
 ---
 
 ## 5. Production Deployment
 
-### 5.1 Build
+### 5.1 Docker Compose (Recommended)
+The multi-stage `Dockerfile` produces an ultra-slim Alpine container (< 25 MB):
 ```bash
-npm run build
+# Build and start all services (PostgreSQL, Redis, Go Backend, Nginx)
+docker compose up -d --build
 ```
 
-### 5.2 Start Production Server
+### 5.2 Standalone Binary Compilation
+To compile optimized standalone binaries:
 ```bash
-npm run start:prod
-```
+# Build server binary
+CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o bin/server ./cmd/server
 
-### 5.3 Process Management (PM2)
-```bash
-pm2 start dist/main.js --name "datemate-backend" -i max
-pm2 save
+# Build seed binary
+CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o bin/seed ./cmd/seed
+
+# Run server
+./bin/server
 ```
 
 ---
 
 ## 6. CI/CD Automated Deployment (`.gitlab-ci.yml`)
 
-The repository includes a GitLab CI/CD pipeline that automates testing, Docker container management, and zero-downtime server deployments:
+The repository includes a modern GitLab CI/CD pipeline that automates testing, Docker container builds, and zero-downtime server deployments:
 
 ### 6.1 Pipeline Stages
 1. **`test` Stage**:
-   - Runs `npm ci`, `npx prisma generate`, `npm test`, and `npm run build`.
-   - Ensures all unit/integration tests pass and the TypeScript build succeeds before any deployment is triggered.
+   - Container image: `golang:1.24-alpine`
+   - Executes `go vet ./...`
+   - Executes `go test -v -p 4 ./...`
+   - Validates build output: `go build ./cmd/server` and `go build ./cmd/seed`
 
-2. **`deploy` Stage (on `main` branch)**:
-   - Connects to the production server via SSH using `$SSH_PRIVATE_KEY`.
-   - Fetches and resets to the latest `origin/main`.
-   - **Starts or updates Docker backing services**: Runs `docker compose up -d --remove-orphans` to ensure PostgreSQL, Redis, and Nginx containers are running and recreated if configurations changed.
-   - **Waits for database readiness**: Checks PostgreSQL connectivity before running migrations.
-   - **Runs database migrations**: Executes `npx prisma migrate deploy` safely.
-   - **Generates Prisma client & builds project**: Executes `npx prisma generate && npm run build`.
-   - **Zero-downtime reload**: Executes `pm2 reload datemate-backend` (or falls back to `restart`/`start`) and saves PM2 state.
-   - **Nginx configuration reload**: Safely reloads the Nginx container (`docker exec datemate_nginx nginx -s reload`).
+2. **`deploy` Stage (on `main` and `develop` branches)**:
+   - Connects to production host via SSH using `$SSH_PRIVATE_KEY`.
+   - Fetches and resets repository to latest remote commit.
+   - Updates `.env` configuration from CI variable `$ENV_FILE_CONTENT`.
+   - Starts database and cache services: `docker compose up -d postgres redis`.
+   - Waits for PostgreSQL readiness check (`pg_isready`).
+   - Builds and launches backend container with automatic zero-downtime container replacement: `docker compose up -d --build --remove-orphans backend nginx`.
+   - Reloads Nginx reverse proxy configuration (`docker exec datemate_nginx nginx -s reload`).
 
 ### 6.2 Required CI/CD Variables
 In GitLab (Settings > CI/CD > Variables):
-- `SERVER_IP`: Target production host IP address.
-- `SERVER_USER`: SSH username (e.g. `datemate` or `root`).
+- `SERVER_IP`: Target host IP address.
+- `SERVER_USER`: SSH username.
 - `SSH_PRIVATE_KEY`: Private SSH key for server access.
 - `SSH_PORT`: (Optional, defaults to `22`).
 - `DEPLOY_DIR`: Target deployment directory on the server (e.g. `~/backend`).
+- `ENV_FILE_CONTENT`: Complete production `.env` file contents.
 
-### 6.3 Applying Pending Database Migrations
-The production release must run `npx prisma migrate deploy` against the same database configured for the backend before restarting the application. For a manual recovery, run the migration from the deployed backend directory, then regenerate the Prisma client, rebuild, and reload the service:
-
-```bash
-npx prisma migrate deploy
-npx prisma generate
-npm run build
-pm2 reload datemate-backend
-```
-
-This applies the `profiles.profile_picture_url` schema change required by `Profile.profilePictureUrl`; regenerating the client or restarting the process alone does not add the database column.
+### 6.3 Database Migrations Policy
+Migrations are automatically applied on server boot via `database.RunMigrations` (`migrations/*.up.sql`). When new migrations are added to `migrations/`, deploying the new container immediately and safely migrates the database during container startup before accepting traffic.

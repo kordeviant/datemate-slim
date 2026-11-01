@@ -71,7 +71,7 @@ flowchart TB
 
     subgraph PersistentStorage["Durable Storage Layer"]
         Postgres[(PostgreSQL Cluster\n- Users, Profiles, Chat, Events, Admins)]
-        Cassandra[(Sharded NoSQL / Cassandra\n- Swipes History partitioned by user_pair / swiper)]
+        PostgresSwipes[(PostgreSQL Partitioned Tables\n- Swipes History & Chat Timeline)]
         ES[(Elasticsearch / Geo-Index\n- Geospatial H3 / Geohash\n- Profile Search Indices)]
         MediaStorage["Object Storage (MinIO / S3)\n- Avatars, Selfies, Media Attachments"]
     end
@@ -100,7 +100,7 @@ flowchart TB
 
     SwipeSvc --> RedisSwipe
     SwipeSvc --> Kafka
-    Kafka --> Cassandra
+    Kafka --> PostgresSwipes
     Kafka --> NotifSvc
     Kafka --> RedisFeed
 
@@ -159,14 +159,14 @@ end
 return 'NO_MATCH'
 ```
 
-### 4.3 Asynchronous Persistence to Cassandra
+### 4.3 Asynchronous Persistence to PostgreSQL Partitioned Tables
 Once the Lua script returns:
 1. If `MATCH`:
    - Return `{ isMatch: true }` immediately in the HTTP / Socket response to the active swiper.
    - Publish `MatchEvent(userA, userB)` to Kafka topic `match-events`.
    - Notification Service dispatches FCM push to the passive user.
 2. Publish `SwipeEvent` to Kafka topic `swipe-events`.
-3. Background workers consume `swipe-events` and write asynchronously into Cassandra for long-term durable audit history:
+3. Background workers consume `swipe-events` and write asynchronously into PostgreSQL partitioned tables for long-term durable audit history:
 
 ```sql
 CREATE TABLE datemate.swipes (
@@ -175,8 +175,8 @@ CREATE TABLE datemate.swipes (
     to_user_id bigint,        -- clustering key
     direction text,           -- 'RIGHT', 'LEFT'
     created_at timestamp,
-    PRIMARY KEY ((user_pair), from_user_id, to_user_id)
-) WITH CLUSTERING ORDER BY (from_user_id ASC);
+    PRIMARY KEY (user_pair, from_user_id, to_user_id)
+);
 ```
 
 ---
@@ -250,7 +250,7 @@ For a user who has swiped 10,000 times, sending a 10,000-element `NOT IN (...)` 
 |---|---|---|
 | **Identity & Auth** | Registration, Email OTP, Google & Apple OAuth, Play Integrity verification, JWT lifecycle. | PostgreSQL, Redis |
 | **Profile & Preferences** | User demographics, lifestyle questions, interests catalog, photo uploads. | PostgreSQL, Elasticsearch, S3 |
-| **Feed & Matching** | Geospatial recommendations, pre-computed stacks, atomic swipe matching. | Redis, Cassandra, Elasticsearch |
+| **Feed & Matching** | Geospatial recommendations, pre-computed stacks, atomic swipe matching. | Redis, PostgreSQL, Elasticsearch |
 | **Messaging & Chat** | 1-on-1 direct messages, group chatrooms, community event discussions. | PostgreSQL, Redis (Pub/Sub) |
 | **Signaling (WebRTC)** | SDP offer/answer exchange, ICE candidates, call state management. | Redis (ephemeral) |
 | **Community Events** | Event creation, participant RSVPs, location-based event discovery. | PostgreSQL, Elasticsearch |
@@ -331,10 +331,9 @@ For a user who has swiped 10,000 times, sending a 10,000-element `NOT IN (...)` 
 
 | Component | Technology | Rationale |
 |---|---|---|
-| **API Framework** | **NestJS (Node.js LTS)** / Go | High throughput, TypeScript type safety with clients, modular architecture. |
-| **Relational Database** | **PostgreSQL 16** | Robust transactional store for user profiles, transactions, and admin records. |
-| **High-Throughput NoSQL**| **Cassandra** / ScyllaDB | Linearly scalable, write-optimized store for 2B+ daily swipes. |
-| **In-Memory Store** | **Redis 7 (Cluster)** | Atomic Lua scripts for matching, RedisBF for Bloom filters, feed list caching. |
+| **API Framework** | **Go 1.24+ (Modular Monolith)** | High throughput, minimal memory footprint (< 25 MB image), type safety, sub-millisecond route dispatch with Chi router. |
+| **Relational Database** | **PostgreSQL 16** | Robust transactional store for user profiles, demographics, matching, and partitioned chat/swipes timeline. |
+| **In-Memory Store** | **Redis 7** | Atomic Lua scripts for matching, sliding-window rate limiting, and candidate ranking caching. |
 | **Geospatial & Search Engine** | **Elasticsearch / OpenSearch** | Fast geospatial bounding queries (H3 / Geohash) and multi-facet filtering. |
 | **Event Streaming** | **Apache Kafka** | Decouples swipe ingestion, match notification dispatch, and persistence pipelines. |
 | **Push Notifications** | **Firebase Admin SDK (FCM)** | Background device wake-up and real-time match alerts. |

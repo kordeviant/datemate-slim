@@ -3,7 +3,7 @@
   "info": {
     "title": "DateMate Chat Service Real-time WebSocket API",
     "version": "1.0.0",
-    "description": "Authoritative AsyncAPI specification for DateMate Chat Microservice WebSocket gateway powered by Socket.IO over Apache Cassandra."
+    "description": "Authoritative AsyncAPI specification for DateMate Chat Subsystem WebSocket gateway powered by Socket.IO over PostgreSQL partitioned chat tables."
   },
   "servers": {
     "production": {
@@ -42,7 +42,7 @@
       }
     },
     "message.send": {
-      "description": "Client submits a new chat message. Persisted durably in Apache Cassandra and broadcast to all room participants.",
+      "description": "Client submits a new chat message. Persisted durably in PostgreSQL and broadcast to all room participants.",
       "publish": {
         "operationId": "sendMessage",
         "summary": "Send a chat message with idempotency",
@@ -52,7 +52,7 @@
       }
     },
     "message.created": {
-      "description": "Dispatched by the server to all connected room members when a message has been successfully saved to Cassandra.",
+      "description": "Dispatched by the server to all connected room members when a message has been successfully saved to the database.",
       "subscribe": {
         "operationId": "messageCreated",
         "summary": "Broadcast new message to conversation room members",
@@ -243,7 +243,7 @@
             "type": "string",
             "format": "uuid",
             "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-            "description": "Durable TimeUUID assigned by Cassandra."
+            "description": "Durable UUID assigned by the server."
           },
           "conversationId": {
             "type": "string",

@@ -8,21 +8,21 @@
 
 ## 1. Executive Summary & Overview
 
-DateMate Backend is a high-performance, resilient, monolithic microservice built with **NestJS**, **PostgreSQL (Prisma)**, **Apache Cassandra**, **Redis**, **Socket.IO**, and **Firebase Cloud Messaging (FCM)**. 
+DateMate Backend is a high-performance, resilient, monolithic service built with **Go 1.24+**, Chi router, **PostgreSQL** (`pgx/v5` + `sqlc`), **Redis**, **Socket.IO** (`zishang520/socket.io/v2`), and **Firebase Cloud Messaging (FCM)**. 
 
-To eliminate independent deployment overhead and network hop latency while preserving strict domain boundaries, all backend services—**Main Core**, **Real-Time Chat Service**, and **Push Notification Service**—are unified within this single codebase.
+To eliminate independent deployment overhead and network hop latency while preserving strict domain boundaries, all backend services—**Main Core**, **Real-Time Chat**, and **Push Notifications**—are unified within this single modular monolith codebase.
 
 ### Key Architectural Tenets
 1. **Domain-Driven Subdomain Routing**: All public and internal APIs maintain their dedicated subdomains and path contracts under `/v1` (e.g. `/v1/auth`, `/v1/conversations`, `/v1/push`, `/v1/matching`).
-2. **Hybrid Storage Strategy**:
-   - **PostgreSQL (Prisma)**: Relational user profiles, demographics, matching, swipes, friends, questions, sessions, and system configuration.
-   - **Apache Cassandra**: High-throughput distributed append-only chat timeline (`messages_timeline`), group profiles, conversation memberships, and presence.
-   - **Redis**: Low-latency caching for recommendations, rate limiting, and OTP sessions.
+2. **Unified Persistence Strategy**:
+   - **PostgreSQL**: Relational user profiles, demographics, matching, swipes, friends, questions, sessions, and consolidated chat timelines (`messages_by_conversation` bucketed by `YYYYMMDD`), groups, and presence.
+   - **Redis**: Low-latency caching for recommendations, sliding-window rate limiting, and OTP sessions.
+   - **Storage Engine**: Local disk (`uploads/`) or MinIO/S3 object storage for profile avatars, verification selfies, and chat attachments.
 3. **In-Process High Performance with Graceful Fallbacks**:
-   - Internal notification dispatches (e.g., match alerts, chat message pushes, friend requests) occur directly in-memory without loopback HTTP calls.
+   - Internal notification dispatches (e.g., match alerts, chat message pushes, friend requests) occur directly in-memory via a bounded worker pool without loopback HTTP calls.
    - External callers continue to use authenticated REST endpoints (`POST /v1/push`).
-   - RabbitMQ queue worker executes asynchronously with transparent in-process fallback when RabbitMQ broker is offline.
-4. **Centralized Configuration**: All operational limits, upload caps, rate throttles, and business thresholds live in a centralized, validated configuration module under `src/config/`.
+   - Mock mode automatically enables in development/test when Firebase credentials are not provided.
+4. **Centralized Configuration**: All operational limits, upload caps, rate throttles, and business thresholds live in a centralized, validated configuration module under `internal/config/config.go`.
 
 ---
 
@@ -34,38 +34,36 @@ flowchart TD
     
     subgraph Gateway ["Reverse Proxy / Load Balancer (Nginx)"]
         HTTPGateway["HTTP REST Gateway (:3000/v1)"]
-        WSGateway["WebSocket Gateway (:3000/chat)"]
+        WSGateway["WebSocket Gateway (:3000/chat & :3000/socket.io)"]
     end
 
     Client -->|REST API| HTTPGateway
     Client -->|Socket.IO| WSGateway
 
-    subgraph BackendApp ["DateMate Consolidated Backend (NestJS)"]
+    subgraph BackendApp ["DateMate Consolidated Backend (Go 1.24+)"]
         direction TB
 
-        subgraph Modules ["Domain Subdomains"]
+        subgraph Modules ["Domain Modules (internal/modules)"]
             AuthMod["Auth & Users Module"]
             MatchMod["Matching & Recommended Module"]
             FriendMod["Friends Module"]
-            ChatMod["Chat Module (Gateway & UseCases)"]
+            ChatMod["Chat Module (Gateway & Service)"]
             NotifMod["Notifications Module (Push & FCM)"]
             AdminMod["Admin Module"]
+            MediaMod["Media & Storage Module"]
+            GeoMod["Geo & Downloads Module"]
         end
 
-        subgraph ConfigCore ["Centralized Configuration (src/config)"]
-            AppCfg["App & Security Config"]
-            UploadCfg["Upload Limits Config"]
-            ChatCfg["Chat Limits Config"]
-            NotifCfg["Notification Config"]
-            BizCfg["Business Rules Config"]
+        subgraph ConfigCore ["Centralized Configuration (internal/config)"]
+            Cfg["Typed Environment & Business Rules Config"]
         end
 
-        subgraph InfraServices ["Infrastructure Adapters"]
-            PrismaSvc["Prisma ORM (PostgreSQL)"]
-            CassandraSvc["Cassandra Driver"]
-            FCMSvc["FCM Provider (firebase-admin)"]
-            RedisSvc["Redis Client"]
-            StorageSvc["Local Media Storage (/uploads)"]
+        subgraph InfraServices ["Infrastructure Adapters (internal/platform)"]
+            PgxPool["pgx/v5 Pool & sqlc Queries"]
+            FCMDispatcher["FCM Dispatcher (Worker Pool)"]
+            RedisClient["Redis Client (go-redis/v9)"]
+            StorageEngine["Storage Engine (Local / MinIO S3)"]
+            GeoService["Geo Service (In-Memory Datasets)"]
         end
     end
 
@@ -75,32 +73,34 @@ flowchart TD
     HTTPGateway --> ChatMod
     HTTPGateway --> NotifMod
     HTTPGateway --> AdminMod
+    HTTPGateway --> MediaMod
+    HTTPGateway --> GeoMod
     WSGateway --> ChatMod
 
-    ChatMod -->|In-Process Push| NotifMod
-    MatchMod -->|In-Process Push| NotifMod
-    FriendMod -->|In-Process Push| NotifMod
-    AdminMod -->|In-Process Push| NotifMod
+    ChatMod -->|In-Process Push| FCMDispatcher
+    MatchMod -->|In-Process Push| FCMDispatcher
+    FriendMod -->|In-Process Push| FCMDispatcher
+    AdminMod -->|In-Process Push| FCMDispatcher
 
-    AuthMod --> PrismaSvc
-    MatchMod --> PrismaSvc
-    FriendMod --> PrismaSvc
-    ChatMod --> CassandraSvc
-    ChatMod --> StorageSvc
-    NotifMod --> FCMSvc
-    MatchMod --> RedisSvc
+    AuthMod --> PgxPool
+    MatchMod --> PgxPool
+    FriendMod --> PgxPool
+    ChatMod --> PgxPool
+    ChatMod --> StorageEngine
+    MediaMod --> StorageEngine
+    NotifMod --> FCMDispatcher
+    MatchMod --> RedisClient
+    GeoMod --> GeoService
 
-    subgraph DataStores ["Distributed Persistence Layer"]
-        PostgresDB[("PostgreSQL")]
-        CassandraCluster[("Apache Cassandra Cluster")]
+    subgraph DataStores ["Persistence Layer"]
+        PostgresDB[("PostgreSQL Database (Relational & Chat)")]
         RedisDB[("Redis Cache")]
-        DiskStorage[("Static Uploads Directory")]
+        DiskStorage[("Storage (Uploads / S3 Bucket)")]
     end
 
-    PrismaSvc --> PostgresDB
-    CassandraSvc --> CassandraCluster
-    RedisSvc --> RedisDB
-    StorageSvc --> DiskStorage
+    PgxPool --> PostgresDB
+    RedisClient --> RedisDB
+    StorageEngine --> DiskStorage
 ```
 
 ---
@@ -121,7 +121,7 @@ Every domain retains isolated controllers, services, entities, and DTOs:
 | **Groups** | `/v1/groups` | REST (JSON) | Group creation, member invites, role updates, leave/remove |
 | **Chat Upload** | `/v1/upload`, `/v1/chat/upload` | Multipart Form | Voice notes, media, video, and documents for messaging |
 | **Real-Time Chat** | `/chat` namespace | WebSocket (Socket.IO) | Real-time messaging, typing indicators, delivery receipts |
-| **Notifications** | `/v1/push`, `/v1/notifications/push` | REST (JSON) | High-speed push dispatch with FCM & optional RabbitMQ |
+| **Notifications** | `/v1/push`, `/v1/notifications/push` | REST (JSON) | High-speed push dispatch with FCM & bounded worker pool |
 | **Questions** | `/v1/questions` | REST (JSON) | Personality questions, options, and categories |
 | **Interests** | `/v1/interests` | REST (JSON) | Hobbies and lifestyle interest tags |
 | **Media** | `/v1/media` | REST / Static | General profile media upload and thumbnail resolution |
@@ -132,14 +132,14 @@ Every domain retains isolated controllers, services, entities, and DTOs:
 
 ## 4. Centralized Configuration Management Reference
 
-Adjustable operational values are centralized in `src/config/`, loaded on application startup with sensible fallback defaults:
+Adjustable operational values are centralized in `internal/config/config.go`, loaded on application startup with sensible fallback defaults:
 
 ### 4.1 Application & Security
 
 | Parameter | Environment Variable | Default Value | Description |
 | :--- | :--- | :--- | :--- |
 | Server Port | `PORT` | `3000` | HTTP and WebSocket listener port |
-| Node Environment | `NODE_ENV` | `development` | Runtime mode (`development`, `production`, `test`) |
+| Environment | `NODE_ENV` / `APP_ENV` | `development` | Runtime mode (`development`, `production`, `test`) |
 | Base URL | `BASE_URL` | `http://localhost:3000` | Canonical host for asset URL resolution |
 | Trust Proxy | `TRUST_PROXY` | `loopback` | Nginx reverse proxy IP resolution mode |
 | Rate Limit TTL | `THROTTLE_TTL` | `60000` (60s) | Sliding window interval for request throttler |
@@ -232,33 +232,37 @@ Adjustable operational values are centralized in `src/config/`, loaded on applic
 
 ---
 
-## 6. Real-Time Chat & Cassandra Architecture
+## 6. Real-Time Chat & PostgreSQL Architecture
 
 ### 6.1 Deterministic Direct Conversations
-Direct conversations between two users are mathematically deterministic. `CanonicalPairUtil` computes a canonical key (`min(userIdA, userIdB):max(userIdA, userIdB)`) and derives a RFC 4122 v5 UUID:
+Direct conversations between two users are mathematically deterministic. `CanonicalPairKey` computes a canonical key (`min(userIdA, userIdB):max(userIdA, userIdB)`) and derives a RFC 4122 v5 UUID:
 - Calling `POST /v1/conversations` between User 10 and User 20 always returns the exact same conversation UUID.
 - Completely prevents duplicate 1-on-1 chat rooms under concurrent creation attempts.
 
-### 6.2 Cassandra Time-Bucket Partitioning
-Messages are partitioned by `(conversation_id, bucket)` where `bucket = YYYYMMDD` (UTC):
-- Messages are sorted in descending order by `created_at` (TimeUUID).
-- Opaque base64url cursors encode `{ bucket, pagingState, offset, t }`, enabling seamless pagination across days and months without partition hotspots.
+### 6.2 PostgreSQL Time-Bucket Partitioning (Migration 0014)
+The chat subsystem was consolidated from Cassandra into high-performance PostgreSQL tables:
+- **Table `messages_by_conversation`**: Partitioned by day bucket `(conversation_id, bucket)` where `bucket = YYYYMMDD` (UTC).
+- Messages are sorted in descending order by `created_at` timestamp with composite index `idx_messages_timeline`.
+- Opaque base64url cursors (`internal/common/cursor.go`) encode `{ bucket, offset, timestamp }`, enabling seamless pagination across days and months without partition hotspots.
+- **Table `message_idempotency`**: Enforces strict unique constraints on `(conversation_id, sender_id, client_message_id)` so network retries never produce duplicate messages.
 
-### 6.3 WebSocket (`/chat`) Real-Time Events
+### 6.3 WebSocket (`/chat` & `/socket.io`) Real-Time Events
+Powered by `zishang520/socket.io/v2` mounted at `/chat` and `/socket.io`:
 
 #### Client-to-Server
-- `join_conversation`: `{ conversationId: string }` — Subscribes socket to room.
-- `leave_conversation`: `{ conversationId: string }` — Leaves socket room.
-- `send_message`: `{ conversationId, content, clientMessageId, type?, attachments? }` — Sends message.
-- `typing_start`: `{ conversationId }` — Emits typing indicator to room.
-- `typing_stop`: `{ conversationId }` — Clears typing indicator.
+- `conversation.join`: `{ conversationId: string }` — Subscribes socket to room.
+- `conversation.leave`: `{ conversationId: string }` — Leaves socket room.
+- `message.send`: `{ conversationId, content, clientMessageId, type?, mediaUrl?, duration?, attachmentName?, attachmentSize?, mimeType? }` — Sends message.
+- `typing.start`: `{ conversationId }` — Emits typing indicator to room.
+- `typing.stop`: `{ conversationId }` — Clears typing indicator.
+- `user.activity.get`: `{ userIds: number[] }` — Queries live activity states.
 
 #### Server-to-Client
-- `new_message`: Dispatched to conversation room members with full `MessageItemDto`.
-- `message_ack`: Direct acknowledgement to sender socket containing confirmed message ID and timestamp.
-- `user_typing`: Broadcasts `{ userId, conversationId }` to other members.
-- `user_presence`: Broadcasts `{ userId, isOnline, lastSeenAt }` on connection changes.
-- `error`: Dispatched on validation or authorization errors via `WsExceptionsFilter`.
+- `message.created`: Dispatched to conversation room members with full message item.
+- `message.ack`: Direct acknowledgement to sender socket containing confirmed message ID and timestamp.
+- `user.typing`: Broadcasts `{ userId, conversationId }` to other members.
+- `user.activity`: Broadcasts `{ userId, isOnline, lastSeenAt }` on connection changes.
+- `error`: Dispatched on validation or authorization errors.
 
 ---
 
@@ -268,33 +272,29 @@ Messages are partitioned by `(conversation_id, bucket)` where `bucket = YYYYMMDD
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Trigger as Caller (Internal UseCase or REST API)
-    participant Ctrl as PushController / PushService
-    participant Rabbit as RabbitMQ (Optional)
-    participant Worker as PushConsumer / Fallback
-    participant DevSvc as UserDeviceService
-    participant DB as PostgreSQL (Prisma)
-    participant FCM as Firebase Cloud Messaging
+    actor Trigger as Caller (Internal Service or REST API)
+    participant Ctrl as NotificationsHandler / FCMDispatcher
+    participant Queue as Buffered Channel (1,000 Capacity)
+    participant Worker as Background Workers (4 Goroutines)
+    participant DB as PostgreSQL (pgx/v5)
+    participant FCM as Firebase Cloud Messaging / Mock
 
-    Trigger->>Ctrl: POST /v1/push or in-process enqueue(dto)
+    Trigger->>Ctrl: POST /v1/push or in-process fcmDispatcher.Dispatch(job)
     Ctrl-->>Trigger: 202 Accepted { job_id, status: "QUEUED" } (Immediate < 3ms)
+    Ctrl->>Queue: Enqueue push payload
+    Worker->>Queue: Consume push job
     
-    alt RabbitMQ Broker Available
-        Ctrl->>Rabbit: publish("push.dispatch", payload)
-        Rabbit->>Worker: consume(job)
-    else RabbitMQ Disabled / Offline
-        Ctrl->>Worker: setImmediate(processPushJob)
-    end
-
     alt Target is userId
-        Worker->>DevSvc: getDeviceToken(userId)
-        DevSvc->>DB: userSession.findFirst({ where: { userId, fcmToken } })
-        DB-->>DevSvc: Active FCM Device Token
-        DevSvc-->>Worker: Device Token String
+        Worker->>DB: Query active session token (user_sessions)
+        DB-->>Worker: Active Device Token String
     end
 
-    Worker->>FCM: sendMulticast(tokens, notification)
-    FCM-->>Worker: { successCount, failureCount, invalidTokens }
+    alt FCM Credentials Present
+        Worker->>FCM: Send notification to device tokens
+        FCM-->>Worker: Delivery confirmation
+    else Mock Mode (Local / Test)
+        Worker->>FCM: Log simulated delivery (Mock Mode)
+    end
 ```
 
 ### 7.2 Notification Types & Templates
@@ -340,20 +340,28 @@ All HTTP responses follow the standard `ResponseResult<T>` envelope:
 
 ## 9. Troubleshooting & Operational Runbook
 
-### Cassandra Connection Issues
-- **Symptom**: `Could not connect to Cassandra on startup: All host(s) tried for query failed`
+### PostgreSQL Database Issues
+- **Symptom**: `Failed to initialize database pool`
 - **Resolution**:
-  1. Verify Cassandra container is healthy: `docker ps | grep cassandra`
-  2. Check `CASSANDRA_CONTACT_POINTS` (default `127.0.0.1`) and `CASSANDRA_KEYSPACE` (default `datemate_chat`).
-  3. Run standalone migrations: `npm run cql:migrate` or verify `CASSANDRA_AUTO_MIGRATE=true`.
+  1. Verify PostgreSQL container is healthy: `docker compose ps postgres`
+  2. Check connectivity: `docker exec datemate_postgres pg_isready -U postgres -d datemate_db`
+  3. Verify `DATABASE_URL` matches `.env` settings.
+  4. Migrations run automatically on server boot from `migrations/` directory.
+
+### Redis Connection Issues
+- **Symptom**: `Failed to initialize Redis client`
+- **Resolution**:
+  1. Verify Redis container is running: `docker compose ps redis`
+  2. Test ping: `docker exec datemate_redis redis-cli ping`
+  3. Confirm `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD` match your environment.
 
 ### FCM Push Notification Failures
 - **Symptom**: `Failed sending to device ... [Code: messaging/invalid-registration-token]`
 - **Resolution**:
-  - The token is invalid or expired. The service automatically flags it in `invalidTokens` for cleanup.
-  - If FCM credentials are missing in development, check that `FCM Service running in MOCK MODE` appears in the logs. Deliveries will be simulated with full tracing.
+  - The token is invalid or expired. The dispatcher automatically flags invalid tokens.
+  - If FCM credentials are missing in development, the service automatically enables mock mode (`FCM Service running in MOCK MODE`), simulating sends without throwing errors.
 
 ### High Worker Memory / CPU Contention
 - **Host Info**: 20 CPU Cores.
-- **Rule**: Never run test runners without `--maxWorkers=4` (e.g. `npx jest --maxWorkers=4`).
+- **Rule**: When executing tests, append worker limits: `go test -p 4 ./...`.
 - Throttler protections automatically reject excessive request bursts (`HTTP 429 Too Many Requests`).

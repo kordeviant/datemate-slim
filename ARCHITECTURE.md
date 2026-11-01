@@ -5,10 +5,10 @@
 DateMate is architected as a **Modular Monolith** applying **Domain-Driven Design (DDD)** and **Clean Architecture** principles. The system enforces strict boundaries between business logic and infrastructure to enable effortless maintenance, high test coverage, and a frictionless path to independent microservices when required.
 
 ### Layer Separation
-1. **Domain Layer**: Pure business entities, enums, value objects, and repository/storage interfaces (`IStorageEngine`, `IUserRepository`). Zero external dependencies.
-2. **Application Layer**: Use cases, DTOs, domain validators, and orchestrators (`UploadMediaUseCase`, `GetProfileUseCase`, `MediaUrlResolverService`).
-3. **Infrastructure Layer**: Concrete persistence and driver implementations (`LocalStorageService`, `S3StorageService`, `PrismaUserRepository`, `RedisService`, `NodemailerService`).
-4. **Presentation Layer**: NestJS controllers handling HTTP transport, OpenAPI/Swagger specifications, and input transformation (`AssetsController`, `MediaUploadController`, `UsersController`, `AuthController`).
+1. **Domain Layer**: Pure business models, scoring formulas, enums, value objects, and engine interfaces (`storage.Engine`, `UserRepository`). Zero external transport dependencies.
+2. **Application Layer**: Use cases, domain services, DTOs, validators, and orchestrators (`users.Service`, `matching.Service`, `recommended.Service`, `chat.Service`, `friends.Service`).
+3. **Infrastructure & Platform Layer**: Concrete persistence and driver implementations (`internal/platform/database`, `internal/platform/storage`, `internal/platform/redis`, `internal/platform/mail`, `internal/platform/fcm`, `internal/platform/geo`).
+4. **Presentation Layer**: Chi HTTP handlers (`internal/modules/*/handler.go`), Socket.IO real-time gateway (`internal/modules/chat/gateway.go`), OpenAPI/Swagger specifications, and input transformation / envelope formatting (`internal/middleware/envelope.go`).
 
 ### Canonical Contract Principles & No-Alias Policy
 - **Don't add alias, client should have only one option to not confuse client**:
@@ -20,7 +20,7 @@ DateMate is architected as a **Modular Monolith** applying **Domain-Driven Desig
 
 ---
 
-## 2. Media Upload & Scalable Asset System (`src/modules/media`)
+## 2. Media Upload & Scalable Asset System (`internal/modules/media` & `internal/platform/storage`)
 
 ### 2.1 Core Design Goals
 - **Scalable Route Architecture**: Provides clean, dedicated routes for asset categories:
@@ -48,27 +48,19 @@ DateMate is architected as a **Modular Monolith** applying **Domain-Driven Desig
 ### 2.2 Storage Engine Abstraction (SOLID DIP & OCP)
 ```mermaid
 flowchart TD
-    Client["Client / Mobile App"] --> Controller["AssetsController / MediaUploadController"]
-    Controller --> UseCase["UploadMediaUseCase / GetMediaStreamUseCase"]
-    UseCase --> Engine["IStorageEngine (Interface)"]
-    Engine --> LocalStorage["LocalStorageService (Local Disk uploads/)"]
-    Engine --> S3Storage["S3StorageService (AWS S3 / Cloudflare R2 / MinIO)"]
-    UseCase --> UrlResolver["MediaUrlResolverService (baseUrl from .env)"]
+    Client["Client / Mobile App"] --> Handler["media.Handler / users.Handler"]
+    Handler --> Engine["storage.Engine (Interface)"]
+    Engine --> LocalStorage["storage.LocalEngine (Local Disk uploads/)"]
+    Engine --> S3Storage["storage.S3Engine (AWS S3 / MinIO)"]
+    Handler --> UrlResolver["Public URL Resolution (baseUrl from Config)"]
     UrlResolver --> PublicUrl["Full Public URL: https://cdn.datemate.com/assets/{type}/{filename}"]
 ```
 
-### 2.3 Asset Type Registry
-An extensible registry (`AssetTypeRegistry`) defines validation rules, MIME types, and size limits per asset type. Adding a new asset type (e.g., `banners`, `audio`, `documents`) only requires registering a configuration rule:
-```typescript
-registry.register({
-  assetType: 'banners',
-  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-  allowedExtensions: ['.jpg', '.jpeg', '.png', '.webp'],
-  maxSizeBytes: 10 * 1024 * 1024,
-  magicBytesValidation: true,
-  description: 'Event and promotional banners',
-});
-```
+### 2.3 Asset Type Validation & Security Rules
+Asset validation rules, MIME type checking, and size limits are implemented in `internal/platform/storage/validator.go` and `internal/platform/storage/processor.go`:
+- Validates dangerous file extensions (`.exe`, `.bat`, `.cmd`, `.sh`, `.php`, etc.).
+- Inspects binary magic bytes (`DetectMimeType`) to ensure file headers match declared MIME types.
+- Auto-orients images via EXIF, center-cover crops avatars/selfies (1080x1080), downscales large photos (>2048px), and encodes to WebP while stripping sensitive EXIF/GPS metadata.
 
 ---
 
@@ -116,12 +108,12 @@ registry.register({
 
 ---
 
-## 5. Interests Module (`src/modules/interests`)
+## 5. Interests Module (`internal/modules/interests`)
 
 The Interests module provides category-based discovery of user hobbies and activities matching the mobile UI.
 
 ### 5.1 Architecture & Domain Invariants
-- **Domain Entities**: `InterestCategoryEntity` and `InterestEntity` representing categories and their child interests.
+- **Domain Entities**: Categories and child interests represented by PostgreSQL tables `interest_categories` and `interests`.
 - **Client Response Format**: Matches Android client schema:
   ```json
   [
@@ -152,20 +144,20 @@ The Interests module provides category-based discovery of user hobbies and activ
   - `GET /users/me`: Returns selected interests in `Profile.LikedActivities` as `{ [categoryId]: interestId | interestId[] }` (omitting duplicate `interest` / `interests`).
   - `PUT /users/me`: Updates selected user interests via `LikedActivities` key-value map, flat IDs, or category objects.
 - **Seeding**:
-  - Seed script: `npm run seed:interests` (`npx ts-node prisma/seed-interests.ts`).
+  - Seed script: `go run ./cmd/seed --interests` (or `go run ./cmd/seed --all`).
   - Reads SVG icons from `seed-icons/intersets` or `seed-icons/interests` in project root and copies them to `uploads/icons/`.
 
 ---
 
-## 6. Admin Panel Module (`src/modules/admin`)
+## 6. Admin Panel Module (`internal/modules/admin`)
 
 The Admin Module provides administration, monitoring, user directory search, account moderation, and identity verification capabilities for platform operators.
 
 ### 6.1 Architecture & Domain Invariants
 - **Bounded Context**: Dedicated `admin` domain isolated from consumer authentication and mobile profile endpoints.
-- **Role-Based Security**: Secured with `AdminAuthGuard` requiring valid JWT with `role === 'ADMIN'`.
+- **Role-Based Security**: Secured with middleware requiring valid JWT with `role === 'ADMIN'`.
 - **Session Termination on Ban**: Banning a user automatically purges all their active sessions (`user_sessions`) in real-time.
-- **Identity Verification Notification**: Approving or rejecting a verification triggers `NotificationType.PROFILE_VERIFIED` to inform the user.
+- **Identity Verification Notification**: Approving or rejecting a verification triggers `PROFILE_VERIFIED` notification to inform the user.
 
 ### 6.2 Administrative Endpoints
 - `GET /v1/admin/dashboard/stats` (also `/v1/admin/dashboard/overview`): Returns KPI metrics (`totalUsers`, `onlineUsers`, `pendingSelfies`, `unansweredTickets`), weekly activity, gender stats, recent tickets, and `recentSelfies` (strictly returning the last 4 unvalidated users who have an existing `selfieUrl`).
@@ -187,7 +179,7 @@ The Admin Module provides administration, monitoring, user directory search, acc
 
 ---
 
-## 7. User Gallery & Swipe Profile Picture System (`src/modules/auth`)
+## 7. User Gallery & Swipe Profile Picture System (`internal/modules/users`)
 
 The User Gallery system enables users to upload, manage, and curate their photo gallery for profile discovery and matching.
 
@@ -195,14 +187,14 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Profile Picture vs. Avatar**:
   - `avatar`: Dedicated identity verification photo (stored in `Profile.avatarUrl`, served via `/assets/avatars/...`).
   - `profilePicture`: The primary public swipe picture used in the matching/discovery deck (stored in `Profile.profilePictureUrl`, served via `/assets/images/...`).
-  - `Profile.profilePictureUrl` is persisted in nullable `profiles.profile_picture_url` (added by the `20261004130000_add_profile_picture_url_to_profiles` migration).
+  - `Profile.profilePictureUrl` is persisted in nullable `profiles.profile_picture_url` (added by migration `0009_add_profile_picture_url_to_profiles.up.sql`).
   - `Profile.profilePictureId`: Gallery ID of the currently active profile picture, returned in profile response.
   - `UserGallery.isProfilePicture`: Boolean flag designating which gallery item is currently active for swiping.
 - **Multipart Upload Fields**:
   - Only three distinct file fields are accepted on profile update endpoints (`PUT /v1/users/profile` and `POST /v1/users/profile`):
-    - `avatar?: Express.Multer.File[]` (max 1)
-    - `selfie?: Express.Multer.File[]` (max 1)
-    - `gallery?: Express.Multer.File[]` (max 1 - multiple gallery photo uploads in a single request are rejected)
+    - `avatar` (max 1)
+    - `selfie` (max 1)
+    - `gallery` (max 1 - multiple gallery photo uploads in a single request are rejected)
 - **Gallery Object & Profile Picture Updating**:
   - `gallery` in request body is a single object: `{ isProfilePicture?: boolean, image?: string, description?: string, id?: number }`.
   - `isProfilePicture` is optional: if omitted, the backend sets the user's first gallery image as `isProfilePicture: true` by default.
@@ -215,7 +207,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **File Size Limits**: Minimum **50KB** and maximum **10MB** per photo.
 - **Maximum Photos Per Upload**: 1 photo per request (multi-photo gallery requests are rejected with 400 Bad Request).
 - **Maximum Total Upload Size**: 10MB per request.
-- **Accepted Formats**: WebP (recommended) and JPG/JPEG/PNG. All images are normalized, EXIF-rotated, stripped of metadata, and converted to WebP via Sharp.
+- **Accepted Formats**: WebP (recommended) and JPG/JPEG/PNG. All images are normalized, EXIF-rotated, stripped of metadata, and converted to WebP via the Go image processor (`imaging` + `chai2010/webp`).
 - **Gallery Total Capacity**: Maximum 10 photos stored per user (`projected = current - deleteCount + newUploads <= 10`).
 
 ### 7.3 Profile Response
@@ -251,7 +243,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 - **Cascading Purge**: Removes user sessions, profiles, demographics, preferences, personalities, galleries, swipes, matches, and messages. Cleans up associated media files from local storage.
 - **Response Contract**: Returns `{ status: "success", message: "Account deleted successfully", data: { userId, deleted: true } }`.
 
-### 7.6 In-Process Geographic & Dataset Download Engine (`src/infrastructure/geo`)
+### 7.6 In-Process Geographic & Dataset Download Engine (`internal/platform/geo`)
 - **Self-Contained In-Memory Engine**: Geographic datasets (`countries.json`, `states.json`, `cities.json`, `countries_states_cities.json`) are housed natively in `data/geo/` and indexed in memory on startup. Zero external HTTP/proxy dependencies on port 5454.
 - **Unified Domain Routing**: All `/v1/geo/*` and `/v1/downloads/*` endpoints are served directly by the DateMate Backend on `api-datemate.testdevvvv.site` (with dl domain routed to backend as well).
 - **Comprehensive Filter Support**:
@@ -324,7 +316,7 @@ The User Gallery system enables users to upload, manage, and curate their photo 
 ---
 
 
-## 8. Authentication & Admin Sign-In (`src/modules/auth`)
+## 8. Authentication & Admin Sign-In (`internal/modules/auth`)
 
 The Authentication module supports consumer mobile applications and web administration portals with unified credentials.
 
@@ -359,7 +351,7 @@ The Authentication module supports consumer mobile applications and web administ
       "role": "ADMIN"
     }
     ```
-- **Admin Seeding**: Seeded admin user can be provisioned via `npm run seed:users` (`admin` / `admin@datemate.com`).
+- **Admin Seeding**: Seeded admin user can be provisioned via `go run ./cmd/seed --users` (or `go run ./cmd/seed --all`) with credentials `admin` / `admin@datemate.com`.
 
 ### 8.2 Client Logout API (`POST /v1/auth/logout` & `/auth/logout`)
 - **Single-Device Logout (Current Session Only)**: `POST /v1/auth/logout` strictly logs out the current device session. To terminate all devices or other devices, users use the dedicated device management API (`DELETE /v1/users/devices`).
@@ -394,7 +386,7 @@ The Authentication module supports consumer mobile applications and web administ
 
 ---
 
-## 9. Matching & Swipes Module (`src/modules/matching`)
+## 9. Matching & Swipes Module (`internal/modules/matching`)
 
 The Matching module provides candidate discovery (feed deck), high-throughput atomic swiping, and likes-received inspection designed for high scale and low latency.
 
@@ -407,7 +399,7 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
 - **Strict 6 Feed Selection Invariants (`GET /v1/feed`)**:
   The candidate feed deck (default 20 cards) is strictly filtered by:
   1. **Exclude Self**: `candidate.id != currentUserId`.
-  2. **Exclude Already Swiped (with Loop Fallback)**: By default, excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma#L399) records. If the unswiped candidate pool reaches 0 (deck exhausted), the feed automatically loops back through the candidate pool excluding only the user themselves so the user can continue viewing candidates.
+  2. **Exclude Already Swiped (with Loop Fallback)**: By default, excludes users previously swiped (Right or Left) via Redis in-memory set and PostgreSQL `swipes` table. If the unswiped candidate pool reaches 0 (deck exhausted), the feed automatically loops back through the candidate pool excluding only the user themselves so the user can continue viewing candidates.
   3. **Account Status**: `bannedUntil IS NULL` (user is not banned or suspended).
   4. **Has Photo**: Candidate must possess an active profile picture (prioritizing the `gallery` item with `isProfilePicture: true`, falling back to first gallery photo, `profile.profilePictureUrl`, or `profile.avatarUrl`). The feed candidate `profilePicture` field provides the resolved public URL of the gallery image marked with `isProfilePicture: true`.
   5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
@@ -437,14 +429,14 @@ The Matching module provides candidate discovery (feed deck), high-throughput at
 
 ---
 
-## 10. Recommended Module (`src/modules/recommended`)
+## 10. Recommended Module (`internal/modules/recommended`)
 
 The Recommended module computes personalized, high-compatibility profile recommendations (default: 20 candidates per request) using dynamic similarity scoring without hardcoded lifestyle or question rules.
 
 ### 10.1 Hygiene Invariants & Filters
 Before scoring, candidates must satisfy the 6 discovery baseline hygiene rules:
 1. **Exclude Self**: Candidate `id != currentUserId`.
-2. **Exclude Already Swiped (with Backfill Fallback)**: Excludes candidates already swiped (`RIGHT` or `LEFT`) recorded in Redis (`swiped:{userId}`) and PostgreSQL [`Swipe`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) table. If there are not enough unswiped candidates to satisfy the requested `limit`, swiped users are retrieved to backfill remaining slots (unswiped candidates are strictly prioritized first, followed by swiped candidates sorted from highest compatibility score to lowest).
+2. **Exclude Already Swiped (with Backfill Fallback)**: Excludes candidates already swiped (`RIGHT` or `LEFT`) recorded in Redis (`swiped:{userId}`) and PostgreSQL `swipes` table. If there are not enough unswiped candidates to satisfy the requested `limit`, swiped users are retrieved to backfill remaining slots (unswiped candidates are strictly prioritized first, followed by swiped candidates sorted from highest compatibility score to lowest).
 3. **Account Status**: Active account (`bannedUntil IS NULL` or in the past).
 4. **Has Active Photo**: Must have a valid, non-empty profile picture (`profilePictureUrl`, `avatarUrl`, or active gallery photo).
 5. **Profile Validated**: Candidate has `profileValidated == true` (strictly checks `User.profileValidated == true`; does NOT require an existing `selfieUrl`).
@@ -452,26 +444,26 @@ Before scoring, candidates must satisfy the 6 discovery baseline hygiene rules:
 
 ### 10.2 Modular Architecture & Separated Recommendation Algorithm
 To ensure maintainability, readability, and ease of modification, the recommendation module decomposes responsibilities strictly following DDD and Clean Architecture:
-- **`RecommendationAlgorithmService`** (`src/modules/recommended/domain/services/recommendation-algorithm.service.ts`):
-  Pure, decoupled domain service containing the scoring formulas, weight definitions (`DEFAULT_RECOMMENDATION_WEIGHTS`), hygiene photo/validation checks, and multi-factor ranking. It is isolated from database and network infrastructure for easy inspection and algorithm adjustments.
-- **`RecommendedCacheService`** (`src/modules/recommended/application/services/recommended-cache.service.ts`):
+- **Recommendation Service & Scoring Engine** (`internal/modules/recommended/service.go` and `scoring_test.go`):
+  Pure domain scoring formulas, weights (`DefaultRecommendationWeights`), hygiene photo/validation checks, and multi-factor ranking isolated from transport infrastructure.
+- **Candidate Cache Management** (`internal/modules/recommended/service.go`):
   Manages candidate list persistence in Redis (`recommended:ranked:{userId}`) with a 1-day TTL read directly from the environment (`RECOMMENDED_CACHE_TTL`, default: `86400` seconds). The cached candidate ranking persists consistently across consecutive client requests and automatically refreshes daily to account for changing user interests or newly joined users.
-- **`GetRecommendedUseCase`** (`src/modules/recommended/application/use-cases/get-recommended.use-case.ts`):
+- **Lightweight Discovery Cards Handler** (`internal/modules/recommended/handler.go`):
   Retrieves lightweight cards (`id`, `avatarUrl`, `age`, `city`, `username`, `fullName`) with numeric pagination (`start`, `limit`, `end`, `offset`).
-- **`GetRecommendedDetailUseCase`** (`src/modules/recommended/application/use-cases/get-recommended-detail.use-case.ts`):
+- **Full Candidate Profile Detail Handler** (`internal/modules/recommended/handler.go`):
   Retrieves full candidate profiles matching the Android `/me` canonical schema (`ProfileResponseDto`), preserving the exact recommendation order from the 1-day Redis cache.
 
 ### 10.3 Dynamic Compatibility Scoring Algorithm
 Candidates are ranked in descending order of a multi-factor compatibility score ($0 \dots 100$):
 1. **Dynamic Lifestyle & Personality Questions (Weight: up to 35 pts)**:
-   - Evaluates shared question answers from [`UserQuestionAnswer`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) across all dynamic question types (`LIFESTYLE`, `PERSONALITY`, `VALUES`, `PREFERENCES`).
+   - Evaluates shared question answers from `user_question_answers` table across all dynamic question types (`LIFESTYLE`, `PERSONALITY`, `VALUES`, `PREFERENCES`).
    - Zero hardcoding of question texts or IDs; computed as the ratio of overlapping answers to total answered questions.
 2. **Shared Interests (Weight: up to 25 pts)**:
-   - Evaluates overlap across user interest tags ([`UserInterest`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma)).
+   - Evaluates overlap across user interest tags (`user_interests` table).
 3. **Same City Proximity (Weight: 20 pts)**:
    - $+20$ points when candidate's `cityId` matches current user's `cityId`.
 4. **Relationship Goal Alignment (Weight: 10 pts)**:
-   - $+10$ points when candidate's [`Preferences.relation`](file:///home/parsa/Documents/projects/datemate/backend/prisma/schema.prisma) matches user's relationship goal (`LONG`, `FUN`, `OPEN`).
+   - $+10$ points when candidate's `relation` in `profile_relation_types` matches user's relationship goal (`LONG`, `FUN`, `OPEN`).
 5. **Age Proximity (Weight: up to 10 pts)**:
    - Evaluates age difference: $\le 3$ years: $+10$ pts; $\le 6$ years: $+6$ pts; $\le 10$ years: $+3$ pts.
 
@@ -583,62 +575,51 @@ Ranking order:
 ## 11. Global Rate Limiting & Proxy Security
 
 ### 11.1 Architecture & Core Configuration
-Rate limiting is globally enforced using the official `@nestjs/throttler` package integrated at the root module level (`src/app.module.ts`) via `APP_GUARD` and `ThrottlerGuard`.
+Rate limiting is globally enforced using high-performance sliding window rate limiting in `internal/middleware/throttler.go` backed by Redis (`rdb.RateLimitSlidingWindow`).
 
 - **Global Threshold**: **120 requests per IP per 60 seconds** (configurable via `THROTTLE_LIMIT` and `THROTTLE_TTL`).
-- **Response On Limit Exceeded**: Returns HTTP `429 Too Many Requests` formatted cleanly through `AllExceptionsFilter`:
+- **Response On Limit Exceeded**: Returns HTTP `429 Too Many Requests` formatted cleanly through `common.RespondError`:
   ```json
   {
     "status": "error",
     "message": "Too Many Requests",
     "data": null,
     "error": {
-      "type": "UNKNOWN_ERROR",
+      "type": "TOO_MANY_REQUESTS",
       "message": "Too Many Requests"
     }
   }
   ```
-- **Standard Headers**: Rate-limiting response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After`) are returned to enable client-side backoff calculation.
-- **Monitoring / Health Exemption**: Health check endpoints (`GET /health` and `GET /`) are decorated with `@SkipThrottle()` to prevent container orchestrators (Docker, Kubernetes) and monitoring systems from being inadvertently throttled.
+- **Standard Headers**: Rate-limiting response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `Retry-After`) are returned to enable client-side backoff calculation.
+- **Monitoring / Health Exemption**: Health check endpoints (`GET /health` and `GET /v1/health`), static assets (`/assets/*`, `/static/*`), and WebSocket connections (`/chat`) bypass the throttler to prevent container orchestrators (Docker, Kubernetes) and persistent connections from being throttled.
 
 ### 11.2 Reverse Proxy & Client IP Verification (Anti-Spoofing)
-DateMate operates behind Nginx (configured in `docker-compose.yml` and `nginx/nginx.conf` terminating SSL and forwarding traffic to `127.0.0.1:2020`).
+DateMate operates behind Nginx (configured in `docker-compose.yml` and `nginx/nginx.conf` terminating SSL and forwarding traffic to the Go backend).
 
 - **The Threat**: Attackers can send arbitrary `X-Forwarded-For` or `X-Real-IP` request headers from the client to attempt bypassing IP-based rate limiting or to cause denial-of-service against other users.
 - **The Defense**:
-  - Express is explicitly configured with `app.set('trust proxy', 'loopback')` in `src/main.ts`.
-  - When `trust proxy` is set to `'loopback'` (or `1`), Express **only trusts the immediate reverse proxy hop** if the connection originates from a loopback address (`127.0.0.1` / `::1`).
-  - Express evaluates `X-Forwarded-For` from right to left, peeling off the trusted loopback hop and selecting the first untrusted IP (the genuine client IP appended by Nginx's `$proxy_add_x_forwarded_for`). Any spoofed IP addresses prepended by malicious clients are discarded.
-  - If a client connects directly to the backend bypassing Nginx, the incoming connection socket address is not loopback; Express automatically rejects all forwarded headers and uses the raw TCP socket address (`req.socket.remoteAddress`).
+  - The Chi router uses `chiMiddleware.RealIP` combined with custom IP extraction in `getClientIP(r)`.
+  - When running behind trusted reverse proxies, genuine client IP is safely resolved from the right-most untrusted hop in `X-Forwarded-For` or `X-Real-IP`.
+  - If a client connects directly to the backend bypassing Nginx, the raw socket remote address (`r.RemoteAddr`) is used.
 
 ### 11.3 Endpoint-Specific Sensitive Route Limits
-To defend against brute-force credential stuffing, OTP guessing, and email-bombing attacks, strict limits are declared using `@Throttle()` in `src/modules/auth/presentation/auth.controller.ts`:
+To defend against brute-force credential stuffing, OTP guessing, and spam attacks, stricter limits are automatically applied to authentication paths (`/auth/`):
 
-| Endpoint | Method | Limit | TTL | Rationale |
+| Endpoint Pattern | Method | Limit | Window | Rationale |
 | :--- | :--- | :--- | :--- | :--- |
-| `/v1/auth/signin` | `POST` | 10 reqs | 60s | Mitigates credential stuffing and password brute-force attacks |
-| `/v1/auth/signup` | `POST` | 10 reqs | 60s | Prevents automated registration spam and email inbox flooding |
-| `/v1/auth/verify` | `POST` | 10 reqs | 60s | Stops brute-forcing 6-digit OTP verification codes (10m lifespan) |
-| `/v1/auth/forgot-password` | `POST` | 5 reqs | 60s | Thwarts OTP spam and email exhaustion attacks against target accounts |
-| `/v1/auth/reset-password` | `POST` | 10 reqs | 60s | Prevents rapid brute-force execution of password resets |
+| `/v1/auth/*` | Any | 15 reqs (configurable via `THROTTLE_AUTH_LIMIT`) | 60s | Mitigates credential stuffing, password brute-forcing, and OTP spam |
+| General APIs | Any | 120 reqs (configurable via `THROTTLE_LIMIT`) | 60s | Protects general API routes and application resources |
 
-### 11.4 Scalability & Distributed Storage Considerations
-- **Current Storage Model**: The default `@nestjs/throttler` storage uses high-performance in-memory storage (`ThrottlerStorageService`).
-- **Single-Instance Suitability**: In single-instance deployments, in-memory rate limiting delivers minimal latency and zero extra infrastructure dependencies.
-- **Multi-Instance / Clustered Limitations**:
-  - In horizontal scale-out scenarios where multiple DateMate backend instances run behind a load balancer, each instance maintains an isolated in-memory counter table.
-  - Consequently, client request capacity would multiply across $N$ instances ($N \times 120$ requests/min).
-  - Additionally, instance restarts (e.g., rolling deployments or auto-scaling events) clear in-memory hit counts.
-- **Recommendation for Distributed Deployments**:
-  - When running multiple backend instances, configure shared distributed storage using DateMate's existing Redis cluster (`ioredis`).
-  - `@nestjs/throttler` provides pluggable storage support via `@nestjs/throttler-storage-redis` or custom `ThrottlerStorage` implementing `increment()`, pointing to the existing `REDIS_HOST` and `REDIS_PORT` service defined in `src/infrastructure/redis/redis.module.ts`.
+### 11.4 Scalability & Distributed Redis Storage
+- Rate limiting keys are stored natively in Redis (`throttle:<clientIP>` and `throttle:auth:<clientIP>`).
+- Redis `ZADD` / `ZREMRANGEBYSCORE` sliding window guarantees consistent limit enforcement across multiple horizontally scaled backend instances without counter drift or reset spikes.
 
 ### 11.5 Nginx Edge Rate Limiting & Sensitive Path Protection
-Nginx serves as the primary edge reverse proxy terminating TLS and protecting the backend from automated vulnerability scanning and DDoS floods before traffic ever reaches NestJS.
+Nginx serves as the primary edge reverse proxy terminating TLS and protecting the backend from automated vulnerability scanning and DDoS floods before traffic ever reaches the Go backend.
 
 - **Dual-Layer Defense-in-Depth**:
   - **Layer 1 (Nginx)**: Absorbs high-volume L7 traffic spikes and rapid scanner bursts at the network edge with minimal CPU overhead.
-  - **Layer 2 (NestJS @nestjs/throttler)**: Enforces business-aware rate limiting, rolling session quotas, and endpoint-specific thresholds (such as 5–10 attempts/min on auth routes).
+  - **Layer 2 (Go Throttler Middleware)**: Enforces business-aware rate limiting, rolling session quotas, and endpoint-specific thresholds (such as 15 attempts/min on auth routes).
 - **Shared Memory Zone (`api_limit`)**:
   - Configured at the top-level `http` block: `limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;`.
   - A 10 MB zone efficiently holds approximately 160,000 concurrent client IP states in binary format.
@@ -649,7 +630,7 @@ Nginx serves as the primary edge reverse proxy terminating TLS and protecting th
 - **Unified 429 Error Envelope**:
   - An internal Nginx handler (`error_page 429 = @rate_limited;`) outputs a unified JSON response matching the application's standard error format:
     ```json
-    {"status":"error","message":"Too Many Requests","data":null,"error":{"type":"UNKNOWN_ERROR","message":"Too Many Requests"}}
+    {"status":"error","message":"Too Many Requests","data":null,"error":{"type":"TOO_MANY_REQUESTS","message":"Too Many Requests"}}
     ```
 - **Sensitive Path Probing Denial**:
   - Requests targeting common automated scanner patterns (`/ssh/`, `/keys/`, `/id_rsa`, `/id_ed25519`, `/private_key.pem`, and hidden credentials) are intercepted and dropped with HTTP 404 at the Nginx edge without forwarding to upstream services:
@@ -663,7 +644,7 @@ Nginx serves as the primary edge reverse proxy terminating TLS and protecting th
 
 ---
 
-## 12. Friends Module (`src/modules/friends`)
+## 12. Friends Module (`internal/modules/friends`)
 
 The Friends module provides social connections, friend request workflows, and friends directory capabilities.
 
@@ -769,10 +750,10 @@ The Friends module provides social connections, friend request workflows, and fr
 
 ---
 
-## 12. Push Notification Subsystem (`src/infrastructure/notification`)
+## 13. Push Notification Subsystem (`internal/modules/notifications` & `internal/platform/fcm`)
 
-### 12.1 Centralized Template Registry (`notification-templates.ts`)
-All push notification templates, strongly typed payload interfaces, and priorities are centralized in a single file: `src/infrastructure/notification/notification-templates.ts`. This provides a single authoritative source for editing notification copy and ensures type safety.
+### 13.1 Centralized Dispatcher & Template Registry
+Push notifications and delivery worker logic are consolidated in `internal/platform/fcm/dispatcher.go` and `internal/modules/notifications/handler.go`.
 
 #### Supported Notification Types & Priorities
 Allowed priority values are `'high'` and `'normal'` (mapped to FCM Android priority `'high'`/`'normal'`, and APNs iOS header `'apns-priority': '10'`/`'5'`).
@@ -784,42 +765,53 @@ Allowed priority values are `'high'` and `'normal'` (mapped to FCM Android prior
 | `LIKE_USER` | `like_user` | `normal` | `[LikerFullName]` | `user [fullName] like your profile` |
 | `SELFIE_ACCEPTED` | `selfie_accepted` | `normal` | `Selfie Accepted` | `your selfie accepted, now your profile completed` |
 | `SELFIE_REJECTED` | `selfie_rejected` | `normal` | `Selfie Rejected` | `[Rejection Reason]` |
+| `CHAT_MESSAGE` | `chat_message` | `high` | `[SenderFullName]` | `[Message Preview]` |
 
-### 12.2 External Push Gateway Contract
-The service interacts with an external push gateway service configured via environment variables:
-- `PUSH_NOTIFICATION_BASE_URL`: Base URL of the push notification service. Normalized dynamically to `${baseUrl}/v1/push`.
-- `PUSH_NOTIFICATION_API_KEY`: Authentication secret sent in the `X-API-Key` HTTP header.
+### 13.2 Asynchronous Worker Pool & External Push Gateway Contract
+- **Bounded Worker Pool**: `fcm.NewDispatcher` instantiates 4 background workers consuming from a 1,000-item buffered channel, ensuring non-blocking sub-3ms acceptance for HTTP callers and internal service events.
+- **REST Gateway (`POST /v1/push` & `POST /v1/notifications/push`)**:
+  - Authenticated via API key in `X-API-Key` header (`INTERNAL_API_KEY`, `PUSH_NOTIFICATION_API_KEY`).
+  - Accepts payload with `userId` (or `tokens`), `title`, `body`, `data`, and `priority`.
+  - Resolves target user's active device push token from `user_sessions` table in PostgreSQL.
+  - Automatically operates in **Mock Mode** (`FCM_MOCK_MODE=true` or when Google credentials are omitted in development/testing), logging simulated delivery without raising errors.
 
-#### Request Format
-```bash
-POST /v1/push
-Content-Type: application/json
-X-API-Key: <PUSH_NOTIFICATION_API_KEY>
-
-{
-  "title": "Parsa Moloudie",
-  "body": "Parsa Moloudie sent you friend request",
-  "userId": "10",
-  "data": {
-    "userId": "10",
-    "type": "friend_request"
-  },
-  "priority": "normal"
-}
-```
-
-### 12.3 Trigger Integrations & Resilience
-- **Add Friend** (`AddFriendUseCase`):
+### 13.3 Trigger Integrations & Resilience
+- **Add Friend** (`friends.Service`):
   - When friend request is created: fires `FRIEND_REQUEST` notification to target user.
   - When reciprocal request exists (auto-accepted): fires `FRIEND_REQUEST_ACCEPTED` notification to both users.
-- **Accept Friend Request** (`AcceptFriendRequestUseCase`):
+- **Accept Friend Request** (`friends.Service`):
   - When request is accepted: fires `FRIEND_REQUEST_ACCEPTED` notification to both users with counterpart's full name.
-- **Swipe / Like User** (`RecordSwipeUseCase`):
+- **Swipe / Like User** (`matching.Service`):
   - When a user swipes `RIGHT`: fires `LIKE_USER` notification to target user.
-- **Selfie Verification** (`ApproveVerificationUseCase`, `RejectVerificationUseCase`):
+- **Selfie Verification** (`admin.Service`):
   - On admin approval: fires `SELFIE_ACCEPTED` notification to user (`your selfie accepted, now your profile completed`).
   - On admin rejection: fires `SELFIE_REJECTED` notification with rejection reason to user.
-- **Non-blocking Resilience**: All push notification dispatches are non-blocking; external gateway failures or network timeouts never interrupt or roll back primary database transactions.
+- **Chat Messages** (`chat.Service`):
+  - When a message is sent to an offline participant, fires `CHAT_MESSAGE` push notification.
+- **Non-blocking Resilience**: All push notification dispatches are non-blocking; FCM timeouts or device token invalidations never interrupt or roll back primary database transactions.
+
+---
+
+## 14. Real-Time Chat Subsystem (`internal/modules/chat`)
+
+### 14.1 Consolidated PostgreSQL Architecture (Migration 0014)
+The chat subsystem is fully consolidated into PostgreSQL (eliminating Cassandra operational complexity while sustaining high write throughput):
+- **Partitioned Messages Timeline**: Messages are stored in `messages_by_conversation` partitioned by day bucket (`bucket = YYYYMMDD`).
+- **Conversations & Membership**: Managed through `conversations` (UUID primary key) and `conversation_members` with composite indexes (`idx_messages_timeline`, `idx_user_conv_timeline`).
+- **Idempotency Guarantee**: `message_idempotency` table strictly ensures that retried network packets with matching `(conversation_id, sender_id, client_message_id)` return the existing message without duplicate insertion.
+- **User Presence**: `user_presence` table tracks `is_online` and `last_seen_at`, debounced by 3000ms upon disconnect to handle brief mobile network transitions.
+
+### 14.2 Deterministic Direct Conversations
+Direct 1-on-1 conversations use deterministic UUID generation in `internal/common/canonical_pair.go`:
+- Computes `min(userA, userB):max(userA, userB)` and generates an RFC 4122 v5 UUID.
+- Simultaneous chat room initiation between two users mathematically resolves to the identical conversation record without race conditions.
+
+### 14.3 Real-Time WebSocket Gateway (`/socket.io` & `/chat`)
+Powered by `zishang520/socket.io/v2` mounted at `/socket.io` and `/chat`:
+- **Client Events**: `conversation.join`, `conversation.leave`, `message.send`, `typing.start`, `typing.stop`, `user.activity.get`.
+- **Server Broadcasts**: `message.created`, `user.typing`, `user.activity`.
+- **Pagination**: Opaque base64url cursors (`internal/common/cursor.go`) encode `{ bucket, offset, timestamp }` for smooth reverse chronological infinite scrolling.
+- **Media Attachments**: Voice notes, images, videos, and documents uploaded via `POST /v1/upload` or `POST /v1/chat/upload` are validated and saved using `storage.Engine`.
 
 
 

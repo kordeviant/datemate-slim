@@ -34,7 +34,7 @@ sequenceDiagram
     User->>App: Types text and taps Send
     App->>App: Optimistic UI (Render message locally with "sending" state)
     App->>WS: Emit "message.send" { conversationId, clientMessageId, content }
-    WS-->>App: Ack (Persisted in Cassandra, message object returned)
+    WS-->>App: Ack (Persisted in Database, message object returned)
     App->>App: Update UI to "sent" (double-check indicator)
     WS->>Other: Emit "message.created" (Broadcast to User B's socket)
 ```
@@ -83,7 +83,7 @@ When the user navigates to the messages tab, the client can query all, direct-on
 **Key Question: Must the mobile client always call `POST /v1/conversations`?**
 
 > **YES, ALWAYS.**  
-> Real-time rooms and Cassandra tables enforce strict membership records. Until a conversation record exists in the database, calling `conversation.join` or `message.send` will be rejected with `FORBIDDEN` or `CONVERSATION_NOT_FOUND`.
+> Real-time rooms and database tables enforce strict membership records. Until a conversation record exists in the database, calling `conversation.join` or `message.send` will be rejected with `FORBIDDEN` or `CONVERSATION_NOT_FOUND`.
 
 #### Idempotency Behavior:
 - When User A taps "Chat" on User B's profile (e.g. user ID `42`):
@@ -169,7 +169,7 @@ socket.emit("conversation.leave", {
 ---
 
 ### Scenario 5: User Activity, Online Status & Last Seen
-High-performance presence tracking in memory ($O(1)$) with durable Cassandra persistence on state transitions:
+High-performance presence tracking in memory ($O(1)$) with durable database persistence on state transitions:
 - **Direct Conversations (`GET /v1/conversations/direct`):** Returns `peerActivity` with `isOnline` and `lastSeenAt`.
 - **Conversation Details (`GET /v1/conversations/:id`):** Returns `membersActivity` for all members.
 - **Group Participants (`GET /v1/groups/:id/participants`):** Every participant includes `isOnline` and `lastSeenAt`.
@@ -197,7 +197,7 @@ High-performance presence tracking in memory ($O(1)$) with durable Cassandra per
 1. **Reconnection Handling:**
    - On socket reconnect, re-emit `conversation.join` for the currently active chat screen.
 2. **Idempotency with `clientMessageId`:**
-   - Always generate a unique `clientMessageId` for each outgoing message. If a packet is retransmitted due to network lag, Cassandra guarantees zero duplicate writes.
+   - Always generate a unique `clientMessageId` for each outgoing message. If a packet is retransmitted due to network lag, PostgreSQL idempotency guarantees zero duplicate writes.
 3. **Push Notification Service:**
    - Upon successful message persistence, the chat service dispatches push notifications (`POST /v1/push` defined in `PUSH_NOTIFICATION_BASE_URL`) to all conversation members except the sender.
    - Example payload:

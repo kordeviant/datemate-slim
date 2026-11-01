@@ -1,0 +1,13 @@
+{
+  "name": "datemate-e2e",
+  "version": "1.0.0",
+  "description": "Comprehensive End-to-End Simulation Test Suite for DateMate Ecosystem",
+  "type": "module",
+  "scripts": {
+    "test": "node runner.mjs",
+    "start": "node runner.mjs"
+  },
+  "keywords": ["datemate", "e2e", "testing", "simulation", "websocket", "chat", "auth"],
+  "author": "DateMate Engineering",
+  "license": "UNLICENSED"
+}

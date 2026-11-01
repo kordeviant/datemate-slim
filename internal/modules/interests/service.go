@@ -66,11 +66,9 @@ func (s *Service) GetInterests(ctx context.Context, language string, idFilter *i
 		interests := make([]InterestItemResponseDto, 0, len(inRows))
 		for _, in := range inRows {
 			cID := int(cat.ID)
-			var locName *string
+			locName := in.NameEn
 			if language == "fa" {
-				locName = &in.NameFa
-			} else if language == "en" {
-				locName = &in.NameEn
+				locName = in.NameFa
 			}
 
 			interests = append(interests, InterestItemResponseDto{
@@ -78,17 +76,15 @@ func (s *Service) GetInterests(ctx context.Context, language string, idFilter *i
 				En:         in.NameEn,
 				Fa:         in.NameFa,
 				CategoryID: &cID,
-				Name:       locName,
+				Name:       &locName,
 				EnName:     &in.NameEn,
 				FaName:     &in.NameFa,
 			})
 		}
 
-		var catName *string
+		catName := cat.NameEn
 		if language == "fa" {
-			catName = &cat.NameFa
-		} else if language == "en" {
-			catName = &cat.NameEn
+			catName = cat.NameFa
 		}
 
 		var iconDto *InterestIconResponseDto
@@ -101,14 +97,15 @@ func (s *Service) GetInterests(ctx context.Context, language string, idFilter *i
 		}
 
 		res = append(res, InterestCategoryResponseDto{
-			ID:       int(cat.ID),
-			En:       cat.NameEn,
-			Fa:       cat.NameFa,
-			Icon:     iconDto,
-			Interest: interests,
-			Name:     catName,
-			EnName:   &cat.NameEn,
-			FaName:   &cat.NameFa,
+			ID:        int(cat.ID),
+			En:        cat.NameEn,
+			Fa:        cat.NameFa,
+			Icon:      iconDto,
+			Interest:  interests,
+			Interests: interests,
+			Name:      &catName,
+			EnName:    &cat.NameEn,
+			FaName:    &cat.NameFa,
 		})
 	}
 

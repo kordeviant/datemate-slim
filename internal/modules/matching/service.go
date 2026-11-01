@@ -65,7 +65,7 @@ func (s *Service) resolveAssetURL(raw string) string {
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
-func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) ([]FeedCandidateDto, error) {
+func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (*FeedDataDto, error) {
 	if limit <= 0 {
 		limit = s.cfg.PaginationDefaultLimit
 	}
@@ -166,13 +166,14 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 		}
 
 		return &FeedCandidateDto{
-			ID:        int(id),
-			FullName:  fn,
-			City:      resolvedCity,
-			Age:       ageVal,
-			AvatarUrl: &resolvedPhoto,
-			Username:  un,
-			Gallery:   galleryDtos,
+			ID:             int(id),
+			FullName:       fn,
+			City:           resolvedCity,
+			Age:            ageVal,
+			ProfilePicture: &resolvedPhoto,
+			AvatarUrl:      &resolvedPhoto,
+			Username:       un,
+			Gallery:        galleryDtos,
 		}
 	}
 
@@ -206,7 +207,10 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 		}
 	}
 
-	return results, nil
+	return &FeedDataDto{
+		Candidates: results,
+		Count:      len(results),
+	}, nil
 }
 
 func (s *Service) RecordSwipe(ctx context.Context, currentUserID, targetUserID int64, direction string) error {

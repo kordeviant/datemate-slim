@@ -422,12 +422,14 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := UploadMediaResponseData{
-		Url:      resolvedUrl,
-		Type:     mediaType,
-		Duration: dur,
-		FileName: safeFilename,
-		FileSize: int64(len(fileBytes)),
-		MimeType: mimeType,
+		Url:            resolvedUrl,
+		Type:           mediaType,
+		Duration:       dur,
+		FileName:       header.Filename,
+		StoredFileName: safeFilename,
+		FileSize:       int64(len(fileBytes)),
+		Size:           int64(len(fileBytes)),
+		MimeType:       mimeType,
 	}
 
 	common.RespondSuccess(w, http.StatusCreated, "File uploaded successfully", res)

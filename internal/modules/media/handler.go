@@ -89,10 +89,15 @@ var SupportedAssetTypes = []AssetTypeConfig{
 }
 
 type MediaUploadResponseDto struct {
-	URL          string `json:"url"`
-	FileName     string `json:"fileName"`
+	URL          string `json:"url,omitempty"`
+	PublicURL    string `json:"publicUrl"`
+	FileName     string `json:"fileName,omitempty"`
+	Filename     string `json:"filename"`
+	AssetType    string `json:"assetType"`
+	RelativePath string `json:"relativePath"`
 	MimeType     string `json:"mimeType"`
 	SizeBytes    int64  `json:"sizeBytes"`
+	CreatedAt    string `json:"createdAt"`
 	OriginalName string `json:"originalName,omitempty"`
 }
 
@@ -257,9 +262,14 @@ func (h *Handler) uploadAssetType(w http.ResponseWriter, r *http.Request, assetT
 
 	common.RespondSuccess(w, http.StatusCreated, "Media successfully uploaded", MediaUploadResponseDto{
 		URL:          fullURL,
+		PublicURL:    fullURL,
 		FileName:     safeFilename,
+		Filename:     safeFilename,
+		AssetType:    assetType,
+		RelativePath: relPath,
 		MimeType:     detectedMime,
 		SizeBytes:    int64(len(data)),
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 		OriginalName: header.Filename,
 	})
 }

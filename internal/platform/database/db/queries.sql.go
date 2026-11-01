@@ -1224,6 +1224,34 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (Users, erro
 	return i, err
 }
 
+const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
+SELECT u.id, u.email, u.password_hash, u.role, u.language, u.profile_validated, u.banned_until, u.wallet, u.score, u.notifications_on, u.created_at, u.updated_at, u.is_premium FROM users u
+LEFT JOIN profiles p ON u.id = p.user_id
+WHERE LOWER(u.email) = LOWER($1) OR LOWER(p.username) = LOWER($1)
+LIMIT 1
+`
+
+func (q *Queries) GetUserByEmailOrUsername(ctx context.Context, lower string) (Users, error) {
+	row := q.db.QueryRow(ctx, getUserByEmailOrUsername, lower)
+	var i Users
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.Language,
+		&i.ProfileValidated,
+		&i.BannedUntil,
+		&i.Wallet,
+		&i.Score,
+		&i.NotificationsOn,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsPremium,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, email, password_hash, role, language, profile_validated, banned_until, wallet, score, notifications_on, created_at, updated_at, is_premium FROM users WHERE id = $1 LIMIT 1
 `

@@ -1,6 +1,12 @@
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = $1 LIMIT 1;
 
+-- name: GetUserByEmailOrUsername :one
+SELECT u.* FROM users u
+LEFT JOIN profiles p ON u.id = p.user_id
+WHERE LOWER(u.email) = LOWER($1) OR LOWER(p.username) = LOWER($1)
+LIMIT 1;
+
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1 LIMIT 1;
 

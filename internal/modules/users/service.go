@@ -782,21 +782,64 @@ func (s *Service) GetUserDevices(ctx context.Context, userID, currentSessionID i
 		return nil, err
 	}
 
-	var devices []UserDeviceItemDto
+	devices := make([]UserDeviceItemDto, 0, len(sessions))
+	activeDevices := make([]UserDeviceItemDto, 0, len(sessions))
+	inactiveDevices := make([]UserDeviceItemDto, 0, len(sessions))
+
+	now := time.Now().UTC()
+
 	for _, sess := range sessions {
-		devInfo := "Unknown Device"
+		var devInfo *string
 		if sess.DeviceInfo.Valid && sess.DeviceInfo.String != "" {
-			devInfo = sess.DeviceInfo.String
+			devInfo = &sess.DeviceInfo.String
 		}
-		devices = append(devices, UserDeviceItemDto{
+
+		var fcmToken *string
+		if sess.FcmToken.Valid && sess.FcmToken.String != "" {
+			fcmToken = &sess.FcmToken.String
+		}
+
+		var expiresAt *string
+		isActive := false
+		if sess.ExpiresAt.Valid {
+			exp := sess.ExpiresAt.Time.UTC().Format(time.RFC3339)
+			expiresAt = &exp
+			if sess.ExpiresAt.Time.After(now) {
+				isActive = true
+			}
+		}
+
+		createdAt := ""
+		if sess.CreatedAt.Valid {
+			createdAt = sess.CreatedAt.Time.UTC().Format(time.RFC3339)
+		}
+
+		item := UserDeviceItemDto{
 			ID:         int(sess.ID),
 			DeviceInfo: devInfo,
+			FcmToken:   fcmToken,
+			IsActive:   isActive,
 			IsCurrent:  int64(sess.ID) == currentSessionID,
-			CreatedAt:  sess.CreatedAt.Time.UTC().Format(time.RFC3339),
-		})
+			CreatedAt:  createdAt,
+			ExpiresAt:  expiresAt,
+		}
+
+		devices = append(devices, item)
+		if isActive {
+			activeDevices = append(activeDevices, item)
+		} else {
+			inactiveDevices = append(inactiveDevices, item)
+		}
 	}
 
-	return &UserDevicesResponseDto{Devices: devices}, nil
+	return &UserDevicesResponseDto{
+		Devices:         devices,
+		ActiveDevices:   activeDevices,
+		InactiveDevices: inactiveDevices,
+		Total:           len(devices),
+		ActiveCount:     len(activeDevices),
+		InactiveCount:   len(inactiveDevices),
+	}, nil
 }
 
 func (s *Service) TerminateDevice(ctx context.Context, userID, sessionID int64) error {

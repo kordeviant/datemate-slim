@@ -19,13 +19,18 @@ type AdminDashboardOverviewDto struct {
 type AdminUserItemDto struct {
 	ID               int32      `json:"id"`
 	Email            string     `json:"email"`
-	FirstName        *string    `json:"firstName"`
-	Username         *string    `json:"username"`
+	FullName         string     `json:"fullName"`
+	FirstName        *string    `json:"firstName,omitempty"`
+	Username         *string    `json:"username,omitempty"`
 	AvatarUrl        *string    `json:"avatarUrl"`
-	SelfieUrl        *string    `json:"selfieUrl"`
-	Gender           *string    `json:"gender"`
-	BirthDate        *string    `json:"birthDate"`
+	SelfieUrl        *string    `json:"selfieUrl,omitempty"`
+	Age              *int       `json:"age,omitempty"`
+	Gender           *string    `json:"gender,omitempty"`
+	BirthDate        *string    `json:"birthDate,omitempty"`
+	City             *string    `json:"city,omitempty"`
 	ProfileValidated bool       `json:"profileValidated"`
+	HasPendingSelfie bool       `json:"hasPendingSelfie"`
+	IsOnline         bool       `json:"isOnline"`
 	IsPremium        bool       `json:"isPremium"`
 	IsBanned         bool       `json:"isBanned"`
 	BannedUntil      *time.Time `json:"bannedUntil,omitempty"`

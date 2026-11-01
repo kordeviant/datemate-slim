@@ -93,14 +93,22 @@ type DeviceTokenDto struct {
 }
 
 type UserDeviceItemDto struct {
-	ID         int    `json:"id"`
-	DeviceInfo string `json:"deviceInfo"`
-	IsCurrent  bool   `json:"isCurrent"`
-	CreatedAt  string `json:"createdAt"`
+	ID         int     `json:"id"`
+	DeviceInfo *string `json:"deviceInfo"`
+	FcmToken   *string `json:"fcmToken,omitempty"`
+	IsActive   bool    `json:"isActive"`
+	IsCurrent  bool    `json:"isCurrent"`
+	CreatedAt  string  `json:"createdAt"`
+	ExpiresAt  *string `json:"expiresAt,omitempty"`
 }
 
 type UserDevicesResponseDto struct {
-	Devices []UserDeviceItemDto `json:"devices"`
+	Devices         []UserDeviceItemDto `json:"devices"`
+	ActiveDevices   []UserDeviceItemDto `json:"activeDevices"`
+	InactiveDevices []UserDeviceItemDto `json:"inactiveDevices"`
+	Total           int                 `json:"total"`
+	ActiveCount     int                 `json:"activeCount"`
+	InactiveCount   int                 `json:"inactiveCount"`
 }
 
 type GalleryPayloadDto struct {

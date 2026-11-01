@@ -69,18 +69,26 @@ func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
 }
 
 type VerifyRequest struct {
-	Email string `json:"email"`
-	Code  string `json:"code"`
+	Code      string `json:"code"`
+	Email     string `json:"email,omitempty"`
+	Device    string `json:"device,omitempty"`
+	UserAgent string `json:"userAgent,omitempty"`
+	FcmToken  string `json:"fcmToken,omitempty"`
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req VerifyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
 		common.RespondError(w, http.StatusBadRequest, "Invalid verification code request", common.ErrBadRequest)
 		return
 	}
 
-	res, err := h.svc.VerifyCode(r.Context(), req.Email, req.Code)
+	ua := req.UserAgent
+	if ua == "" {
+		ua = r.Header.Get("User-Agent")
+	}
+
+	res, err := h.svc.VerifyCode(r.Context(), req.Code, req.Email, req.Device, ua, req.FcmToken)
 	if err != nil {
 		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
 		return
@@ -90,18 +98,41 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 }
 
 type SignInRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email           string `json:"email"`
+	Username        string `json:"username"`
+	UsernameOrEmail string `json:"usernameOrEmail"`
+	Password        string `json:"password"`
+	Device          string `json:"device,omitempty"`
+	UserAgent       string `json:"userAgent,omitempty"`
+	FcmToken        string `json:"fcmToken,omitempty"`
 }
 
 func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	var req SignInRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
-		common.RespondError(w, http.StatusBadRequest, "Email and password are required", common.ErrBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid sign-in payload", common.ErrBadRequest)
 		return
 	}
 
-	res, err := h.svc.SignIn(r.Context(), req.Email, req.Password)
+	identifier := req.UsernameOrEmail
+	if identifier == "" {
+		identifier = req.Email
+	}
+	if identifier == "" {
+		identifier = req.Username
+	}
+
+	if identifier == "" || req.Password == "" {
+		common.RespondError(w, http.StatusBadRequest, "Email or username and password are required", common.ErrBadRequest)
+		return
+	}
+
+	ua := req.UserAgent
+	if ua == "" {
+		ua = r.Header.Get("User-Agent")
+	}
+
+	res, err := h.svc.SignIn(r.Context(), identifier, req.Password, req.Device, ua, req.FcmToken)
 	if err != nil {
 		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
 		return
@@ -111,17 +142,34 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 }
 
 type RefreshRequest struct {
+	Token        string `json:"token"`
 	RefreshToken string `json:"refreshToken"`
 }
 
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RefreshToken == "" {
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	tokenStr := req.Token
+	if tokenStr == "" {
+		tokenStr = req.RefreshToken
+	}
+	if tokenStr == "" {
+		tokenStr = r.Header.Get("x-refresh-token")
+	}
+	if tokenStr == "" {
+		authHdr := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHdr, "Bearer ") {
+			tokenStr = strings.TrimPrefix(authHdr, "Bearer ")
+		}
+	}
+
+	if tokenStr == "" {
 		common.RespondError(w, http.StatusBadRequest, "refreshToken is required", common.ErrBadRequest)
 		return
 	}
 
-	res, err := h.svc.RefreshToken(r.Context(), req.RefreshToken)
+	res, err := h.svc.RefreshToken(r.Context(), tokenStr)
 	if err != nil {
 		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
 		return

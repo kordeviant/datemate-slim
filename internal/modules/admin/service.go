@@ -144,16 +144,34 @@ func (s *Service) GetUsers(ctx context.Context, page, limit int) (*AdminUsersLis
 			bannedUntil = &r.BannedUntil.Time
 		}
 
+		fullName := r.Email
+		if fn != nil && *fn != "" {
+			fullName = *fn
+		} else if un != nil && *un != "" {
+			fullName = *un
+		}
+
+		var age *int
+		if r.BirthDate.Valid {
+			a := int(time.Since(r.BirthDate.Time).Hours() / 24 / 365.25)
+			age = &a
+		}
+
+		hasPendingSelfie := sf != nil && !r.ProfileValidated
+
 		items = append(items, AdminUserItemDto{
 			ID:               r.ID,
 			Email:            r.Email,
+			FullName:         fullName,
 			FirstName:        fn,
 			Username:         un,
 			AvatarUrl:        av,
 			SelfieUrl:        sf,
+			Age:              age,
 			Gender:           gen,
 			BirthDate:        bd,
 			ProfileValidated: r.ProfileValidated,
+			HasPendingSelfie: hasPendingSelfie,
 			IsPremium:        r.IsPremium,
 			IsBanned:         isBanned,
 			BannedUntil:      bannedUntil,
@@ -484,16 +502,34 @@ func (s *Service) UpdateUser(ctx context.Context, userID int, payload *AdminUpda
 		bannedUntil = &uUpdated.BannedUntil.Time
 	}
 
+	fullName := uUpdated.Email
+	if fn != nil && *fn != "" {
+		fullName = *fn
+	} else if unUpdated != nil && *unUpdated != "" {
+		fullName = *unUpdated
+	}
+
+	var age *int
+	if dUpdated.BirthDate.Valid {
+		a := int(time.Since(dUpdated.BirthDate.Time).Hours() / 24 / 365.25)
+		age = &a
+	}
+
+	hasPendingSelfie := sfUpdated != nil && !uUpdated.ProfileValidated
+
 	return &AdminUserItemDto{
 		ID:               uUpdated.ID,
 		Email:            uUpdated.Email,
+		FullName:         fullName,
 		FirstName:        fn,
 		Username:         unUpdated,
 		AvatarUrl:        avUpdated,
 		SelfieUrl:        sfUpdated,
+		Age:              age,
 		Gender:           gen,
 		BirthDate:        bd,
 		ProfileValidated: uUpdated.ProfileValidated,
+		HasPendingSelfie: hasPendingSelfie,
 		IsPremium:        uUpdated.IsPremium,
 		IsBanned:         isBanned,
 		BannedUntil:      bannedUntil,

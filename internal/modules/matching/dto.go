@@ -7,13 +7,19 @@ type FeedGalleryItemDto struct {
 }
 
 type FeedCandidateDto struct {
-	ID        int                  `json:"id"`
-	FullName  *string              `json:"fullName"`
-	City      *string              `json:"city"`
-	Age       *int                 `json:"age"`
-	AvatarUrl *string              `json:"avatarUrl"`
-	Username  *string              `json:"username"`
-	Gallery   []FeedGalleryItemDto `json:"gallery"`
+	ID             int                  `json:"id"`
+	FullName       *string              `json:"fullName"`
+	City           *string              `json:"city"`
+	Age            *int                 `json:"age"`
+	ProfilePicture *string              `json:"profilePicture"`
+	AvatarUrl      *string              `json:"avatarUrl,omitempty"`
+	Username       *string              `json:"username"`
+	Gallery        []FeedGalleryItemDto `json:"gallery,omitempty"`
+}
+
+type FeedDataDto struct {
+	Candidates []FeedCandidateDto `json:"candidates"`
+	Count      int                `json:"count"`
 }
 
 type SwipeRequestDto struct {

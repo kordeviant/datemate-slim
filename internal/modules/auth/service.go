@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -135,27 +136,74 @@ func (s *Service) SignUp(ctx context.Context, email, password string) error {
 
 	key := fmt.Sprintf("otp:signup:%s", email)
 	val := fmt.Sprintf("%s|%s", code, pwdHash)
-	if err := s.rdb.Raw().Set(ctx, key, val, 10*time.Minute).Err(); err != nil {
-		return fmt.Errorf("failed to save OTP: %w", err)
-	}
+	_ = s.rdb.Raw().Set(ctx, key, val, 10*time.Minute).Err()
+
+	pendingPayload, _ := json.Marshal(map[string]string{
+		"email":        email,
+		"passwordHash": pwdHash,
+		"code":         code,
+	})
+	_ = s.rdb.Raw().Set(ctx, fmt.Sprintf("signup:pending:%s", email), string(pendingPayload), 10*time.Minute).Err()
+	_ = s.rdb.Raw().Set(ctx, fmt.Sprintf("signup:code:%s", code), email, 10*time.Minute).Err()
 
 	_ = s.mailer.SendEmail(ctx, email, "DateMate Verification Code", fmt.Sprintf("Your DateMate verification code is: %s", code))
 	return nil
 }
 
-func (s *Service) VerifyCode(ctx context.Context, email, code string) (*AuthResult, error) {
+func (s *Service) VerifyCode(ctx context.Context, code, email, device, userAgent, fcmToken string) (*AuthResult, error) {
+	code = strings.TrimSpace(code)
 	email = strings.ToLower(strings.TrimSpace(email))
-	key := fmt.Sprintf("otp:signup:%s", email)
-	val, err := s.rdb.Raw().Get(ctx, key).Result()
-	if err != nil {
+
+	var passwordHash string
+
+	// 1. Try finding email via signup:code:<code> if email wasn't provided
+	if email == "" {
+		storedEmail, err := s.rdb.Raw().Get(ctx, fmt.Sprintf("signup:code:%s", code)).Result()
+		if err == nil && storedEmail != "" {
+			email = strings.ToLower(strings.TrimSpace(storedEmail))
+		}
+	}
+
+	// 2. Try loading signup:pending:<email>
+	if email != "" {
+		pendingRaw, err := s.rdb.Raw().Get(ctx, fmt.Sprintf("signup:pending:%s", email)).Result()
+		if err == nil && pendingRaw != "" {
+			var pendingData struct {
+				Email        string `json:"email"`
+				PasswordHash string `json:"passwordHash"`
+				Code         string `json:"code"`
+			}
+			if err := json.Unmarshal([]byte(pendingRaw), &pendingData); err == nil && pendingData.Code == code {
+				passwordHash = pendingData.PasswordHash
+				if pendingData.Email != "" {
+					email = strings.ToLower(strings.TrimSpace(pendingData.Email))
+				}
+			}
+		}
+	}
+
+	// 3. Fallback to otp:signup:<email>
+	if passwordHash == "" && email != "" {
+		key := fmt.Sprintf("otp:signup:%s", email)
+		val, err := s.rdb.Raw().Get(ctx, key).Result()
+		if err == nil {
+			parts := strings.Split(val, "|")
+			if len(parts) == 2 && parts[0] == code {
+				passwordHash = parts[1]
+			}
+		}
+	}
+
+	if passwordHash == "" || email == "" {
 		return nil, errors.New("Invalid or expired verification code")
 	}
 
-	parts := strings.Split(val, "|")
-	if len(parts) != 2 || parts[0] != code {
-		return nil, errors.New("Invalid or expired verification code")
+	if _, err := s.queries.GetUserByEmail(ctx, email); err == nil {
+		_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:code:%s", code)).Err()
+		_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:pending:%s", email)).Err()
+		_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("otp:signup:%s", email)).Err()
+		return nil, errors.New("Email already registered")
 	}
-	passwordHash := parts[1]
 
 	user, err := s.queries.CreateUser(ctx, db.CreateUserParams{
 		Email:            email,
@@ -169,7 +217,9 @@ func (s *Service) VerifyCode(ctx context.Context, email, code string) (*AuthResu
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	_ = s.rdb.Raw().Del(ctx, key).Err()
+	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:code:%s", code)).Err()
+	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:pending:%s", email)).Err()
+	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("otp:signup:%s", email)).Err()
 
 	// Initialize basic profile and demographic
 	_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
@@ -185,12 +235,25 @@ func (s *Service) VerifyCode(ctx context.Context, email, code string) (*AuthResu
 		Gender:    db.GenderMALE,
 	})
 
-	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), "", "")
+	deviceInfo := ""
+	if device != "" && userAgent != "" {
+		deviceInfo = fmt.Sprintf("%s (%s)", device, userAgent)
+	} else if device != "" {
+		deviceInfo = device
+	} else if userAgent != "" {
+		deviceInfo = userAgent
+	}
+
+	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), deviceInfo, fcmToken)
 }
 
-func (s *Service) SignIn(ctx context.Context, email, password string) (*AuthResult, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	user, err := s.queries.GetUserByEmail(ctx, email)
+func (s *Service) SignIn(ctx context.Context, identifier, password, device, userAgent, fcmToken string) (*AuthResult, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" || password == "" {
+		return nil, errors.New("Username or email and password are required")
+	}
+
+	user, err := s.queries.GetUserByEmailOrUsername(ctx, identifier)
 	if err != nil {
 		return nil, errors.New("Invalid credentials")
 	}
@@ -203,7 +266,16 @@ func (s *Service) SignIn(ctx context.Context, email, password string) (*AuthResu
 		return nil, errors.New("User account is banned")
 	}
 
-	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), "", "")
+	deviceInfo := "Web Browser"
+	if device != "" && userAgent != "" {
+		deviceInfo = fmt.Sprintf("%s (%s)", device, userAgent)
+	} else if device != "" {
+		deviceInfo = device
+	} else if userAgent != "" {
+		deviceInfo = userAgent
+	}
+
+	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), deviceInfo, fcmToken)
 }
 
 func (s *Service) RefreshToken(ctx context.Context, rawRefreshToken string) (*AuthResult, error) {

@@ -22,6 +22,7 @@ type InterestCategoryResponseDto struct {
 	Fa        string                    `json:"fa"`
 	Icon      *InterestIconResponseDto  `json:"icon"`
 	Interest  []InterestItemResponseDto `json:"Interest"`
+	Interests []InterestItemResponseDto `json:"interests"`
 	Name      *string                   `json:"name,omitempty"`
 	EnName    *string                   `json:"enName,omitempty"`
 	FaName    *string                   `json:"faName,omitempty"`

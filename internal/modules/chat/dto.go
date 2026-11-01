@@ -161,10 +161,12 @@ type ListGroupParticipantsResponseDto struct {
 }
 
 type UploadMediaResponseData struct {
-	Url      string   `json:"url"`
-	Type     string   `json:"type"`
-	Duration *float64 `json:"duration,omitempty"`
-	FileName string   `json:"fileName"`
-	FileSize int64    `json:"fileSize"`
-	MimeType string   `json:"mimeType"`
+	Url            string   `json:"url"`
+	Type           string   `json:"type"`
+	Duration       *float64 `json:"duration,omitempty"`
+	FileName       string   `json:"fileName"`
+	StoredFileName string   `json:"storedFileName"`
+	FileSize       int64    `json:"fileSize"`
+	Size           int64    `json:"size"`
+	MimeType       string   `json:"mimeType"`
 }

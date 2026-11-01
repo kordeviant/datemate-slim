@@ -73,6 +73,7 @@ type Querier interface {
 	GetStateByID(ctx context.Context, id int32) (States, error)
 	GetSwipe(ctx context.Context, arg GetSwipeParams) (Swipes, error)
 	GetUserByEmail(ctx context.Context, email string) (Users, error)
+	GetUserByEmailOrUsername(ctx context.Context, lower string) (Users, error)
 	GetUserByID(ctx context.Context, id int32) (Users, error)
 	GetUserDeviceToken(ctx context.Context, userID int32) (GetUserDeviceTokenRow, error)
 	GetUserGalleryByID(ctx context.Context, id int32) (UserGalleries, error)

@@ -133,8 +133,9 @@ func (h *Handler) TerminateDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.RespondSuccess(w, http.StatusOK, "Device session terminated successfully", map[string]interface{}{
-		"success":  true,
-		"deviceId": deviceID,
+		"success":    true,
+		"deviceId":   deviceID,
+		"terminated": true,
 	})
 }
 
@@ -147,13 +148,16 @@ func (h *Handler) TerminateAllDevices(w http.ResponseWriter, r *http.Request) {
 	var req TerminateAllRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	if err := h.svc.TerminateAllDevices(r.Context(), u.ID, u.SessionID, req.ExcludeCurrent); err != nil {
+	excludeCurrent := req.ExcludeCurrent || r.URL.Query().Get("excludeCurrent") == "true" || r.URL.Query().Get("excludeCurrent") == "1"
+
+	if err := h.svc.TerminateAllDevices(r.Context(), u.ID, u.SessionID, excludeCurrent); err != nil {
 		common.RespondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
 		return
 	}
 
 	common.RespondSuccess(w, http.StatusOK, "Device sessions terminated successfully", map[string]interface{}{
-		"success": true,
+		"success":         true,
+		"excludedCurrent": excludeCurrent,
 	})
 }
 

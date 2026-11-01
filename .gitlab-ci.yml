@@ -24,10 +24,11 @@ test:
         fi
       fi
     - export CGO_ENABLED=1
+    - git config --global --add safe.directory "*" || true
     - go vet ./...
     - go test -v -p 4 ./...
-    - go build -ldflags="-s -w" -o bin/server ./cmd/server
-    - go build -ldflags="-s -w" -o bin/seed ./cmd/seed
+    - go build -buildvcs=false -ldflags="-s -w" -o bin/server ./cmd/server
+    - go build -buildvcs=false -ldflags="-s -w" -o bin/seed ./cmd/seed
 
 deploy:
   stage: deploy
@@ -127,14 +128,23 @@ deploy:
           sleep 1
         done
 
-        echo '===> Building and starting backend and nginx in Docker...'
+        echo '===> Building and starting Go backend and nginx in Docker...'
         \$DC up -d --build --remove-orphans backend nginx
 
-        echo '===> Waiting for backend startup...'
-        sleep 3
+        echo '===> Waiting for Go backend readiness...'
+        PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '3000')
+        PORT=\${PORT:-3000}
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          if docker exec datemate_backend wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
+            echo 'Go backend is healthy and responding!'
+            break
+          fi
+          echo 'Waiting for Go backend startup...'
+          sleep 1
+        done
 
         echo '===> Reloading Nginx proxy...'
         docker exec datemate_nginx nginx -s reload || true
 
-        echo '===> Deployment completed successfully with Docker!'
+        echo '===> Go Modular Monolith deployment completed successfully with Docker!'
       "

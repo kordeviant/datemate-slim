@@ -2085,6 +2085,35 @@ func (q *Queries) ListPendingVerificationsAdmin(ctx context.Context, arg ListPen
 	return items, nil
 }
 
+const listQuestionAnswers = `-- name: ListQuestionAnswers :many
+SELECT id, question_id, answer_en, answer_fa FROM question_answers ORDER BY question_id ASC, id ASC
+`
+
+func (q *Queries) ListQuestionAnswers(ctx context.Context) ([]QuestionAnswers, error) {
+	rows, err := q.db.Query(ctx, listQuestionAnswers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []QuestionAnswers
+	for rows.Next() {
+		var i QuestionAnswers
+		if err := rows.Scan(
+			&i.ID,
+			&i.QuestionID,
+			&i.AnswerEn,
+			&i.AnswerFa,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQuestionAnswersByQuestionID = `-- name: ListQuestionAnswersByQuestionID :many
 SELECT id, question_id, answer_en, answer_fa FROM question_answers WHERE question_id = $1 ORDER BY id ASC
 `

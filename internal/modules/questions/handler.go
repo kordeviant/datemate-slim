@@ -103,17 +103,13 @@ func (h *Handler) GetQuestionByID(w http.ResponseWriter, r *http.Request) {
 
 	language := r.URL.Query().Get("language")
 
-	questions, err := h.svc.GetQuestions(r.Context(), "", language, &id)
+	res, err := h.svc.GetQuestions(r.Context(), "", language, &id)
 	if err != nil {
 		common.RespondAppError(w, err)
 		return
 	}
-	if len(questions) == 0 {
-		common.RespondError(w, http.StatusNotFound, "Question not found", common.ErrNotFound)
-		return
-	}
 
-	common.RespondSuccess(w, http.StatusOK, "Question retrieved successfully", questions[0])
+	common.RespondSuccess(w, http.StatusOK, "Question retrieved successfully", res)
 }
 
 func (h *Handler) CreateQuestion(w http.ResponseWriter, r *http.Request) {

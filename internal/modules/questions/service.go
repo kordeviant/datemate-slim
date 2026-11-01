@@ -38,93 +38,152 @@ func (s *Service) resolveAssetURL(raw string) string {
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
-func (s *Service) GetQuestions(ctx context.Context, typeFilter, language string, idFilter *int) ([]QuestionResponseDto, error) {
-	var qRows []db.Questions
+func (s *Service) mapQuestion(q db.Questions, ansRows []db.QuestionAnswers, lang string) *QuestionResponseDto {
+	isFa := lang == "fa"
+	primaryName := q.NameEn
+	if isFa {
+		primaryName = q.NameFa
+	}
+
+	var iconObj *QuestionIconResponseDto
+	if q.Icon.Valid && strings.TrimSpace(q.Icon.String) != "" {
+		iconObj = &QuestionIconResponseDto{
+			Type: "IMAGE",
+			Url:  s.resolveAssetURL(q.Icon.String),
+			Alt:  q.IconAlt.String,
+		}
+	}
+
+	answerType := string(q.AnswerType)
+	if answerType == "" {
+		answerType = "SINGLE"
+	}
+
+	answers := make([]QuestionAnswerDto, 0, len(ansRows))
+	for idx, a := range ansRows {
+		primaryAns := a.AnswerEn
+		if isFa {
+			primaryAns = a.AnswerFa
+		}
+		answers = append(answers, QuestionAnswerDto{
+			ID:         idx, // 0-based index per question
+			QuestionID: int(q.ID),
+			Answer:     primaryAns,
+			EnAnswer:   a.AnswerEn,
+			FaAnswer:   a.AnswerFa,
+			AnswerEn:   a.AnswerEn,
+			AnswerFa:   a.AnswerFa,
+		})
+	}
+
+	return &QuestionResponseDto{
+		ID:         int(q.ID),
+		Type:       q.Type,
+		AnswerType: answerType,
+		Name:       primaryName,
+		EnName:     q.NameEn,
+		FaName:     q.NameFa,
+		NameEn:     q.NameEn,
+		NameFa:     q.NameFa,
+		Icon:       iconObj,
+		Answers:    answers,
+	}
+}
+
+func (s *Service) GetQuestions(ctx context.Context, typeFilter, language string, idFilter *int) (*QuestionListResponseDto, error) {
+	normalizedType := strings.ToUpper(strings.TrimSpace(typeFilter))
+	normalizedLang := strings.ToLower(strings.TrimSpace(language))
 
 	if idFilter != nil {
 		q, err := s.queries.GetQuestionByID(ctx, int32(*idFilter))
 		if err != nil {
 			return nil, common.NewAppError(404, common.ErrNotFound, fmt.Sprintf("Question with ID %d not found", *idFilter))
 		}
-		qRows = []db.Questions{q}
-	} else if typeFilter != "" {
-		rows, err := s.queries.ListQuestionsByType(ctx, typeFilter)
-		if err != nil {
-			return nil, err
-		}
-		qRows = rows
-	} else {
-		rows, err := s.queries.ListQuestions(ctx)
-		if err != nil {
-			return nil, err
-		}
-		qRows = rows
-	}
-
-	res := make([]QuestionResponseDto, 0, len(qRows))
-
-	for _, q := range qRows {
 		ansRows, err := s.queries.ListQuestionAnswersByQuestionID(ctx, q.ID)
 		if err != nil {
-			continue
+			return nil, err
 		}
 
-		answers := make([]QuestionAnswerDto, 0, len(ansRows))
-		for _, a := range ansRows {
-			var ansText *string
-			if language == "fa" {
-				ansText = &a.AnswerFa
-			} else if language == "en" {
-				ansText = &a.AnswerEn
-			}
-
-			answers = append(answers, QuestionAnswerDto{
-				ID:       int(a.ID),
-				AnswerEn: a.AnswerEn,
-				AnswerFa: a.AnswerFa,
-				Text:     ansText,
-			})
+		mapped := s.mapQuestion(q, ansRows, normalizedLang)
+		var langPtr *string
+		if normalizedLang != "" {
+			langPtr = &normalizedLang
 		}
 
-		var qText *string
-		if language == "fa" {
-			qText = &q.NameFa
-		} else if language == "en" {
-			qText = &q.NameEn
-		}
-
-		var iconPtr *string
-		if q.Icon.Valid && q.Icon.String != "" {
-			u := s.resolveAssetURL(q.Icon.String)
-			iconPtr = &u
-		}
-		var altPtr *string
-		if q.IconAlt.Valid && q.IconAlt.String != "" {
-			altPtr = &q.IconAlt.String
-		}
-
-		res = append(res, QuestionResponseDto{
-			ID:         int(q.ID),
-			NameEn:     q.NameEn,
-			NameFa:     q.NameFa,
-			Type:       q.Type,
-			AnswerType: string(q.AnswerType),
-			Icon:       iconPtr,
-			IconAlt:    altPtr,
-			Text:       qText,
-			Answers:    answers,
-		})
+		return &QuestionListResponseDto{
+			Total:     1,
+			Questions: []QuestionResponseDto{*mapped},
+			Question:  mapped,
+			ID:        idFilter,
+			Type:      &mapped.Type,
+			Language:  langPtr,
+		}, nil
 	}
 
-	return res, nil
+	var qRows []db.Questions
+	var err error
+	if normalizedType != "" {
+		qRows, err = s.queries.ListQuestionsByType(ctx, normalizedType)
+	} else {
+		qRows, err = s.queries.ListQuestions(ctx)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	allAns, err := s.queries.ListQuestionAnswers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ansByQID := make(map[int32][]db.QuestionAnswers)
+	for _, a := range allAns {
+		ansByQID[a.QuestionID] = append(ansByQID[a.QuestionID], a)
+	}
+
+	result := make([]QuestionResponseDto, 0, len(qRows))
+	for _, q := range qRows {
+		mapped := s.mapQuestion(q, ansByQID[q.ID], normalizedLang)
+		result = append(result, *mapped)
+	}
+
+	var typePtr *string
+	if normalizedType != "" {
+		typePtr = &normalizedType
+	}
+	var langPtr *string
+	if normalizedLang != "" {
+		langPtr = &normalizedLang
+	}
+
+	return &QuestionListResponseDto{
+		Total:     len(result),
+		Questions: result,
+		Type:      typePtr,
+		Language:  langPtr,
+	}, nil
 }
 
 func (s *Service) CreateQuestion(ctx context.Context, payload CreateQuestionPayload) (*QuestionResponseDto, error) {
+	nameEn := strings.TrimSpace(payload.NameEn)
+	if nameEn == "" {
+		nameEn = strings.TrimSpace(payload.EnName)
+	}
+	nameFa := strings.TrimSpace(payload.NameFa)
+	if nameFa == "" {
+		nameFa = strings.TrimSpace(payload.FaName)
+	}
+
+	ansType := payload.AnswerType
+	if ansType == "" {
+		ansType = "SINGLE"
+	}
+
 	created, err := s.queries.CreateQuestion(ctx, db.CreateQuestionParams{
-		NameEn:     payload.NameEn,
-		NameFa:     payload.NameFa,
+		NameEn:     nameEn,
+		NameFa:     nameFa,
 		Type:       payload.Type,
-		AnswerType: db.AnswerType(payload.AnswerType),
+		AnswerType: db.AnswerType(ansType),
 		Icon:       pgtype.Text{String: payload.Icon, Valid: payload.Icon != ""},
 		IconAlt:    pgtype.Text{String: payload.IconAlt, Valid: payload.IconAlt != ""},
 	})
@@ -132,42 +191,24 @@ func (s *Service) CreateQuestion(ctx context.Context, payload CreateQuestionPayl
 		return nil, err
 	}
 
-	answers := make([]QuestionAnswerDto, 0, len(payload.Answers))
 	for _, a := range payload.Answers {
-		ans, err := s.queries.CreateQuestionAnswer(ctx, db.CreateQuestionAnswerParams{
-			QuestionID: created.ID,
-			AnswerEn:   a.AnswerEn,
-			AnswerFa:   a.AnswerFa,
-		})
-		if err == nil {
-			answers = append(answers, QuestionAnswerDto{
-				ID:       int(ans.ID),
-				AnswerEn: ans.AnswerEn,
-				AnswerFa: ans.AnswerFa,
-			})
+		en := strings.TrimSpace(a.AnswerEn)
+		if en == "" {
+			en = strings.TrimSpace(a.EnAnswer)
 		}
+		fa := strings.TrimSpace(a.AnswerFa)
+		if fa == "" {
+			fa = strings.TrimSpace(a.FaAnswer)
+		}
+		_, _ = s.queries.CreateQuestionAnswer(ctx, db.CreateQuestionAnswerParams{
+			QuestionID: created.ID,
+			AnswerEn:   en,
+			AnswerFa:   fa,
+		})
 	}
 
-	var iconPtr *string
-	if created.Icon.Valid && created.Icon.String != "" {
-		u := s.resolveAssetURL(created.Icon.String)
-		iconPtr = &u
-	}
-	var altPtr *string
-	if created.IconAlt.Valid && created.IconAlt.String != "" {
-		altPtr = &created.IconAlt.String
-	}
-
-	return &QuestionResponseDto{
-		ID:         int(created.ID),
-		NameEn:     created.NameEn,
-		NameFa:     created.NameFa,
-		Type:       created.Type,
-		AnswerType: string(created.AnswerType),
-		Icon:       iconPtr,
-		IconAlt:    altPtr,
-		Answers:    answers,
-	}, nil
+	ansRows, _ := s.queries.ListQuestionAnswersByQuestionID(ctx, created.ID)
+	return s.mapQuestion(created, ansRows, ""), nil
 }
 
 func (s *Service) UpdateQuestion(ctx context.Context, id int, payload UpdateQuestionPayload) (*QuestionResponseDto, error) {
@@ -177,13 +218,19 @@ func (s *Service) UpdateQuestion(ctx context.Context, id int, payload UpdateQues
 	}
 
 	nameEn := q.NameEn
-	if payload.NameEn != nil {
-		nameEn = *payload.NameEn
+	if payload.NameEn != nil && strings.TrimSpace(*payload.NameEn) != "" {
+		nameEn = strings.TrimSpace(*payload.NameEn)
+	} else if payload.EnName != nil && strings.TrimSpace(*payload.EnName) != "" {
+		nameEn = strings.TrimSpace(*payload.EnName)
 	}
+
 	nameFa := q.NameFa
-	if payload.NameFa != nil {
-		nameFa = *payload.NameFa
+	if payload.NameFa != nil && strings.TrimSpace(*payload.NameFa) != "" {
+		nameFa = strings.TrimSpace(*payload.NameFa)
+	} else if payload.FaName != nil && strings.TrimSpace(*payload.FaName) != "" {
+		nameFa = strings.TrimSpace(*payload.FaName)
 	}
+
 	qType := q.Type
 	if payload.Type != nil {
 		qType = *payload.Type
@@ -212,32 +259,24 @@ func (s *Service) UpdateQuestion(ctx context.Context, id int, payload UpdateQues
 	if payload.Answers != nil {
 		_ = s.queries.DeleteQuestionAnswersByQuestionID(ctx, int32(id))
 		for _, a := range *payload.Answers {
+			en := strings.TrimSpace(a.AnswerEn)
+			if en == "" {
+				en = strings.TrimSpace(a.EnAnswer)
+			}
+			fa := strings.TrimSpace(a.AnswerFa)
+			if fa == "" {
+				fa = strings.TrimSpace(a.FaAnswer)
+			}
 			_, _ = s.queries.CreateQuestionAnswer(ctx, db.CreateQuestionAnswerParams{
 				QuestionID: int32(id),
-				AnswerEn:   a.AnswerEn,
-				AnswerFa:   a.AnswerFa,
+				AnswerEn:   en,
+				AnswerFa:   fa,
 			})
 		}
 	}
 
-	list, err := s.GetQuestions(ctx, "", "", &id)
-	if err != nil || len(list) == 0 {
-		var iconPtr *string
-		if updated.Icon.Valid {
-			u := s.resolveAssetURL(updated.Icon.String)
-			iconPtr = &u
-		}
-		return &QuestionResponseDto{
-			ID:         int(updated.ID),
-			NameEn:     updated.NameEn,
-			NameFa:     updated.NameFa,
-			Type:       updated.Type,
-			AnswerType: string(updated.AnswerType),
-			Icon:       iconPtr,
-		}, nil
-	}
-
-	return &list[0], nil
+	ansRows, _ := s.queries.ListQuestionAnswersByQuestionID(ctx, updated.ID)
+	return s.mapQuestion(updated, ansRows, ""), nil
 }
 
 func (s *Service) DeleteQuestion(ctx context.Context, id int) error {

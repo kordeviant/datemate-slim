@@ -98,6 +98,7 @@ type Querier interface {
 	ListMatchesByUserID(ctx context.Context, userOneID int32) ([]ListMatchesByUserIDRow, error)
 	ListMessagesByConversationBucket(ctx context.Context, arg ListMessagesByConversationBucketParams) ([]MessagesByConversation, error)
 	ListPendingVerificationsAdmin(ctx context.Context, arg ListPendingVerificationsAdminParams) ([]ListPendingVerificationsAdminRow, error)
+	ListQuestionAnswers(ctx context.Context) ([]QuestionAnswers, error)
 	ListQuestionAnswersByQuestionID(ctx context.Context, questionID int32) ([]QuestionAnswers, error)
 	// Questions & Interests queries
 	ListQuestions(ctx context.Context) ([]Questions, error)

@@ -58,7 +58,7 @@ type ProfileNestedResponseDto struct {
 	Demographic      *DemographicResponseDto `json:"Demographic"`
 	RelationType     *string                 `json:"RelationType"`
 	Preferences      *PreferencesResponseDto `json:"Preferences,omitempty"`
-	Answers          map[string]int          `json:"Answers,omitempty"`
+	Answers          map[string]interface{}  `json:"Answers,omitempty"`
 	LikedActivities  map[string]interface{}  `json:"LikedActivities,omitempty"`
 }
 

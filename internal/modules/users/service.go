@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -210,10 +211,51 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		City:           cityDto,
 	}
 
-	// Answers map
-	answersMap := make(map[string]int)
-	for _, a := range answers {
-		answersMap[strconv.Itoa(int(a.QuestionID))] = int(a.QuestionAnswerID)
+	// Answers map: map[string]interface{} where value is 0-based index or []int for MULTI
+	answersMap := make(map[string]interface{})
+	if len(answers) > 0 {
+		allQAns, err := s.queries.ListQuestionAnswers(ctx)
+		if err == nil {
+			type ansInfo struct {
+				QuestionID int32
+				Index      int
+			}
+			dbIDToInfo := make(map[int32]ansInfo)
+			qIdxCounter := make(map[int32]int)
+			for _, qa := range allQAns {
+				idx := qIdxCounter[qa.QuestionID]
+				dbIDToInfo[qa.ID] = ansInfo{
+					QuestionID: qa.QuestionID,
+					Index:      idx,
+				}
+				qIdxCounter[qa.QuestionID] = idx + 1
+			}
+
+			qAnswerType := make(map[int32]string)
+			if allQ, qErr := s.queries.ListQuestions(ctx); qErr == nil {
+				for _, q := range allQ {
+					qAnswerType[q.ID] = string(q.AnswerType)
+				}
+			}
+
+			answersByQID := make(map[int32][]int)
+			for _, a := range answers {
+				if info, ok := dbIDToInfo[a.QuestionAnswerID]; ok {
+					answersByQID[info.QuestionID] = append(answersByQID[info.QuestionID], info.Index)
+				} else {
+					answersByQID[a.QuestionID] = append(answersByQID[a.QuestionID], 0)
+				}
+			}
+
+			for qID, indices := range answersByQID {
+				sort.Ints(indices)
+				if qAnswerType[qID] == "MULTI" || len(indices) > 1 {
+					answersMap[strconv.Itoa(int(qID))] = indices
+				} else if len(indices) > 0 {
+					answersMap[strconv.Itoa(int(qID))] = indices[0]
+				}
+			}
+		}
 	}
 
 	// LikedActivities map
@@ -538,44 +580,104 @@ func (s *Service) UpdateProfile(
 		}
 
 		if rawAnswers != nil {
-			var answerIDs []int32
-			switch v := rawAnswers.(type) {
-			case []interface{}:
-				for _, item := range v {
-					if id, ok := toInt32(item); ok && id > 0 {
-						answerIDs = append(answerIDs, id)
-					} else if m, ok := item.(map[string]interface{}); ok {
-						for _, k := range []string{"questionAnswerId", "answerId", "id"} {
-							if idVal, exists := m[k]; exists {
-								if id, ok := toInt32(idVal); ok && id > 0 {
-									answerIDs = append(answerIDs, id)
-									break
+			allQAns, err := s.queries.ListQuestionAnswers(ctx)
+			if err == nil {
+				qAnswersMap := make(map[int32][]db.QuestionAnswers)
+				dbIDExists := make(map[int32]bool)
+				for _, qa := range allQAns {
+					qAnswersMap[qa.QuestionID] = append(qAnswersMap[qa.QuestionID], qa)
+					dbIDExists[qa.ID] = true
+				}
+
+				var targetAnswerDbIDs []int32
+
+				switch v := rawAnswers.(type) {
+				case map[string]interface{}:
+					for qKey, aVal := range v {
+						qID, err := strconv.Atoi(qKey)
+						if err != nil {
+							continue
+						}
+						qAnswers := qAnswersMap[int32(qID)]
+
+						var indices []int32
+						switch val := aVal.(type) {
+						case []interface{}:
+							for _, it := range val {
+								if idx, ok := toInt32(it); ok {
+									indices = append(indices, idx)
 								}
 							}
+						default:
+							if idx, ok := toInt32(val); ok {
+								indices = append(indices, idx)
+							}
+						}
+
+						for _, idx := range indices {
+							if idx >= 0 && int(idx) < len(qAnswers) {
+								targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[idx].ID)
+							} else if dbIDExists[idx] {
+								targetAnswerDbIDs = append(targetAnswerDbIDs, idx)
+							}
 						}
 					}
-				}
-			case map[string]interface{}:
-				for _, val := range v {
-					if id, ok := toInt32(val); ok && id > 0 {
-						answerIDs = append(answerIDs, id)
-					} else if arr, ok := val.([]interface{}); ok {
-						for _, item := range arr {
-							if id, ok := toInt32(item); ok && id > 0 {
-								answerIDs = append(answerIDs, id)
+				case []interface{}:
+					for _, item := range v {
+						if m, ok := item.(map[string]interface{}); ok {
+							var qIDVal, aIDVal int32
+							var hasQ, hasA bool
+							for _, k := range []string{"questionId", "questionid", "qId"} {
+								if val, exists := m[k]; exists {
+									if id, ok := toInt32(val); ok {
+										qIDVal = id
+										hasQ = true
+										break
+									}
+								}
+							}
+							for _, k := range []string{"answerId", "answerid", "aId", "id"} {
+								if val, exists := m[k]; exists {
+									if id, ok := toInt32(val); ok {
+										aIDVal = id
+										hasA = true
+										break
+									}
+								}
+							}
+							if hasQ && hasA {
+								qAnswers := qAnswersMap[qIDVal]
+								if aIDVal >= 0 && int(aIDVal) < len(qAnswers) {
+									targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[aIDVal].ID)
+								} else if dbIDExists[aIDVal] {
+									targetAnswerDbIDs = append(targetAnswerDbIDs, aIDVal)
+								}
+							}
+						} else if id, ok := toInt32(item); ok {
+							if dbIDExists[id] {
+								targetAnswerDbIDs = append(targetAnswerDbIDs, id)
 							}
 						}
 					}
 				}
-			}
 
-			if len(answerIDs) > 0 {
-				_ = s.queries.DeleteUserQuestionAnswers(ctx, int32(userID))
-				for _, aID := range answerIDs {
-					_ = s.queries.InsertUserQuestionAnswer(ctx, db.InsertUserQuestionAnswerParams{
-						UserID:           int32(userID),
-						QuestionAnswerID: aID,
-					})
+				if len(targetAnswerDbIDs) > 0 {
+					seen := make(map[int32]bool)
+					var uniqueAnswerIDs []int32
+					for _, id := range targetAnswerDbIDs {
+						if !seen[id] {
+							seen[id] = true
+							uniqueAnswerIDs = append(uniqueAnswerIDs, id)
+						}
+					}
+
+					_ = s.queries.DeleteUserQuestionAnswers(ctx, int32(userID))
+					for _, aID := range uniqueAnswerIDs {
+						_ = s.queries.InsertUserQuestionAnswer(ctx, db.InsertUserQuestionAnswerParams{
+							UserID:           int32(userID),
+							QuestionAnswerID: aID,
+						})
+					}
 				}
 			}
 		}

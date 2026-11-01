@@ -291,6 +291,9 @@ DELETE FROM questions WHERE id = $1;
 -- name: ListQuestionAnswersByQuestionID :many
 SELECT * FROM question_answers WHERE question_id = $1 ORDER BY id ASC;
 
+-- name: ListQuestionAnswers :many
+SELECT * FROM question_answers ORDER BY question_id ASC, id ASC;
+
 -- name: CreateQuestionAnswer :one
 INSERT INTO question_answers (question_id, answer_en, answer_fa)
 VALUES ($1, $2, $3)

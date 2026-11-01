@@ -23,10 +23,11 @@ test:
           printf '%s\n' "$ENV_FILE_CONTENT" > .env
         fi
       fi
+    - export CGO_ENABLED=1
     - go vet ./...
     - go test -v -p 4 ./...
-    - CGO_ENABLED=1 go build -ldflags="-s -w" -o bin/server ./cmd/server
-    - CGO_ENABLED=1 go build -ldflags="-s -w" -o bin/seed ./cmd/seed
+    - go build -ldflags="-s -w" -o bin/server ./cmd/server
+    - go build -ldflags="-s -w" -o bin/seed ./cmd/seed
 
 deploy:
   stage: deploy

@@ -57,25 +57,36 @@ func NewClient(ctx context.Context, host, port, password string) (*Client, error
 		MinIdleConns: 5,
 	})
 
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	if err := rdb.Ping(pingCtx).Err(); err != nil {
-		return nil, fmt.Errorf("unable to ping redis: %w", err)
+	var lastErr error
+	for attempt := 1; attempt <= 10; attempt++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		err := rdb.Ping(pingCtx).Err()
+		cancel()
+		if err == nil {
+			sha, err := rdb.ScriptLoad(ctx, swipeLuaScript).Result()
+			if err != nil {
+				rdb.Close()
+				return nil, fmt.Errorf("failed to load swipe lua script: %w", err)
+			}
+			log.Println("Redis client connected and Swipe Lua script loaded.")
+			return &Client{
+				rdb:            rdb,
+				swipeScriptSHA: sha,
+				debounces:      make(map[int64]*time.Timer),
+			}, nil
+		}
+		lastErr = err
+		log.Printf("Waiting for Redis connection (attempt %d/10): %v", attempt, err)
+		select {
+		case <-ctx.Done():
+			rdb.Close()
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
 	}
 
-	sha, err := rdb.ScriptLoad(ctx, swipeLuaScript).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load swipe lua script: %w", err)
-	}
-
-	log.Println("Redis client connected and Swipe Lua script loaded.")
-
-	return &Client{
-		rdb:            rdb,
-		swipeScriptSHA: sha,
-		debounces:      make(map[int64]*time.Timer),
-	}, nil
+	rdb.Close()
+	return nil, fmt.Errorf("unable to connect to redis after retries: %w", lastErr)
 }
 
 func (c *Client) Raw() *redis.Client {

@@ -25,13 +25,26 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("unable to create connection pool: %w", err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	if err := pool.Ping(pingCtx); err != nil {
-		return nil, fmt.Errorf("unable to ping database: %w", err)
+	// Retry database ping to gracefully tolerate cold container startups
+	var lastErr error
+	for attempt := 1; attempt <= 10; attempt++ {
+		pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		err := pool.Ping(pingCtx)
+		cancel()
+		if err == nil {
+			log.Println("PostgreSQL connection pool established.")
+			return pool, nil
+		}
+		lastErr = err
+		log.Printf("Waiting for database connection (attempt %d/10): %v", attempt, err)
+		select {
+		case <-ctx.Done():
+			pool.Close()
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
 	}
 
-	log.Println("PostgreSQL connection pool established.")
-	return pool, nil
+	pool.Close()
+	return nil, fmt.Errorf("unable to connect to database after retries: %w", lastErr)
 }

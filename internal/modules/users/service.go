@@ -318,8 +318,8 @@ func (s *Service) UpdateProfile(
 				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 					UserID:    int32(userID),
 					AvatarUrl: path,
-					Latitude:  pgtype.Numeric{Valid: true},
-					Longitude: pgtype.Numeric{Valid: true},
+					Latitude:  pgtype.Numeric{Valid: false},
+					Longitude: pgtype.Numeric{Valid: false},
 				})
 			}
 		}
@@ -335,8 +335,8 @@ func (s *Service) UpdateProfile(
 				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 					UserID:    int32(userID),
 					SelfieUrl: pgtype.Text{String: path, Valid: true},
-					Latitude:  pgtype.Numeric{Valid: true},
-					Longitude: pgtype.Numeric{Valid: true},
+					Latitude:  pgtype.Numeric{Valid: false},
+					Longitude: pgtype.Numeric{Valid: false},
 				})
 			}
 		}

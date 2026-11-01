@@ -176,8 +176,8 @@ func (s *Service) VerifyCode(ctx context.Context, email, code string) (*AuthResu
 		UserID:    user.ID,
 		FirstName: "User",
 		AvatarUrl: "",
-		Latitude:  pgtype.Numeric{Valid: true},
-		Longitude: pgtype.Numeric{Valid: true},
+		Latitude:  pgtype.Numeric{Valid: false},
+		Longitude: pgtype.Numeric{Valid: false},
 	})
 	_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
 		UserID:    user.ID,

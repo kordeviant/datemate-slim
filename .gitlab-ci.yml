@@ -41,7 +41,7 @@ test:
     - datemate
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client tar
     - |
       if [ "$CI_COMMIT_REF_NAME" = "develop" ]; then
         echo "===> Configuring deployment for DEVELOP branch using _DEV variables..."
@@ -49,7 +49,6 @@ test:
         export SERVER_IP="${SERVER_IP_DEV:-$SERVER_IP}"
         export SSH_PORT="${SSH_PORT_DEV:-${SSH_PORT:-22}}"
         export DEPLOY_DIR="${DEPLOY_DIR_DEV:-${DEPLOY_DIR:-~/backend-dev}}"
-        export GIT_REPO_URL="${GIT_REPO_URL_DEV:-${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}}"
         SSH_KEY="${SSH_PRIVATE_KEY_DEV:-$SSH_PRIVATE_KEY}"
         ENV_CONTENT="${ENV_FILE_CONTENT_DEV:-$ENV_FILE_CONTENT}"
       else
@@ -58,7 +57,6 @@ test:
         export SERVER_IP="${SERVER_IP_PROD:-${SERVER_IP}}"
         export SSH_PORT="${SSH_PORT_PROD:-${SSH_PORT:-22}}"
         export DEPLOY_DIR="${DEPLOY_DIR_PROD:-${DEPLOY_DIR:-~/backend}}"
-        export GIT_REPO_URL="${GIT_REPO_URL_PROD:-${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}}"
         SSH_KEY="${SSH_PRIVATE_KEY_PROD:-${SSH_PRIVATE_KEY}}"
         ENV_CONTENT="${ENV_FILE_CONTENT_PROD:-${ENV_FILE_CONTENT}}"
       fi
@@ -96,24 +94,10 @@ test:
 .deploy_script_dev: &deploy_script_dev
   - |
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend-dev}" | sed "s|^~|/home/$SERVER_USER|")
-    REPO_URL="${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}"
-    TARGET_BRANCH="${CI_COMMIT_REF_NAME:-develop}"
-    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
-      set -e
-      mkdir -p $TARGET_DIR
-      cd $TARGET_DIR
-      export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
-      if [ ! -d .git ]; then
-        echo '===> Git repository not found on server. Initializing and linking origin...'
-        git init
-        git remote add origin '$REPO_URL' || git remote set-url origin '$REPO_URL'
-      fi
-      echo \"===> Pulling latest code for branch \$TARGET_BRANCH...\"
-      git fetch origin \"\$TARGET_BRANCH\"
-      git reset --hard HEAD || true
-      git checkout -f -B \"\$TARGET_BRANCH\" \"origin/\$TARGET_BRANCH\"
-      git reset --hard \"origin/\$TARGET_BRANCH\"
-    "
+    
+    echo "===> Syncing codebase directly to $SERVER_USER@$SERVER_IP:$TARGET_DIR..."
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "mkdir -p $TARGET_DIR"
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'
@@ -185,24 +169,10 @@ test:
 .deploy_script_prod: &deploy_script_prod
   - |
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
-    REPO_URL="${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}"
-    TARGET_BRANCH="${CI_COMMIT_REF_NAME:-main}"
-    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
-      set -e
-      mkdir -p $TARGET_DIR
-      cd $TARGET_DIR
-      export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
-      if [ ! -d .git ]; then
-        echo '===> Git repository not found on server. Initializing and linking origin...'
-        git init
-        git remote add origin '$REPO_URL' || git remote set-url origin '$REPO_URL'
-      fi
-      echo \"===> Pulling latest code for branch \$TARGET_BRANCH...\"
-      git fetch origin \"\$TARGET_BRANCH\"
-      git reset --hard HEAD || true
-      git checkout -f -B \"\$TARGET_BRANCH\" \"origin/\$TARGET_BRANCH\"
-      git reset --hard \"origin/\$TARGET_BRANCH\"
-    "
+    
+    echo "===> Syncing codebase directly to $SERVER_USER@$SERVER_IP:$TARGET_DIR..."
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "mkdir -p $TARGET_DIR"
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'

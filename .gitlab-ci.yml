@@ -1,0 +1,147 @@
+image: node:20-alpine
+
+stages:
+  - test
+  - deploy
+
+default:
+  tags:
+    - datemate
+
+test:
+  stage: test
+  tags:
+    - datemate
+  script:
+    - |
+      if [ -n "$ENV_FILE_CONTENT" ]; then
+        if [ -f "$ENV_FILE_CONTENT" ]; then
+          cat "$ENV_FILE_CONTENT" > .env
+        else
+          printf '%s\n' "$ENV_FILE_CONTENT" > .env
+        fi
+      fi
+    - npm ci
+    - npx prisma generate
+    - npm test
+    - npm run build
+
+deploy:
+  stage: deploy
+  tags:
+    - datemate
+  image: alpine:latest
+  only:
+    - main
+  before_script:
+    - apk add --no-cache openssh-client
+    - test -n "$SSH_PRIVATE_KEY" || (echo "SSH_PRIVATE_KEY is unavailable; check its Protected flag and environment scope" && exit 1)
+    - |
+      if [ -f "$SSH_PRIVATE_KEY" ]; then
+        if grep -q "BEGIN" "$SSH_PRIVATE_KEY"; then
+          (cat "$SSH_PRIVATE_KEY"; echo "") | tr -d '\r' > /tmp/deploy_key
+        else
+          tr -d '\r\n ' < "$SSH_PRIVATE_KEY" | base64 -d > /tmp/deploy_key
+        fi
+      else
+        if echo "$SSH_PRIVATE_KEY" | grep -q "BEGIN"; then
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > /tmp/deploy_key
+        else
+          printf '%s' "$SSH_PRIVATE_KEY" | tr -d '\r\n ' | base64 -d > /tmp/deploy_key
+        fi
+      fi
+    - test -s /tmp/deploy_key || (echo "Decoded SSH private key is empty" && exit 1)
+    - chmod 600 /tmp/deploy_key
+    - ssh-keygen -y -f /tmp/deploy_key >/dev/null
+    - |
+      if [ -n "$ENV_FILE_CONTENT" ]; then
+        if [ -f "$ENV_FILE_CONTENT" ]; then
+          cat "$ENV_FILE_CONTENT" > /tmp/env_content
+        else
+          printf '%s\n' "$ENV_FILE_CONTENT" > /tmp/env_content
+        fi
+      fi
+  script:
+    - |
+      TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
+      REPO_URL="${GIT_REPO_URL:-git@${CI_SERVER_HOST}:${CI_PROJECT_PATH}.git}"
+      ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+        set -e
+        mkdir -p $TARGET_DIR
+        cd $TARGET_DIR
+        export GIT_SSH_COMMAND='ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no'
+        if [ ! -d .git ]; then
+          echo '===> Git repository not found on server. Initializing and linking origin...'
+          git init
+          git remote add origin '$REPO_URL' || git remote set-url origin '$REPO_URL'
+        fi
+        echo '===> Pulling latest code...'
+        git fetch origin main
+        git reset --hard HEAD || true
+        git checkout -f -B main origin/main
+        git reset --hard origin/main
+      "
+
+      if [ -f /tmp/env_content ]; then
+        echo '===> Deploying .env file to target server...'
+        scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} -i /tmp/deploy_key /tmp/env_content $SERVER_USER@$SERVER_IP:$TARGET_DIR/.env
+      else
+        echo 'Warning: ENV_FILE_CONTENT is not set in GitLab CI variables'
+      fi
+
+      ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+        set -e
+        cd $TARGET_DIR
+
+        # Stop legacy host PM2 process if running
+        if command -v pm2 >/dev/null 2>&1; then
+          pm2 stop datemate-backend >/dev/null 2>&1 || true
+          pm2 delete datemate-backend >/dev/null 2>&1 || true
+        fi
+
+        echo '===> Detecting docker compose...'
+        if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+          DC='docker compose'
+        elif command -v docker-compose >/dev/null 2>&1; then
+          DC='docker-compose'
+        else
+          echo 'Error: Neither docker compose nor docker-compose found on server'
+          exit 1
+        fi
+
+        echo '===> Starting database and cache services...'
+        \$DC up -d postgres redis
+
+        echo '===> Waiting for database readiness...'
+        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          if docker exec datemate_postgres pg_isready -U postgres >/dev/null 2>&1; then
+            echo 'Database is ready!'
+            break
+          fi
+          echo 'Waiting for database...'
+          sleep 1
+        done
+
+        echo '===> Building and starting backend and nginx in Docker...'
+        \$DC up -d --build --remove-orphans backend nginx
+
+        echo '===> Running database migrations inside backend container...'
+        docker exec datemate_backend npx prisma migrate deploy
+
+        # echo '===> Checking migration status...'
+        # docker exec datemate_backend npx prisma migrate status
+
+        # echo '===> Seeding questions...'
+        # docker exec datemate_backend npx ts-node prisma/seed-questions.ts || true
+
+        # echo '===> Seeding interests...'
+        # docker exec datemate_backend npx ts-node prisma/seed-interests.ts || true
+
+        # echo '===> Seeding Users...'
+        # docker exec datemate_backend npx ts-node prisma/seed-users.ts || true
+
+        echo '===> Reloading Nginx proxy...'
+        docker exec datemate_nginx nginx -s reload || true
+
+        echo '===> Deployment completed successfully with Docker!'
+      "

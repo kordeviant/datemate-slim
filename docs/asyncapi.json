@@ -1,0 +1,327 @@
+{
+  "asyncapi": "2.6.0",
+  "info": {
+    "title": "DateMate Chat Service Real-time WebSocket API",
+    "version": "1.0.0",
+    "description": "Authoritative AsyncAPI specification for DateMate Chat Microservice WebSocket gateway powered by Socket.IO over Apache Cassandra."
+  },
+  "servers": {
+    "production": {
+      "url": "https://chat-datemate.testdevvvv.site/",
+      "protocol": "socketio",
+      "pathname": "/chat",
+      "description": "Production Socket.IO Gateway"
+    },
+    "local": {
+      "url": "localhost:3001",
+      "protocol": "socketio",
+      "pathname": "/chat",
+      "description": "Local Development Gateway"
+    }
+  },
+  "defaultContentType": "application/json",
+  "channels": {
+    "conversation.join": {
+      "description": "Client joins an authorized conversation room to listen for live incoming messages.",
+      "publish": {
+        "operationId": "joinConversation",
+        "summary": "Join a conversation real-time room",
+        "message": {
+          "$ref": "#/components/messages/JoinConversationRequest"
+        }
+      }
+    },
+    "conversation.leave": {
+      "description": "Client leaves an active conversation room upon navigating away from the chat screen.",
+      "publish": {
+        "operationId": "leaveConversation",
+        "summary": "Leave a conversation real-time room",
+        "message": {
+          "$ref": "#/components/messages/LeaveConversationRequest"
+        }
+      }
+    },
+    "message.send": {
+      "description": "Client submits a new chat message. Persisted durably in Apache Cassandra and broadcast to all room participants.",
+      "publish": {
+        "operationId": "sendMessage",
+        "summary": "Send a chat message with idempotency",
+        "message": {
+          "$ref": "#/components/messages/SendMessageRequest"
+        }
+      }
+    },
+    "message.created": {
+      "description": "Dispatched by the server to all connected room members when a message has been successfully saved to Cassandra.",
+      "subscribe": {
+        "operationId": "messageCreated",
+        "summary": "Broadcast new message to conversation room members",
+        "message": {
+          "$ref": "#/components/messages/MessageCreatedEvent"
+        }
+      }
+    },
+    "error": {
+      "description": "Dispatched by the server to the client socket when an exception or authorization failure occurs.",
+      "subscribe": {
+        "operationId": "wsErrorEvent",
+        "summary": "WebSocket error notification",
+        "message": {
+          "$ref": "#/components/messages/WsErrorEvent"
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Access Token provided during Socket.IO handshake via `client.handshake.auth.accessToken` or `client.handshake.headers.authorization`."
+      }
+    },
+    "messages": {
+      "JoinConversationRequest": {
+        "name": "JoinConversationRequest",
+        "title": "Join Conversation Payload",
+        "summary": "Payload sent by client to join a conversation room",
+        "payload": {
+          "$ref": "#/components/schemas/JoinConversationDto"
+        }
+      },
+      "LeaveConversationRequest": {
+        "name": "LeaveConversationRequest",
+        "title": "Leave Conversation Payload",
+        "summary": "Payload sent by client to leave a conversation room",
+        "payload": {
+          "$ref": "#/components/schemas/LeaveConversationDto"
+        }
+      },
+      "SendMessageRequest": {
+        "name": "SendMessageRequest",
+        "title": "Send Message Payload",
+        "summary": "Payload sent by client to persist and broadcast a message",
+        "payload": {
+          "$ref": "#/components/schemas/SendMessageWsDto"
+        }
+      },
+      "MessageCreatedEvent": {
+        "name": "MessageCreatedEvent",
+        "title": "Message Created Broadcast",
+        "summary": "Broadcast event received by all members in conversation room",
+        "payload": {
+          "$ref": "#/components/schemas/MessageCreatedDto"
+        }
+      },
+      "WsErrorEvent": {
+        "name": "WsErrorEvent",
+        "title": "WebSocket Error Response",
+        "summary": "Error envelope emitted when a socket error occurs",
+        "payload": {
+          "$ref": "#/components/schemas/WsErrorEnvelope"
+        }
+      }
+    },
+    "schemas": {
+      "JoinConversationDto": {
+        "type": "object",
+        "required": [
+          "conversationId"
+        ],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "a1a8ecf4-4a25-4c07-b30a-2fb6f6cf557a",
+            "description": "UUID of the conversation room to join."
+          }
+        }
+      },
+      "LeaveConversationDto": {
+        "type": "object",
+        "required": [
+          "conversationId"
+        ],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "a1a8ecf4-4a25-4c07-b30a-2fb6f6cf557a",
+            "description": "UUID of the conversation room to leave."
+          }
+        }
+      },
+      "SendMessageWsDto": {
+        "type": "object",
+        "required": [
+          "conversationId",
+          "clientMessageId"
+        ],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "a1a8ecf4-4a25-4c07-b30a-2fb6f6cf557a",
+            "description": "Target conversation UUID."
+          },
+          "clientMessageId": {
+            "type": "string",
+            "example": "e4b33fc1-70bf-412e-9dcb-7f154fbdbd57",
+            "description": "Client-generated unique ID for deduplication and idempotency."
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 4000,
+            "example": "Hey, look at this photo!",
+            "description": "Optional text or caption up to 4000 characters."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "image", "video", "voice", "file"],
+            "example": "voice",
+            "description": "Message type (default: text or inferred from attachment)"
+          },
+          "url": {
+            "type": "string",
+            "example": "http://localhost:3001/uploads/voice_abc123.ogg",
+            "description": "Public URL of uploaded media/file"
+          },
+          "duration": {
+            "type": "number",
+            "example": 15.5,
+            "description": "Duration in seconds (for voice messages)"
+          },
+          "attachment": {
+            "$ref": "#/components/schemas/MessageAttachmentDto"
+          }
+        }
+      },
+      "MessageAttachmentDto": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "http://localhost:3001/uploads/voice_abc123.ogg"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "image", "video", "voice", "file"],
+            "example": "voice"
+          },
+          "duration": {
+            "type": "number",
+            "example": 15.5,
+            "description": "Voice message duration in seconds"
+          },
+          "fileName": {
+            "type": "string",
+            "example": "voice_record.ogg"
+          },
+          "fileSize": {
+            "type": "integer",
+            "example": 45120
+          },
+          "mimeType": {
+            "type": "string",
+            "example": "audio/ogg"
+          }
+        }
+      },
+      "MessageCreatedDto": {
+        "type": "object",
+        "required": [
+          "messageId",
+          "conversationId",
+          "senderId",
+          "content",
+          "createdAt"
+        ],
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+            "description": "Durable TimeUUID assigned by Cassandra."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "a1a8ecf4-4a25-4c07-b30a-2fb6f6cf557a"
+          },
+          "senderId": {
+            "type": "integer",
+            "example": 42,
+            "description": "Numeric user ID of the sender."
+          },
+          "content": {
+            "type": "string",
+            "example": "Hey, how are you?"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "image", "video", "voice", "file"],
+            "example": "voice"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "example": "http://localhost:3001/uploads/voice_abc123.ogg"
+          },
+          "duration": {
+            "type": "number",
+            "nullable": true,
+            "example": 15.5
+          },
+          "attachment": {
+            "$ref": "#/components/schemas/MessageAttachmentDto"
+          },
+          "clientMessageId": {
+            "type": "string",
+            "nullable": true,
+            "example": "e4b33fc1-70bf-412e-9dcb-7f154fbdbd57"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-17T12:00:00.000Z"
+          }
+        }
+      },
+      "WsErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "status": {
+            "type": "string",
+            "example": "error"
+          },
+          "message": {
+            "type": "string",
+            "example": "You are not an authorized member of this conversation"
+          },
+          "data": {
+            "type": "null"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "example": "FORBIDDEN"
+              },
+              "message": {
+                "type": "string",
+                "example": "You are not an authorized member of this conversation"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

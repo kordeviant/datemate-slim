@@ -84,6 +84,17 @@ services:
       redis:
         condition: service_healthy
 
+  nginx:
+    image: nginx:alpine
+    container_name: datemate_nginx
+    restart: always
+    network_mode: "host"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+
 volumes:
   datemate_pgdata:
   datemate_redisdata:

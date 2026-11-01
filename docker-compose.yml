@@ -1,30 +1,28 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: datemate_postgres
+    container_name: ${COMPOSE_PROJECT_NAME:-datemate}_postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: datemate_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${POSTGRES_DB:-datemate_db}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - datemate_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d datemate_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-datemate_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: datemate_redis
+    container_name: ${COMPOSE_PROJECT_NAME:-datemate}_redis
     restart: always
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - datemate_redisdata:/data
     healthcheck:
@@ -37,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: datemate_backend
+    container_name: ${COMPOSE_PROJECT_NAME:-datemate}_backend
     restart: always
     network_mode: "host"
     env_file:
@@ -51,7 +49,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: datemate_nginx
+    container_name: ${COMPOSE_PROJECT_NAME:-datemate}_nginx
     restart: always
     network_mode: "host"
     volumes:

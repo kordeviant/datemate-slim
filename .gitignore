@@ -1,6 +1,12 @@
 # Compiled output
 /dist
 /node_modules
+/bin
+/server
+/seed
+*.exe
+*.test
+*.out
 
 # Environment files
 .env
@@ -29,3 +35,5 @@ Thumbs.db
 
 # Runtime uploads
 /uploads
+data
+seed-icons

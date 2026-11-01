@@ -13,6 +13,11 @@ services:
       - "5432:5432"
     volumes:
       - datemate_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d datemate_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -22,21 +27,11 @@ services:
       - "6379:6379"
     volumes:
       - datemate_redisdata:/data
-
-  cassandra:
-    image: cassandra:4.1
-    container_name: datemate_cassandra
-    restart: always
-    environment:
-      - CASSANDRA_CLUSTER_NAME=datemate_chat_cluster
-      - CASSANDRA_DC=datacenter1
-      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=128M
-    ports:
-      - "9042:9042"
-    volumes:
-      - datemate_cassandradata:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -49,10 +44,10 @@ services:
       - .env
     volumes:
       - ./uploads:/app/uploads
+      - ./data:/app/data:ro
     depends_on:
       - postgres
       - redis
-      - cassandra
 
   nginx:
     image: nginx:alpine
@@ -70,4 +65,3 @@ services:
 volumes:
   datemate_pgdata:
   datemate_redisdata:
-  datemate_cassandradata:

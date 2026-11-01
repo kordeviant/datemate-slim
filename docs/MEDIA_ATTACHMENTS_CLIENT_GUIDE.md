@@ -64,7 +64,7 @@ Upload the binary file first to obtain a permanent, streamable URL.
   "status": "success",
   "message": "Operation successful",
   "data": {
-    "url": "https://api-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
+    "url": "https://chat-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
     "type": "voice",
     "duration": 14.5,
     "fileName": "audio_record.ogg",
@@ -103,7 +103,7 @@ formData.append("file", voiceFile);
 formData.append("type", "voice");
 formData.append("duration", "14.5");
 
-const uploadRes = await fetch("https://api-datemate.testdevvvv.site/v1/chat/upload", {
+const uploadRes = await fetch("https://chat-datemate.testdevvvv.site/v1/chat/upload", {
   method: "POST",
   headers: { "Authorization": `Bearer ${accessToken}` },
   body: formData,
@@ -154,10 +154,10 @@ socket.emit(
       "senderId": 42,
       "content": "",
       "type": "voice",
-      "url": "https://api-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
+      "url": "https://chat-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
       "duration": 14.5,
       "attachment": {
-        "url": "https://api-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
+        "url": "https://chat-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
         "type": "voice",
         "duration": 14.5,
         "fileName": "audio_record.ogg",
@@ -210,10 +210,10 @@ socket.on("message.created", (message) => {
   "senderId": 42,
   "content": "",
   "type": "voice",
-  "url": "https://api-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
+  "url": "https://chat-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
   "duration": 14.5,
   "attachment": {
-    "url": "https://api-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
+    "url": "https://chat-datemate.testdevvvv.site/uploads/a7e3bf50-e7f3-4e4b-91bb-cb468a4e3210.ogg",
     "type": "voice",
     "duration": 14.5,
     "fileName": "audio_record.ogg",

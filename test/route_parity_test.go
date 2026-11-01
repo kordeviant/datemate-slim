@@ -273,6 +273,18 @@ func setupRealRouter() *chi.Mux {
 		registerDomainRoutes(v1)
 	})
 
+	// Set custom NotFound and MethodNotAllowed handlers to verify router pattern matching
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Router-Matched", "false")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("404 router not found"))
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Router-Matched", "false")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = w.Write([]byte("405 method not allowed"))
+	})
+
 	return r
 }
 
@@ -284,8 +296,8 @@ func TestRouteParity(t *testing.T) {
 		req := httptest.NewRequest(ep.Method, ep.Path, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
-		if w.Code == http.StatusNotFound {
-			t.Errorf("version-neutral endpoint %s %s returned 404 Not Found", ep.Method, ep.Path)
+		if w.Header().Get("X-Router-Matched") == "false" {
+			t.Errorf("version-neutral endpoint %s %s was not registered on router (status: %d)", ep.Method, ep.Path, w.Code)
 		}
 
 		// 2. Test /v1/ prefixed route
@@ -293,8 +305,8 @@ func TestRouteParity(t *testing.T) {
 		v1Req := httptest.NewRequest(ep.Method, v1Path, nil)
 		v1W := httptest.NewRecorder()
 		router.ServeHTTP(v1W, v1Req)
-		if v1W.Code == http.StatusNotFound {
-			t.Errorf("v1 endpoint %s %s returned 404 Not Found", ep.Method, v1Path)
+		if v1W.Header().Get("X-Router-Matched") == "false" {
+			t.Errorf("v1 endpoint %s %s was not registered on router (status: %d)", ep.Method, v1Path, v1W.Code)
 		}
 	}
 }

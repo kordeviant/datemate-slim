@@ -26,6 +26,7 @@ import (
 	"datemate/internal/modules/system"
 	"datemate/internal/modules/users"
 	"datemate/internal/platform/database"
+	"datemate/internal/platform/database/seeder"
 	"datemate/internal/platform/fcm"
 	"datemate/internal/platform/geo"
 	"datemate/internal/platform/mail"
@@ -61,6 +62,11 @@ func main() {
 		log.Printf("Warning: Migration runner: %v", err)
 	} else {
 		log.Println("Database migrations applied cleanly.")
+	}
+
+	// 3b. Auto-seed empty reference tables (questions, interests, geo, icons)
+	if err := seeder.AutoSeedIfEmpty(ctx, pool, cfg); err != nil {
+		log.Printf("Warning: Auto-seeder: %v", err)
 	}
 
 	// 4. Initialize Redis

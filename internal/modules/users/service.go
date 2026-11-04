@@ -77,7 +77,7 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		// Return empty default profile
 		p = db.Profiles{
 			UserID:    int32(userID),
-			FirstName: "User",
+			FirstName: "",
 			AvatarUrl: "",
 		}
 	}
@@ -523,52 +523,67 @@ func (s *Service) UpdateProfile(
 		// Demographic updates
 		if payload.Profile != nil && payload.Profile.Demographic != nil {
 			dem := payload.Profile.Demographic
+			existingDem, _ := s.queries.GetDemographicByUserID(ctx, int32(userID))
+
 			var birthDate pgtype.Date
 			if dem.BirthDate != nil {
 				if t, err := time.Parse("2006-01-02", *dem.BirthDate); err == nil {
 					birthDate = pgtype.Date{Time: t, Valid: true}
 				}
-			}
-			gender := db.GenderMALE
-			if dem.Gender != nil && strings.EqualFold(*dem.Gender, "FEMALE") {
-				gender = db.GenderFEMALE
-			}
-			var height pgtype.Int2
-			if dem.Height != nil {
-				height = pgtype.Int2{Int16: int16(*dem.Height), Valid: true}
-			}
-			var degree db.NullEducationStatus
-			if dem.Degree != nil {
-				degree = db.NullEducationStatus{EducationStatus: db.EducationStatus(*dem.Degree), Valid: true}
-			}
-			var prof pgtype.Text
-			if dem.Profession != nil {
-				prof = pgtype.Text{String: *dem.Profession, Valid: true}
-			}
-			var relStatus db.NullRelationshipStatus
-			if dem.RelationStatus != nil {
-				relStatus = db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatus(*dem.RelationStatus), Valid: true}
-			}
-			var cityID pgtype.Int4
-			if dem.CityID != nil {
-				cityID = pgtype.Int4{Int32: int32(*dem.CityID), Valid: true}
-			}
-			var cityName pgtype.Text
-			if dem.CityName != nil {
-				cityName = pgtype.Text{String: *dem.CityName, Valid: true}
+			} else if existingDem.BirthDate.Valid {
+				birthDate = existingDem.BirthDate
 			}
 
-			_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
-				UserID:         int32(userID),
-				BirthDate:      birthDate,
-				Gender:         gender,
-				Height:         height,
-				Degree:         degree,
-				Profession:     prof,
-				RelationStatus: relStatus,
-				CityID:         cityID,
-				CityName:       cityName,
-			})
+			var gender db.Gender
+			if dem.Gender != nil {
+				if strings.EqualFold(*dem.Gender, "FEMALE") {
+					gender = db.GenderFEMALE
+				} else if strings.EqualFold(*dem.Gender, "MALE") {
+					gender = db.GenderMALE
+				}
+			} else if existingDem.Gender != "" {
+				gender = existingDem.Gender
+			}
+
+			// Upsert only if we have valid birthDate and gender (or an existing demographic row to satisfy NOT NULL)
+			if birthDate.Valid && gender != "" {
+				var height pgtype.Int2
+				if dem.Height != nil {
+					height = pgtype.Int2{Int16: int16(*dem.Height), Valid: true}
+				}
+				var degree db.NullEducationStatus
+				if dem.Degree != nil {
+					degree = db.NullEducationStatus{EducationStatus: db.EducationStatus(*dem.Degree), Valid: true}
+				}
+				var prof pgtype.Text
+				if dem.Profession != nil {
+					prof = pgtype.Text{String: *dem.Profession, Valid: true}
+				}
+				var relStatus db.NullRelationshipStatus
+				if dem.RelationStatus != nil {
+					relStatus = db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatus(*dem.RelationStatus), Valid: true}
+				}
+				var cityID pgtype.Int4
+				if dem.CityID != nil {
+					cityID = pgtype.Int4{Int32: int32(*dem.CityID), Valid: true}
+				}
+				var cityName pgtype.Text
+				if dem.CityName != nil {
+					cityName = pgtype.Text{String: *dem.CityName, Valid: true}
+				}
+
+				_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
+					UserID:         int32(userID),
+					BirthDate:      birthDate,
+					Gender:         gender,
+					Height:         height,
+					Degree:         degree,
+					Profession:     prof,
+					RelationStatus: relStatus,
+					CityID:         cityID,
+					CityName:       cityName,
+				})
+			}
 		}
 
 		// User Question Answers persistence

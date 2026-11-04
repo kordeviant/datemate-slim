@@ -221,18 +221,13 @@ func (s *Service) VerifyCode(ctx context.Context, code, email, device, userAgent
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:pending:%s", email)).Err()
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("otp:signup:%s", email)).Err()
 
-	// Initialize basic profile and demographic
+	// Initialize basic profile without placeholder demographic values
 	_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 		UserID:    user.ID,
-		FirstName: "User",
+		FirstName: "",
 		AvatarUrl: "",
 		Latitude:  pgtype.Numeric{Valid: false},
 		Longitude: pgtype.Numeric{Valid: false},
-	})
-	_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
-		UserID:    user.ID,
-		BirthDate: pgtype.Date{Time: time.Now().AddDate(-25, 0, 0), Valid: true},
-		Gender:    db.GenderMALE,
 	})
 
 	deviceInfo := ""
@@ -364,17 +359,25 @@ func (s *Service) Logout(ctx context.Context, rawRefreshToken string, currentSes
 	return nil
 }
 
-func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role string) (*AuthResult, error) {
+func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role, fullName string) (*AuthResult, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil, errors.New("email is required for social authentication")
+	}
+
 	user, err := s.queries.GetUserByEmail(ctx, email)
 	if err != nil {
 		// Create new user
 		randomPwd := GenerateSecureRandomString(16)
 		pwdHash, _ := HashPassword(randomPwd)
+		userRole := db.RoleUSER
+		if strings.EqualFold(role, "ADMIN") {
+			userRole = db.RoleADMIN
+		}
 		user, err = s.queries.CreateUser(ctx, db.CreateUserParams{
 			Email:            email,
 			PasswordHash:     pwdHash,
-			Role:             db.RoleUSER,
+			Role:             userRole,
 			Language:         db.LanguageEN,
 			ProfileValidated: false,
 			IsPremium:        false,
@@ -383,18 +386,26 @@ func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role stri
 			return nil, err
 		}
 
+		firstName := strings.TrimSpace(fullName)
 		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 			UserID:    user.ID,
-			FirstName: strings.Title(strings.Split(email, "@")[0]),
+			FirstName: firstName,
 			AvatarUrl: "",
-			Latitude:  pgtype.Numeric{Valid: true},
-			Longitude: pgtype.Numeric{Valid: true},
+			Latitude:  pgtype.Numeric{Valid: false},
+			Longitude: pgtype.Numeric{Valid: false},
 		})
-		_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
-			UserID:    user.ID,
-			BirthDate: pgtype.Date{Time: time.Now().AddDate(-24, 0, 0), Valid: true},
-			Gender:    db.GenderMALE,
-		})
+		// Note: No demographic row is inserted here so birthDate and gender remain null until onboarding.
+	} else if fullName != "" {
+		// If existing user has no first_name, update with real name from social auth
+		if existingProf, pErr := s.queries.GetProfileByUserID(ctx, user.ID); pErr == nil && existingProf.FirstName == "" {
+			_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+				UserID:    user.ID,
+				FirstName: strings.TrimSpace(fullName),
+				AvatarUrl: existingProf.AvatarUrl,
+				Latitude:  existingProf.Latitude,
+				Longitude: existingProf.Longitude,
+			})
+		}
 	}
 
 	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), "", "")

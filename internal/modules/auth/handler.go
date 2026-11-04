@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"datemate/internal/middleware"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -221,25 +223,89 @@ func (h *Handler) Nonce(w http.ResponseWriter, r *http.Request) {
 
 type SocialAuthRequest struct {
 	IdentityToken string `json:"identityToken,omitempty"`
+	IDToken       string `json:"idToken,omitempty"`
+	Token         string `json:"token,omitempty"`
 	Email         string `json:"email,omitempty"`
+	FullName      string `json:"fullName,omitempty"`
+	Name          string `json:"name,omitempty"`
 	Role          string `json:"role,omitempty"`
 }
 
+func extractSocialCredentials(r *http.Request, req SocialAuthRequest) (email, fullName string, err error) {
+	// 1. Direct fields from request body
+	email = strings.ToLower(strings.TrimSpace(req.Email))
+	fullName = strings.TrimSpace(req.FullName)
+	if fullName == "" {
+		fullName = strings.TrimSpace(req.Name)
+	}
+
+	// 2. Token from Authorization header or body
+	token := strings.TrimSpace(r.Header.Get("Authorization"))
+	if token == "" {
+		token = strings.TrimSpace(req.IdentityToken)
+	}
+	if token == "" {
+		token = strings.TrimSpace(req.IDToken)
+	}
+	if token == "" {
+		token = strings.TrimSpace(req.Token)
+	}
+
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		token = strings.TrimSpace(token[7:])
+	}
+
+	// 3. If token is present, try decoding JWT claims unverified
+	if token != "" {
+		var claims jwt.MapClaims
+		parser := jwt.NewParser()
+		if _, _, err := parser.ParseUnverified(token, &claims); err == nil {
+			if email == "" {
+				if em, ok := claims["email"].(string); ok && em != "" {
+					email = strings.ToLower(strings.TrimSpace(em))
+				}
+			}
+			if fullName == "" {
+				if nm, ok := claims["name"].(string); ok && nm != "" {
+					fullName = strings.TrimSpace(nm)
+				} else {
+					given, _ := claims["given_name"].(string)
+					family, _ := claims["family_name"].(string)
+					full := strings.TrimSpace(given + " " + family)
+					if full != "" {
+						fullName = full
+					}
+				}
+			}
+		} else if email == "" && strings.Contains(token, "@") && !strings.Contains(token, " ") {
+			// If token itself is an email string (e.g. simple dev testing token)
+			email = strings.ToLower(token)
+		}
+	}
+
+	if email == "" {
+		return "", "", errors.New("Valid email or identity token containing email claim is required")
+	}
+
+	return email, fullName, nil
+}
+
 func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
 	var req SocialAuthRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	email := req.Email
-	if email == "" {
-		email = "google_user@example.com"
-	}
-	if authHeader == "" && req.IdentityToken == "" {
-		common.RespondError(w, http.StatusUnauthorized, "Authorization header or identityToken is required", common.ErrUnauthorized)
+	email, fullName, err := extractSocialCredentials(r, req)
+	if err != nil {
+		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
 		return
 	}
 
-	res, err := h.svc.SocialAuthMock(r.Context(), email, "google", "USER")
+	role := "USER"
+	if req.Role != "" {
+		role = req.Role
+	}
+
+	res, err := h.svc.SocialAuthMock(r.Context(), email, "google", role, fullName)
 	if err != nil {
 		common.RespondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
 		return
@@ -249,25 +315,21 @@ func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Apple(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
 	var req SocialAuthRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	token := authHeader
-	if token == "" {
-		token = req.IdentityToken
-	}
-	if token == "" {
-		common.RespondError(w, http.StatusUnauthorized, "Apple Identity Token is required in Authorization header or request body", common.ErrUnauthorized)
+	email, fullName, err := extractSocialCredentials(r, req)
+	if err != nil {
+		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
 		return
 	}
 
-	email := req.Email
-	if email == "" {
-		email = "apple_user@example.com"
+	role := "USER"
+	if req.Role != "" {
+		role = req.Role
 	}
 
-	res, err := h.svc.SocialAuthMock(r.Context(), email, "apple", "USER")
+	res, err := h.svc.SocialAuthMock(r.Context(), email, "apple", role, fullName)
 	if err != nil {
 		common.RespondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
 		return

@@ -163,6 +163,9 @@ test:
       echo '===> Reloading shared Nginx proxy...'
       docker exec datemate_nginx nginx -s reload || true
 
+      echo '===> Ensuring seed data (icons, geo, questions, interests) in develop...'
+      docker exec \$BACKEND_CONTAINER /usr/local/bin/seed --icons --geo --questions --interests || true
+
       echo '===> Go Modular Monolith develop deployment completed successfully!'
     "
 
@@ -236,6 +239,9 @@ test:
 
       echo '===> Reloading Nginx proxy...'
       docker exec datemate_nginx nginx -s reload || true
+
+      echo '===> Ensuring seed data (icons, geo, questions, interests) in production...'
+      docker exec \$BACKEND_CONTAINER /usr/local/bin/seed --icons --geo --questions --interests || true
 
       echo '===> Go Modular Monolith production deployment completed successfully with Docker!'
     "

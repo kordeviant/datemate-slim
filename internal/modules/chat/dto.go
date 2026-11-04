@@ -10,16 +10,40 @@ type CreateConversationDto struct {
 	ParticipantIds []int64 `json:"participantIds,omitempty"` // for GROUP
 }
 
+type LastMessageDto struct {
+	MessageID string  `json:"messageId,omitempty"`
+	SenderID  int64   `json:"senderId"`
+	Content   string  `json:"content"`
+	CreatedAt string  `json:"createdAt"`
+	Type      string  `json:"type,omitempty"`
+	Url       *string `json:"url,omitempty"`
+}
+
+type RecentMessageDto struct {
+	MessageID string  `json:"messageId"`
+	SenderID  int64   `json:"senderId"`
+	Content   string  `json:"content"`
+	CreatedAt string  `json:"createdAt"`
+	Type      string  `json:"type,omitempty"`
+	Url       *string `json:"url,omitempty"`
+}
+
 type ConversationDto struct {
-	ConversationID      string    `json:"conversationId"`
-	ConversationType    string    `json:"conversationType"`
-	CreatedBy           int64     `json:"createdBy"`
-	CreatedAt           time.Time `json:"createdAt"`
-	Title               *string   `json:"title,omitempty"`
-	LastMessageAt       *time.Time `json:"lastMessageAt,omitempty"`
-	LastMessagePreview  *string   `json:"lastMessagePreview,omitempty"`
-	LastMessageSenderID *int64    `json:"lastMessageSenderId,omitempty"`
-	MemberIDs           []int64   `json:"memberIds,omitempty"`
+	ConversationID      string             `json:"conversationId"`
+	Type                string             `json:"type"`
+	ConversationType    string             `json:"conversationType,omitempty"`
+	CreatedBy           int64              `json:"createdBy"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	Title               *string            `json:"title,omitempty"`
+	LastMessageAt       *time.Time         `json:"lastMessageAt,omitempty"`
+	LastMessagePreview  *string            `json:"lastMessagePreview,omitempty"`
+	LastMessageSenderID *int64             `json:"lastMessageSenderId,omitempty"`
+	MemberIDs           []int64            `json:"memberIds,omitempty"`
+	MembersCount        *int               `json:"membersCount,omitempty"`
+	LastUsers           []int64            `json:"lastUsers,omitempty"`
+	LastMessage         *LastMessageDto    `json:"lastMessage,omitempty"`
+	RecentMessages      []RecentMessageDto `json:"recentMessages,omitempty"`
+	PeerActivity        *UserActivityDto   `json:"peerActivity,omitempty"`
 }
 
 type CreateConversationResponseData struct {

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"datemate/internal/common"
 	"datemate/internal/config"
 	"datemate/internal/middleware"
 	"datemate/internal/modules/admin"
@@ -127,6 +128,8 @@ func main() {
 	// 11. Root Router & Global Middlewares
 	r := chi.NewRouter()
 
+	r.Use(chiMiddleware.CleanPath)
+	r.Use(chiMiddleware.StripSlashes)
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
 	r.Use(chiMiddleware.Recoverer)
@@ -181,10 +184,29 @@ func main() {
 
 	// Register /v1/ prefixed routes (e.g. /v1/health, /v1/auth/signin, /v1/feed, etc.)
 	r.Route("/v1", func(v1 chi.Router) {
+		v1.Use(chiMiddleware.StripSlashes)
 		if staticDir != "" {
 			v1.Handle("/static/*", http.StripPrefix("/v1/static/", http.FileServer(http.Dir(staticDir))))
 		}
 		registerDomainRoutes(v1)
+	})
+
+	// Register /api and /api/v1 prefixed routes for client compatibility
+	r.Route("/api", func(api chi.Router) {
+		api.Use(chiMiddleware.StripSlashes)
+		registerDomainRoutes(api)
+		api.Route("/v1", func(apiV1 chi.Router) {
+			apiV1.Use(chiMiddleware.StripSlashes)
+			registerDomainRoutes(apiV1)
+		})
+	})
+
+	// Unified 404 & 405 error responses
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		common.RespondError(w, http.StatusNotFound, fmt.Sprintf("Cannot %s %s", r.Method, r.URL.Path), common.ErrNotFound)
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		common.RespondError(w, http.StatusMethodNotAllowed, fmt.Sprintf("Method %s not allowed for %s", r.Method, r.URL.Path), common.ErrBadRequest)
 	})
 
 	// 12. Start HTTP server

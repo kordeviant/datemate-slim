@@ -123,6 +123,7 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 	convIDStr := detUUID.String()
 	return &ConversationDto{
 		ConversationID:   convIDStr,
+		Type:             strings.ToLower(conv.ConversationType),
 		ConversationType: conv.ConversationType,
 		CreatedBy:        conv.CreatedBy,
 		CreatedAt:        conv.CreatedAt.Time,
@@ -228,6 +229,7 @@ func (s *Service) CreateGroupConversation(ctx context.Context, currentUserID int
 
 	return &ConversationDto{
 		ConversationID:   groupUUID.String(),
+		Type:             strings.ToLower(conv.ConversationType),
 		ConversationType: conv.ConversationType,
 		CreatedBy:        conv.CreatedBy,
 		CreatedAt:        conv.CreatedAt.Time,
@@ -281,8 +283,21 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		lastSender = &id
 	}
 
+	isGroup := strings.EqualFold(conv.ConversationType, "GROUP")
+	var membersCount *int
+	var lastUsers []int64
+	if isGroup && len(members) > 0 {
+		mc := len(members)
+		membersCount = &mc
+		lastUsers = make([]int64, 0, 3)
+		for i := len(members) - 1; i >= 0 && len(lastUsers) < 3; i-- {
+			lastUsers = append(lastUsers, members[i].UserID)
+		}
+	}
+
 	return &ConversationDto{
 		ConversationID:      conversationID,
+		Type:                strings.ToLower(conv.ConversationType),
 		ConversationType:    conv.ConversationType,
 		CreatedBy:           conv.CreatedBy,
 		CreatedAt:           conv.CreatedAt.Time,
@@ -291,6 +306,8 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		LastMessagePreview:  lastMsgPrev,
 		LastMessageSenderID: lastSender,
 		MemberIDs:           memberIDs,
+		MembersCount:        membersCount,
+		LastUsers:           lastUsers,
 	}, nil
 }
 
@@ -309,7 +326,7 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 
 	var res []ConversationDto
 	for _, r := range rows {
-		if convType != "" && r.ConversationType != convType {
+		if convType != "" && !strings.EqualFold(r.ConversationType, convType) {
 			continue
 		}
 
@@ -332,8 +349,66 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			lastMsgAt = &r.LastMessageAt.Time
 		}
 
+		convTypeLower := strings.ToLower(r.ConversationType)
+		isGroup := strings.EqualFold(r.ConversationType, "GROUP")
+
+		var membersCount *int
+		var lastUsers []int64
+		var memberIDs []int64
+		var peerActivity *UserActivityDto
+
+		members, _ := s.queries.ListConversationMembers(ctx, r.ConversationID)
+		if len(members) > 0 {
+			if isGroup {
+				mc := len(members)
+				membersCount = &mc
+				lastUsers = make([]int64, 0, 3)
+				for i := len(members) - 1; i >= 0 && len(lastUsers) < 3; i-- {
+					lastUsers = append(lastUsers, members[i].UserID)
+				}
+			} else {
+				for _, m := range members {
+					memberIDs = append(memberIDs, m.UserID)
+					if m.UserID != currentUserID {
+						act, _ := s.GetUserActivity(ctx, m.UserID)
+						peerActivity = act
+					}
+				}
+			}
+		}
+
+		var lastMessage *LastMessageDto
+		if r.LastMessagePreview.Valid && r.LastMessagePreview.String != "" {
+			var sID int64
+			if lastSender != nil {
+				sID = *lastSender
+			}
+			createdAtStr := ""
+			if lastMsgAt != nil {
+				createdAtStr = lastMsgAt.UTC().Format(time.RFC3339)
+			}
+			lastMessage = &LastMessageDto{
+				SenderID:  sID,
+				Content:   r.LastMessagePreview.String,
+				CreatedAt: createdAtStr,
+				Type:      "text",
+			}
+		}
+
+		recentMessages := make([]RecentMessageDto, 0)
+		if lastMessage != nil {
+			recentMessages = append(recentMessages, RecentMessageDto{
+				MessageID: "msg-recent",
+				SenderID:  lastMessage.SenderID,
+				Content:   lastMessage.Content,
+				CreatedAt: lastMessage.CreatedAt,
+				Type:      lastMessage.Type,
+			})
+		}
+
 		res = append(res, ConversationDto{
 			ConversationID:      convUUIDStr,
+			Type:                convTypeLower,
 			ConversationType:    r.ConversationType,
 			CreatedBy:           0,
 			CreatedAt:           r.LastMessageAt.Time,
@@ -341,6 +416,12 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			LastMessageAt:       lastMsgAt,
 			LastMessagePreview:  lastMsgPrev,
 			LastMessageSenderID: lastSender,
+			MemberIDs:           memberIDs,
+			MembersCount:        membersCount,
+			LastUsers:           lastUsers,
+			LastMessage:         lastMessage,
+			RecentMessages:      recentMessages,
+			PeerActivity:        peerActivity,
 		})
 	}
 

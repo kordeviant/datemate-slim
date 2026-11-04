@@ -62,11 +62,15 @@ func (h *Handler) registerProtected(pr chi.Router) {
 	pr.Get("/conversations", h.ListConversations)
 	pr.Get("/conversations/direct", h.ListDirectConversations)
 	pr.Get("/conversations/group", h.ListGroupConversations)
+	pr.Get("/conversations/groups", h.ListGroupConversations)
+	pr.Post("/conversations/group", h.CreateGroupConversation)
+	pr.Post("/conversations/groups", h.CreateGroupConversation)
 	pr.Get("/conversations/{conversationId}", h.GetConversationDetails)
 	pr.Get("/conversations/{conversationId}/messages", h.GetMessageHistory)
 
 	// Groups
 	pr.Post("/groups", h.CreateGroup)
+	pr.Get("/groups", h.ListGroupConversations)
 	pr.Get("/groups/{conversationId}", h.GetGroup)
 	pr.Patch("/groups/{conversationId}", h.UpdateGroup)
 	pr.Post("/groups/{conversationId}/join", h.JoinGroup)
@@ -258,6 +262,45 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.RespondSuccess(w, http.StatusCreated, "Group conversation created successfully", grp)
+}
+
+func (h *Handler) CreateGroupConversation(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		return
+	}
+
+	var groupDto CreateGroupDto
+	_ = json.Unmarshal(bodyBytes, &groupDto)
+
+	var convDto CreateConversationDto
+	_ = json.Unmarshal(bodyBytes, &convDto)
+
+	title := "Group Conversation"
+	if groupDto.Title != "" {
+		title = groupDto.Title
+	} else if convDto.Title != nil && *convDto.Title != "" {
+		title = *convDto.Title
+	}
+
+	participantIDs := groupDto.ParticipantIds
+	if len(participantIDs) == 0 && len(convDto.ParticipantIds) > 0 {
+		participantIDs = convDto.ParticipantIds
+	}
+
+	groupDto.Title = title
+	groupDto.ParticipantIds = participantIDs
+
+	conv, err := h.svc.CreateGroupConversation(r.Context(), u.ID, groupDto)
+	if err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusCreated, "Group conversation created successfully", CreateConversationResponseData{Conversation: *conv})
 }
 
 func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {

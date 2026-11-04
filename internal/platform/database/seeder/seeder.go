@@ -748,19 +748,7 @@ func AutoSeedIfEmpty(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config
 		}
 	}
 
-	// 3. Seed Geo if empty
-	var geoCount int64
-	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM countries").Scan(&geoCount); err == nil && geoCount == 0 {
-		log.Println("Countries table is empty. Running auto-seeder for geographic dataset...")
-		geoDir := cfg.GeoDataDir
-		if err := SeedGeo(ctx, pool, geoDir); err != nil {
-			log.Printf("Warning: Auto-seed geo failed: %v", err)
-		} else {
-			log.Println("Geographic dataset auto-seeded successfully.")
-		}
-	}
-
-	// 4. Copy icons if uploads/icons is empty
+	// 3. Copy icons if uploads/icons is empty
 	candidates := []string{
 		"seed-icons",
 		"/home/kord/.cache/datemate/seed-icons",
@@ -774,6 +762,18 @@ func AutoSeedIfEmpty(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config
 				_ = CopyIconsAndProfiles(cfg.UploadsDir, iconDir)
 			}
 			break
+		}
+	}
+
+	// 4. Seed Geo if empty
+	var geoCount int64
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM countries").Scan(&geoCount); err == nil && geoCount == 0 {
+		log.Println("Countries table is empty. Running auto-seeder for geographic dataset...")
+		geoDir := cfg.GeoDataDir
+		if err := SeedGeo(ctx, pool, geoDir); err != nil {
+			log.Printf("Warning: Auto-seed geo failed: %v", err)
+		} else {
+			log.Println("Geographic dataset auto-seeded successfully.")
 		}
 	}
 

@@ -64,10 +64,14 @@ func main() {
 		log.Println("Database migrations applied cleanly.")
 	}
 
-	// 3b. Auto-seed empty reference tables (questions, interests, geo, icons)
-	if err := seeder.AutoSeedIfEmpty(ctx, pool, cfg); err != nil {
-		log.Printf("Warning: Auto-seeder: %v", err)
-	}
+	// 3b. Auto-seed empty reference tables (questions, interests, geo, icons) in background
+	go func() {
+		seedCtx, seedCancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer seedCancel()
+		if err := seeder.AutoSeedIfEmpty(seedCtx, pool, cfg); err != nil {
+			log.Printf("Warning: Auto-seeder: %v", err)
+		}
+	}()
 
 	// 4. Initialize Redis
 	rdb, err := platformRedis.NewClient(ctx, cfg.RedisHost, cfg.RedisPort, cfg.RedisPassword)

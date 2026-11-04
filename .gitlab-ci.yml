@@ -34,6 +34,10 @@ test:
     - go test -v -p 4 ./...
     - go build -buildvcs=false -ldflags="-s -w" -o bin/server ./cmd/server
     - go build -buildvcs=false -ldflags="-s -w" -o bin/seed ./cmd/seed
+  artifacts:
+    paths:
+      - bin/
+    expire_in: 1 hour
 
 .deploy_template: &deploy_template
   stage: deploy
@@ -151,7 +155,7 @@ test:
       PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '2021')
       PORT=\${PORT:-2021}
       BACKEND_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_backend\"
-      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+      for i in \$(seq 1 30); do
         if docker exec \$BACKEND_CONTAINER wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
           echo \"Go develop backend is healthy on port \$PORT!\"
           break
@@ -228,7 +232,7 @@ test:
       PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '2020')
       PORT=\${PORT:-2020}
       BACKEND_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_backend\"
-      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+      for i in \$(seq 1 30); do
         if docker exec \$BACKEND_CONTAINER wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
           echo \"Go production backend is healthy on port \$PORT!\"
           break

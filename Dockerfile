@@ -17,9 +17,13 @@ RUN go mod download
 # Copy codebase
 COPY . .
 
-# Compile optimized server and seed binaries
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/server ./cmd/server
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/seed ./cmd/seed
+# Compile optimized server and seed binaries (or use prebuilt binaries if provided)
+RUN if [ -f /src/bin/server ] && [ -f /src/bin/seed ]; then \
+        echo "Using prebuilt binaries..."; \
+    else \
+        CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/server ./cmd/server && \
+        CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/seed ./cmd/seed; \
+    fi
 
 # Stage 2: Final Minimal Runtime
 FROM alpine:3.20

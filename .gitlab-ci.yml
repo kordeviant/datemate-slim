@@ -94,8 +94,11 @@ test:
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend-dev}" | sed "s|^~|/home/$SERVER_USER|")
     
     echo "===> Syncing codebase directly to $SERVER_USER@$SERVER_IP:$TARGET_DIR..."
-    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "mkdir -p $TARGET_DIR"
-    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar -xzf - -C $TARGET_DIR"
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      mkdir -p $TARGET_DIR
+      sudo -n chown -R \$(id -u):\$(id -g) $TARGET_DIR 2>/dev/null || docker run --rm -v $TARGET_DIR:/target alpine sh -c 'chown -R \$(id -u):\$(id -g) /target && chmod -R u+rwX /target' 2>/dev/null || true
+    "
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --no-same-owner --no-same-permissions -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'
@@ -169,8 +172,11 @@ test:
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
     
     echo "===> Syncing codebase directly to $SERVER_USER@$SERVER_IP:$TARGET_DIR..."
-    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "mkdir -p $TARGET_DIR"
-    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar -xzf - -C $TARGET_DIR"
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      mkdir -p $TARGET_DIR
+      sudo -n chown -R \$(id -u):\$(id -g) $TARGET_DIR 2>/dev/null || docker run --rm -v $TARGET_DIR:/target alpine sh -c 'chown -R \$(id -u):\$(id -g) /target && chmod -R u+rwX /target' 2>/dev/null || true
+    "
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --no-same-owner --no-same-permissions -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'

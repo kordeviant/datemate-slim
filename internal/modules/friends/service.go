@@ -53,7 +53,7 @@ func (s *Service) AddFriend(ctx context.Context, currentUserID, targetUserID int
 		return nil, "", common.NewAppError(404, common.ErrNotFound, "User not found")
 	}
 	if currentUser.BannedUntil.Valid && currentUser.BannedUntil.Time.After(time.Now().UTC()) {
-		return nil, "", common.NewAppError(403, common.ErrForbidden, "Your account is suspended")
+		return nil, "", common.NewAppError(403, common.ErrForbidden, "Your account is currently suspended")
 	}
 
 	// 2. Check target user status
@@ -62,7 +62,7 @@ func (s *Service) AddFriend(ctx context.Context, currentUserID, targetUserID int
 		return nil, "", common.NewAppError(404, common.ErrNotFound, "Target user not found")
 	}
 	if targetUser.BannedUntil.Valid && targetUser.BannedUntil.Time.After(time.Now().UTC()) {
-		return nil, "", common.NewAppError(403, common.ErrForbidden, "Target user is banned")
+		return nil, "", common.NewAppError(403, common.ErrForbidden, "Target user is currently unavailable")
 	}
 
 	// 3. Check existing friend request between users
@@ -73,12 +73,12 @@ func (s *Service) AddFriend(ctx context.Context, currentUserID, targetUserID int
 
 	if err == nil {
 		if existing.Status == db.FriendRequestStatusACCEPTED {
-			return nil, "", common.NewAppError(400, common.ErrBadRequest, "You are already friends with this user")
+			return nil, "", common.NewAppError(400, common.ErrBadRequest, "Users are already friends")
 		}
 
 		// If current user already sent a pending request
 		if int64(existing.SenderID) == currentUserID && existing.Status == db.FriendRequestStatusPENDING {
-			return nil, "", common.NewAppError(400, common.ErrBadRequest, "Friend request already sent")
+			return nil, "", common.NewAppError(409, "CONFLICT", "Friend request is already pending")
 		}
 
 		// If target user sent a pending request -> auto-accept

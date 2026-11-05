@@ -286,6 +286,12 @@ func SeedQuestions(ctx context.Context, pool *pgxpool.Pool) error {
 		},
 		{
 			Type:    "PERSONALITY",
+			NameEn:  "How much would you pay on a weekend?",
+			NameFa:  "حاظری در یک آخر هفته چقدر پول خرج کنی؟",
+			Answers: [][2]string{{"Below 10 Dollars.", "کمتر از 10 دلار."}, {"Between 10 to 30 Dollars.", "بین 10 تا 30 دلار."}, {"Between 30 to 50 Dollars.", "بین 30 تا 50 دلار."}, {"More than 50 Dollars.", "بیشتر از 50 دلار."}, {"Depends on my mood.", "بستگی به حال و هوای من دارد."}},
+		},
+		{
+			Type:    "PERSONALITY",
 			NameEn:  "What is your relationship status?",
 			NameFa:  "وضعیت تاهل یا رابطه شما چیست؟",
 			Icon:    "icons/relationship-status.svg",

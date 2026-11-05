@@ -21,7 +21,7 @@ func Throttler(rdb *platformRedis.Client, cfg *config.Config) func(http.Handler)
 			path := strings.ToLower(r.URL.Path)
 
 			// Skip throttling for internal health, static assets, and websocket handshake
-			if path == "/health" || path == "/v1/health" || strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/static/") || strings.HasPrefix(path, "/chat") {
+			if path == "/health" || path == "/v1/health" || strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/static/") || strings.HasPrefix(path, "/chat") || strings.HasPrefix(path, "/socket.io") {
 				next.ServeHTTP(w, r)
 				return
 			}

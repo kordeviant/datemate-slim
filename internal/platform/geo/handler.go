@@ -246,6 +246,9 @@ func (h *Handler) GetCountryHierarchy(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetStates(w http.ResponseWriter, r *http.Request) {
 	countryIDStr := r.URL.Query().Get("countryId")
+	if countryIDStr == "" {
+		countryIDStr = r.URL.Query().Get("country_id")
+	}
 	countryStr := r.URL.Query().Get("country")
 	search := r.URL.Query().Get("search")
 	envelope := r.URL.Query().Get("envelope")
@@ -383,7 +386,15 @@ func (h *Handler) GetCity(w http.ResponseWriter, r *http.Request) {
 		"id":        c.ID,
 		"name":      c.Name,
 		"stateId":   c.StateID,
-		"countryId": func() *int { if co != nil { return &co.ID }; return nil }(),
+		"countryId": func() *int {
+			if co != nil {
+				return &co.ID
+			}
+			if c.CountryID > 0 {
+				return &c.CountryID
+			}
+			return nil
+		}(),
 		"state":     st,
 		"country":   co,
 	})
@@ -413,7 +424,15 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 			"id":        c.ID,
 			"name":      c.Name,
 			"stateId":   c.StateID,
-			"countryId": func() *int { if co != nil { return &co.ID }; return nil }(),
+			"countryId": func() *int {
+			if co != nil {
+				return &co.ID
+			}
+			if c.CountryID > 0 {
+				return &c.CountryID
+			}
+			return nil
+		}(),
 			"state":     st,
 			"country":   co,
 		})
@@ -422,8 +441,14 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 
 	search := r.URL.Query().Get("search")
 	stateID, _ := strconv.Atoi(r.URL.Query().Get("stateId"))
+	if stateID == 0 {
+		stateID, _ = strconv.Atoi(r.URL.Query().Get("state_id"))
+	}
 	stateStr := r.URL.Query().Get("state")
 	countryID, _ := strconv.Atoi(r.URL.Query().Get("countryId"))
+	if countryID == 0 {
+		countryID, _ = strconv.Atoi(r.URL.Query().Get("country_id"))
+	}
 	countryStr := r.URL.Query().Get("country")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))

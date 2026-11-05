@@ -103,17 +103,65 @@ type Country struct {
 
 type State struct {
 	ID        int    `json:"id"`
-	CountryID int    `json:"country_id"`
+	CountryID int    `json:"countryId"`
 	Name      string `json:"name"`
 	Code      string `json:"code,omitempty"`
 }
 
+func (s *State) UnmarshalJSON(data []byte) error {
+	type Alias State
+	aux := struct {
+		CountryIDOld *int `json:"country_id"`
+		CountryIDNew *int `json:"countryId"`
+		*Alias
+	}{
+		Alias: (*Alias)(s),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.CountryIDNew != nil {
+		s.CountryID = *aux.CountryIDNew
+	} else if aux.CountryIDOld != nil {
+		s.CountryID = *aux.CountryIDOld
+	}
+	return nil
+}
+
 type City struct {
 	ID        int     `json:"id"`
-	StateID   int     `json:"state_id"`
+	StateID   int     `json:"stateId"`
+	CountryID int     `json:"countryId,omitempty"`
 	Name      string  `json:"name"`
 	Latitude  float64 `json:"latitude,omitempty"`
 	Longitude float64 `json:"longitude,omitempty"`
+}
+
+func (c *City) UnmarshalJSON(data []byte) error {
+	type Alias City
+	aux := struct {
+		StateIDOld   *int `json:"state_id"`
+		StateIDNew   *int `json:"stateId"`
+		CountryIDOld *int `json:"country_id"`
+		CountryIDNew *int `json:"countryId"`
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.StateIDNew != nil {
+		c.StateID = *aux.StateIDNew
+	} else if aux.StateIDOld != nil {
+		c.StateID = *aux.StateIDOld
+	}
+	if aux.CountryIDNew != nil {
+		c.CountryID = *aux.CountryIDNew
+	} else if aux.CountryIDOld != nil {
+		c.CountryID = *aux.CountryIDOld
+	}
+	return nil
 }
 
 type Service struct {
@@ -208,6 +256,11 @@ func (s *Service) loadFromDir(dataDir string) error {
 			s.cities = list
 			for i := range s.cities {
 				ct := &s.cities[i]
+				if ct.CountryID == 0 && ct.StateID > 0 {
+					if st, ok := s.stateByID[ct.StateID]; ok && st != nil {
+						ct.CountryID = st.CountryID
+					}
+				}
 				s.cityByID[ct.ID] = ct
 				s.citiesBySID[ct.StateID] = append(s.citiesBySID[ct.StateID], ct)
 				lower := strings.ToLower(ct.Name)
@@ -255,6 +308,8 @@ func (s *Service) ResolveCityHierarchy(cityID int) (*City, *State, *Country, boo
 	var co *Country
 	if st != nil {
 		co = s.countryByID[st.CountryID]
+	} else if c.CountryID > 0 {
+		co = s.countryByID[c.CountryID]
 	}
 
 	return c, st, co, true

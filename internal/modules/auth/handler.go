@@ -198,17 +198,28 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 type ResetPasswordRequest struct {
 	Email       string `json:"email"`
 	Code        string `json:"code"`
+	Password    string `json:"password"`
 	NewPassword string `json:"newPassword"`
 }
 
 func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req ResetPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" || req.NewPassword == "" {
-		common.RespondError(w, http.StatusBadRequest, "email, code, and newPassword are required", common.ErrBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid request body", common.ErrBadRequest)
 		return
 	}
 
-	if err := h.svc.ResetPassword(r.Context(), req.Email, req.Code, req.NewPassword); err != nil {
+	pass := req.Password
+	if pass == "" {
+		pass = req.NewPassword
+	}
+
+	if req.Email == "" || req.Code == "" || pass == "" {
+		common.RespondError(w, http.StatusBadRequest, "email, code, and password are required", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.ResetPassword(r.Context(), req.Email, req.Code, pass); err != nil {
 		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
 		return
 	}

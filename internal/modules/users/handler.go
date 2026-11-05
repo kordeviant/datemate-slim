@@ -250,26 +250,24 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseMultipartForm(50 * 1024 * 1024); err == nil {
 			if dataStr := r.FormValue("data"); dataStr != "" {
 				_ = json.Unmarshal([]byte(dataStr), &payload)
-			} else {
-				// Form values mapped
-				payload = UpdateProfilePayload{}
-				if lang := r.FormValue("language"); lang != "" {
-					payload.Language = &lang
+			}
+			// Form values mapped
+			if lang := r.FormValue("language"); lang != "" && payload.Language == nil {
+				payload.Language = &lang
+			}
+			if latStr := r.FormValue("lat"); latStr != "" && payload.Lat == nil {
+				if f, err := strconv.ParseFloat(latStr, 64); err == nil {
+					payload.Lat = &f
 				}
-				if latStr := r.FormValue("lat"); latStr != "" {
-					if f, err := strconv.ParseFloat(latStr, 64); err == nil {
-						payload.Lat = &f
-					}
+			}
+			if lonStr := r.FormValue("lon"); lonStr != "" && payload.Lon == nil {
+				if f, err := strconv.ParseFloat(lonStr, 64); err == nil {
+					payload.Lon = &f
 				}
-				if lonStr := r.FormValue("lon"); lonStr != "" {
-					if f, err := strconv.ParseFloat(lonStr, 64); err == nil {
-						payload.Lon = &f
-					}
-				}
-				if pPicIDStr := r.FormValue("profilePictureId"); pPicIDStr != "" {
-					if id, err := strconv.Atoi(pPicIDStr); err == nil {
-						payload.ProfilePictureID = &id
-					}
+			}
+			if pPicIDStr := r.FormValue("profilePictureId"); pPicIDStr != "" && payload.ProfilePictureID == nil {
+				if id, err := strconv.Atoi(pPicIDStr); err == nil {
+					payload.ProfilePictureID = &id
 				}
 			}
 

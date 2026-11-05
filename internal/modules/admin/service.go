@@ -458,12 +458,26 @@ func (s *Service) UpdateUser(ctx context.Context, userID int, payload *AdminUpda
 	}
 
 	if firstName != "" || username.Valid || phone.Valid || bio.Valid {
+		var zeroNumeric pgtype.Numeric
+		_ = zeroNumeric.Scan("0")
+		lat := zeroNumeric
+		lon := zeroNumeric
+		if pExisting, pErr := s.queries.GetProfileByUserID(ctx, int32(userID)); pErr == nil {
+			if pExisting.Latitude.Valid {
+				lat = pExisting.Latitude
+			}
+			if pExisting.Longitude.Valid {
+				lon = pExisting.Longitude
+			}
+		}
 		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 			UserID:      int32(userID),
 			FirstName:   firstName,
 			Username:    username,
 			PhoneNumber: phone,
 			Bio:         bio,
+			Latitude:    lat,
+			Longitude:   lon,
 		})
 	}
 

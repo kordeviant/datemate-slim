@@ -222,12 +222,14 @@ func (s *Service) VerifyCode(ctx context.Context, code, email, device, userAgent
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("otp:signup:%s", email)).Err()
 
 	// Initialize basic profile without placeholder demographic values
+	var zeroNumeric pgtype.Numeric
+	_ = zeroNumeric.Scan("0")
 	_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 		UserID:    user.ID,
 		FirstName: "",
 		AvatarUrl: "",
-		Latitude:  pgtype.Numeric{Valid: false},
-		Longitude: pgtype.Numeric{Valid: false},
+		Latitude:  zeroNumeric,
+		Longitude: zeroNumeric,
 	})
 
 	deviceInfo := ""
@@ -387,23 +389,35 @@ func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role, ful
 		}
 
 		firstName := strings.TrimSpace(fullName)
+		var zeroNumeric pgtype.Numeric
+		_ = zeroNumeric.Scan("0")
 		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 			UserID:    user.ID,
 			FirstName: firstName,
 			AvatarUrl: "",
-			Latitude:  pgtype.Numeric{Valid: false},
-			Longitude: pgtype.Numeric{Valid: false},
+			Latitude:  zeroNumeric,
+			Longitude: zeroNumeric,
 		})
 		// Note: No demographic row is inserted here so birthDate and gender remain null until onboarding.
 	} else if fullName != "" {
 		// If existing user has no first_name, update with real name from social auth
 		if existingProf, pErr := s.queries.GetProfileByUserID(ctx, user.ID); pErr == nil && existingProf.FirstName == "" {
+			var zeroNumeric pgtype.Numeric
+			_ = zeroNumeric.Scan("0")
+			lat := zeroNumeric
+			lon := zeroNumeric
+			if existingProf.Latitude.Valid {
+				lat = existingProf.Latitude
+			}
+			if existingProf.Longitude.Valid {
+				lon = existingProf.Longitude
+			}
 			_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 				UserID:    user.ID,
 				FirstName: strings.TrimSpace(fullName),
 				AvatarUrl: existingProf.AvatarUrl,
-				Latitude:  existingProf.Latitude,
-				Longitude: existingProf.Longitude,
+				Latitude:  lat,
+				Longitude: lon,
 			})
 		}
 	}

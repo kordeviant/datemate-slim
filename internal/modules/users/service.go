@@ -355,6 +355,18 @@ func (s *Service) UpdateProfile(
 	payload *UpdateProfilePayload,
 	avatarData, selfieData, galleryData []byte,
 ) (*ProfileResponseDto, error) {
+	existingProf, _ := s.queries.GetProfileByUserID(ctx, int32(userID))
+	var zeroNumeric pgtype.Numeric
+	_ = zeroNumeric.Scan("0")
+	currentLat := zeroNumeric
+	currentLon := zeroNumeric
+	if existingProf.Latitude.Valid {
+		currentLat = existingProf.Latitude
+	}
+	if existingProf.Longitude.Valid {
+		currentLon = existingProf.Longitude
+	}
+
 	// 1. Process Avatar upload if provided
 	var uploadedAvatarPath string
 	if len(avatarData) > 0 {
@@ -366,9 +378,10 @@ func (s *Service) UpdateProfile(
 				uploadedAvatarPath = path
 				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 					UserID:    int32(userID),
+					FirstName: existingProf.FirstName,
 					AvatarUrl: path,
-					Latitude:  pgtype.Numeric{Valid: false},
-					Longitude: pgtype.Numeric{Valid: false},
+					Latitude:  currentLat,
+					Longitude: currentLon,
 				})
 			}
 		}
@@ -383,9 +396,11 @@ func (s *Service) UpdateProfile(
 			if err == nil {
 				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 					UserID:    int32(userID),
+					FirstName: existingProf.FirstName,
+					AvatarUrl: existingProf.AvatarUrl,
 					SelfieUrl: pgtype.Text{String: path, Valid: true},
-					Latitude:  pgtype.Numeric{Valid: false},
-					Longitude: pgtype.Numeric{Valid: false},
+					Latitude:  currentLat,
+					Longitude: currentLon,
 				})
 			}
 		}
@@ -506,13 +521,17 @@ func (s *Service) UpdateProfile(
 			}
 		}
 
-		var latNumeric pgtype.Numeric
+		latNumeric := currentLat
 		if payload.Lat != nil {
 			_ = latNumeric.Scan(strconv.FormatFloat(*payload.Lat, 'f', 8, 64))
 		}
-		var lonNumeric pgtype.Numeric
+		lonNumeric := currentLon
 		if payload.Lon != nil {
 			_ = lonNumeric.Scan(strconv.FormatFloat(*payload.Lon, 'f', 8, 64))
+		}
+
+		if firstName == "" && existingProf.FirstName != "" {
+			firstName = existingProf.FirstName
 		}
 
 		avatarToSave := uploadedAvatarPath
@@ -526,6 +545,9 @@ func (s *Service) UpdateProfile(
 			} else if payload.AvatarUrl != nil && *payload.AvatarUrl != "" {
 				avatarToSave = *payload.AvatarUrl
 			}
+		}
+		if avatarToSave == "" && existingProf.AvatarUrl != "" {
+			avatarToSave = existingProf.AvatarUrl
 		}
 
 		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{

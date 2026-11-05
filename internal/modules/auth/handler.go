@@ -47,14 +47,33 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 }
 
 type SignUpRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email          string `json:"email"`
+	Password       string `json:"password"`
+	IntegrityToken string `json:"integrityToken"`
+	PackageName    string `json:"packageName"`
 }
 
 func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
 	var req SignUpRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
-		common.RespondError(w, http.StatusBadRequest, "Invalid email or password", common.ErrBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Email == "" && req.Password == "") {
+		common.RespondError(w, http.StatusBadRequest, "email should not be empty, email must be an email, password must be longer than or equal to 6 characters, password must be a string, integrityToken should not be empty, integrityToken must be a string, packageName should not be empty, packageName must be a string", common.ErrUnknownError)
+		return
+	}
+
+	var validationErrors []string
+	if req.Email == "" {
+		validationErrors = append(validationErrors, "email should not be empty", "email must be an email")
+	} else if !strings.Contains(req.Email, "@") {
+		validationErrors = append(validationErrors, "email must be an email")
+	}
+	if req.Password == "" {
+		validationErrors = append(validationErrors, "password must be longer than or equal to 6 characters", "password must be a string")
+	} else if len(req.Password) < 6 {
+		validationErrors = append(validationErrors, "password must be longer than or equal to 6 characters")
+	}
+
+	if len(validationErrors) > 0 {
+		common.RespondError(w, http.StatusBadRequest, strings.Join(validationErrors, ", "), common.ErrUnknownError)
 		return
 	}
 
@@ -71,17 +90,35 @@ func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
 }
 
 type VerifyRequest struct {
-	Code      string `json:"code"`
-	Email     string `json:"email,omitempty"`
-	Device    string `json:"device,omitempty"`
-	UserAgent string `json:"userAgent,omitempty"`
-	FcmToken  string `json:"fcmToken,omitempty"`
+	Code           string `json:"code"`
+	Email          string `json:"email,omitempty"`
+	Device         string `json:"device,omitempty"`
+	UserAgent      string `json:"userAgent,omitempty"`
+	FcmToken       string `json:"fcmToken,omitempty"`
+	IntegrityToken string `json:"integrityToken,omitempty"`
+	PackageName    string `json:"packageName,omitempty"`
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req VerifyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
-		common.RespondError(w, http.StatusBadRequest, "Invalid verification code request", common.ErrBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Code == "" && req.Device == "" && req.UserAgent == "") {
+		common.RespondError(w, http.StatusBadRequest, "code must be longer than or equal to 6 characters, code must be a string, device should not be empty, device must be a string, userAgent should not be empty, userAgent must be a string", common.ErrUnknownError)
+		return
+	}
+
+	var validationErrors []string
+	if len(req.Code) < 6 {
+		validationErrors = append(validationErrors, "code must be longer than or equal to 6 characters", "code must be a string")
+	}
+	if req.Device == "" {
+		validationErrors = append(validationErrors, "device should not be empty", "device must be a string")
+	}
+	if req.UserAgent == "" && r.Header.Get("User-Agent") == "" {
+		validationErrors = append(validationErrors, "userAgent should not be empty", "userAgent must be a string")
+	}
+
+	if len(validationErrors) > 0 {
+		common.RespondError(w, http.StatusBadRequest, strings.Join(validationErrors, ", "), common.ErrUnknownError)
 		return
 	}
 
@@ -92,7 +129,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.VerifyCode(r.Context(), req.Code, req.Email, req.Device, ua, req.FcmToken)
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
+		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrUnknownError)
 		return
 	}
 
@@ -125,7 +162,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if identifier == "" || req.Password == "" {
-		common.RespondError(w, http.StatusBadRequest, "Email or username and password are required", common.ErrBadRequest)
+		common.RespondError(w, http.StatusBadRequest, "Invalid email, username, or password", common.ErrUnknownError)
 		return
 	}
 
@@ -136,7 +173,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.SignIn(r.Context(), identifier, req.Password, req.Device, ua, req.FcmToken)
 	if err != nil {
-		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
+		common.RespondError(w, http.StatusUnauthorized, "Invalid email, username, or password", common.ErrUnknownError)
 		return
 	}
 
@@ -233,13 +270,17 @@ func (h *Handler) Nonce(w http.ResponseWriter, r *http.Request) {
 }
 
 type SocialAuthRequest struct {
-	IdentityToken string `json:"identityToken,omitempty"`
-	IDToken       string `json:"idToken,omitempty"`
-	Token         string `json:"token,omitempty"`
-	Email         string `json:"email,omitempty"`
-	FullName      string `json:"fullName,omitempty"`
-	Name          string `json:"name,omitempty"`
-	Role          string `json:"role,omitempty"`
+	IdentityToken  string `json:"identityToken,omitempty"`
+	IDToken        string `json:"idToken,omitempty"`
+	Token          string `json:"token,omitempty"`
+	Email          string `json:"email,omitempty"`
+	FullName       string `json:"fullName,omitempty"`
+	Name           string `json:"name,omitempty"`
+	Role           string `json:"role,omitempty"`
+	Device         string `json:"device,omitempty"`
+	UserAgent      string `json:"userAgent,omitempty"`
+	IntegrityToken string `json:"integrityToken,omitempty"`
+	PackageName    string `json:"packageName,omitempty"`
 }
 
 func extractSocialCredentials(r *http.Request, req SocialAuthRequest) (email, fullName string, err error) {
@@ -303,11 +344,14 @@ func extractSocialCredentials(r *http.Request, req SocialAuthRequest) (email, fu
 
 func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
 	var req SocialAuthRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Email == "" && req.Token == "" && req.IdentityToken == "" && req.IDToken == "" && req.Device == "" && req.UserAgent == "") {
+		common.RespondError(w, http.StatusBadRequest, "device should not be empty, device must be a string, userAgent should not be empty, userAgent must be a string, integrityToken should not be empty, integrityToken must be a string, packageName should not be empty, packageName must be a string", common.ErrUnknownError)
+		return
+	}
 
 	email, fullName, err := extractSocialCredentials(r, req)
 	if err != nil {
-		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
+		common.RespondError(w, http.StatusBadRequest, "Valid email or identity token containing email claim is required", common.ErrUnknownError)
 		return
 	}
 

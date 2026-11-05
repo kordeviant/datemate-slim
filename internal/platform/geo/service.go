@@ -97,7 +97,7 @@ type Country struct {
 	Name      string  `json:"name"`
 	Code      string  `json:"code,omitempty"`
 	Native    *string `json:"native,omitempty"`
-	Emoji     *string `json:"emoji,omitempty"`
+	Emoji     *string `json:"emoji"`
 	PhoneCode string  `json:"phone_code,omitempty"`
 }
 
@@ -475,20 +475,28 @@ func (s *Service) GetCountryHierarchy(idOrName string) map[string]interface{} {
 		cityList := make([]map[string]interface{}, 0, len(cities))
 		for _, ct := range cities {
 			cityList = append(cityList, map[string]interface{}{
-				"id":   ct.ID,
-				"name": ct.Name,
+				"id":        ct.ID,
+				"name":      ct.Name,
+				"stateId":   st.ID,
+				"countryId": country.ID,
+				"latitude":  ct.Latitude,
+				"longitude": ct.Longitude,
 			})
 		}
 		stateList = append(stateList, map[string]interface{}{
-			"id":     st.ID,
-			"name":   st.Name,
-			"cities": cityList,
+			"id":        st.ID,
+			"name":      st.Name,
+			"countryId": country.ID,
+			"cities":    cityList,
 		})
 	}
 
 	return map[string]interface{}{
-		"country": country,
-		"states":  stateList,
+		"id":     country.ID,
+		"name":   country.Name,
+		"native": country.Native,
+		"emoji":  country.Emoji,
+		"states": stateList,
 	}
 }
 

@@ -35,6 +35,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			// API key protected endpoint
 			ur.With(apiKeyAuth).Get("/{userId}/device-token", h.GetDeviceTokenByUserId)
 
+			// Public / optional auth endpoints
+			ur.Post("/bulk", h.GetBulkUsers)
+
 			// JWT protected endpoints
 			ur.Group(func(pr chi.Router) {
 				pr.Use(jwtAuth)
@@ -50,7 +53,6 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 				pr.Get("/profile", h.CheckProfileStatus)
 				pr.Put("/profile", h.UpdateProfile)
 				pr.Post("/profile", h.UpdateProfile)
-				pr.Post("/bulk", h.GetBulkUsers)
 				pr.Get("/avatars/{ids}", h.GetBulkAvatars)
 				pr.Get("/{id}/avatar", h.GetUserAvatar)
 				pr.Get("/{id}", h.GetUserProfile)
@@ -273,11 +275,14 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 			// Read uploaded files
 			if r.MultipartForm != nil && r.MultipartForm.File != nil {
-				if avatars := r.MultipartForm.File["avatar"]; len(avatars) > 0 {
-					f, err := avatars[0].Open()
-					if err == nil {
-						avatarBytes, _ = io.ReadAll(f)
-						f.Close()
+				for _, k := range []string{"avatar", "avatarUrl", "file", "image"} {
+					if avatars := r.MultipartForm.File[k]; len(avatars) > 0 && len(avatarBytes) == 0 {
+						f, err := avatars[0].Open()
+						if err == nil {
+							avatarBytes, _ = io.ReadAll(f)
+							f.Close()
+							break
+						}
 					}
 				}
 				if selfies := r.MultipartForm.File["selfie"]; len(selfies) > 0 {
@@ -312,32 +317,36 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetBulkUsers(w http.ResponseWriter, r *http.Request) {
-	var body interface{}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid request body", common.ErrBadRequest)
-		return
+	var ids []int64
+	if r.Body != nil {
+		var body interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err == nil && body != nil {
+			switch v := body.(type) {
+			case []interface{}:
+				for _, item := range v {
+					if n, ok := item.(float64); ok {
+						ids = append(ids, int64(n))
+					}
+				}
+			case map[string]interface{}:
+				var rawList []interface{}
+				if l, ok := v["userIds"].([]interface{}); ok {
+					rawList = l
+				} else if l, ok := v["ids"].([]interface{}); ok {
+					rawList = l
+				}
+				for _, item := range rawList {
+					if n, ok := item.(float64); ok {
+						ids = append(ids, int64(n))
+					}
+				}
+			}
+		}
 	}
 
-	var ids []int64
-	switch v := body.(type) {
-	case []interface{}:
-		for _, item := range v {
-			if n, ok := item.(float64); ok {
-				ids = append(ids, int64(n))
-			}
-		}
-	case map[string]interface{}:
-		var rawList []interface{}
-		if l, ok := v["userIds"].([]interface{}); ok {
-			rawList = l
-		} else if l, ok := v["ids"].([]interface{}); ok {
-			rawList = l
-		}
-		for _, item := range rawList {
-			if n, ok := item.(float64); ok {
-				ids = append(ids, int64(n))
-			}
-		}
+	if len(ids) == 0 {
+		common.RespondSuccess(w, http.StatusOK, "Operation successful", []BulkUserItemDto{})
+		return
 	}
 
 	res, err := h.svc.GetBulkUsers(r.Context(), ids)

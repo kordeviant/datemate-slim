@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,14 @@ func (gw *Gateway) setupNamespace() {
 			}
 		}
 
+		if token == "" && hs.Query != nil {
+			if vals, ok := hs.Query["token"]; ok && len(vals) > 0 && vals[0] != "" {
+				token = vals[0]
+			} else if vals, ok := hs.Query["accessToken"]; ok && len(vals) > 0 && vals[0] != "" {
+				token = vals[0]
+			}
+		}
+
 		if token == "" && hs.Headers != nil {
 			for k, v := range hs.Headers {
 				if strings.EqualFold(k, "authorization") && len(v) > 0 {
@@ -120,16 +129,27 @@ func (gw *Gateway) setupNamespace() {
 			return
 		}
 
-		sub, err := claims.GetSubject()
-		if err != nil || sub == "" {
-			next(socket.NewExtendedError("Unauthorized: missing subject claim", nil))
-			return
+		var uid int64
+		if subVal, ok := claims["sub"]; ok && subVal != nil {
+			subStr := fmt.Sprintf("%v", subVal)
+			if parsedID, err := strconv.ParseInt(subStr, 10, 64); err == nil && parsedID > 0 {
+				uid = parsedID
+			}
+		}
+		if uid == 0 {
+			if idVal, ok := claims["userId"]; ok && idVal != nil {
+				if parsedID, err := strconv.ParseInt(fmt.Sprintf("%v", idVal), 10, 64); err == nil && parsedID > 0 {
+					uid = parsedID
+				}
+			} else if idVal, ok := claims["id"]; ok && idVal != nil {
+				if parsedID, err := strconv.ParseInt(fmt.Sprintf("%v", idVal), 10, 64); err == nil && parsedID > 0 {
+					uid = parsedID
+				}
+			}
 		}
 
-		var uid int64
-		_, err = fmt.Sscanf(sub, "%d", &uid)
-		if err != nil || uid <= 0 {
-			next(socket.NewExtendedError("Unauthorized: invalid user ID in subject", nil))
+		if uid <= 0 {
+			next(socket.NewExtendedError("Unauthorized: missing subject claim", nil))
 			return
 		}
 

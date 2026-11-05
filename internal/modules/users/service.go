@@ -47,6 +47,11 @@ func (s *Service) resolveAssetURL(raw string) string {
 		return raw
 	}
 	clean := strings.TrimPrefix(raw, "/")
+	if strings.HasPrefix(clean, "uploads/") {
+		clean = "assets/" + strings.TrimPrefix(clean, "uploads/")
+	} else if !strings.HasPrefix(clean, "assets/") {
+		clean = "assets/" + clean
+	}
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
@@ -351,12 +356,14 @@ func (s *Service) UpdateProfile(
 	avatarData, selfieData, galleryData []byte,
 ) (*ProfileResponseDto, error) {
 	// 1. Process Avatar upload if provided
+	var uploadedAvatarPath string
 	if len(avatarData) > 0 {
 		processed, mimeType, err := storage.ProcessImage(avatarData, storage.ProcessOptions{IsAvatarOrSelfie: true, Quality: 85})
 		if err == nil {
 			filename := fmt.Sprintf("avatar_%d_%s.webp", userID, uuid.NewString()[:8])
 			path, err := s.storage.Save(ctx, "avatars", filename, bytes.NewReader(processed), int64(len(processed)), mimeType)
 			if err == nil {
+				uploadedAvatarPath = path
 				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 					UserID:    int32(userID),
 					AvatarUrl: path,
@@ -508,6 +515,19 @@ func (s *Service) UpdateProfile(
 			_ = lonNumeric.Scan(strconv.FormatFloat(*payload.Lon, 'f', 8, 64))
 		}
 
+		avatarToSave := uploadedAvatarPath
+		if avatarToSave == "" && payload != nil {
+			if payload.Profile != nil && payload.Profile.Avatar != nil && *payload.Profile.Avatar != "" {
+				avatarToSave = *payload.Profile.Avatar
+			} else if payload.Profile != nil && payload.Profile.AvatarUrl != nil && *payload.Profile.AvatarUrl != "" {
+				avatarToSave = *payload.Profile.AvatarUrl
+			} else if payload.Avatar != nil && *payload.Avatar != "" {
+				avatarToSave = *payload.Avatar
+			} else if payload.AvatarUrl != nil && *payload.AvatarUrl != "" {
+				avatarToSave = *payload.AvatarUrl
+			}
+		}
+
 		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 			UserID:       int32(userID),
 			FirstName:    firstName,
@@ -516,6 +536,7 @@ func (s *Service) UpdateProfile(
 			Bio:          bio,
 			Languages:    languagesBytes,
 			RelationType: relationType,
+			AvatarUrl:    avatarToSave,
 			Latitude:     latNumeric,
 			Longitude:    lonNumeric,
 		})
@@ -904,7 +925,7 @@ func (s *Service) GetDeviceToken(ctx context.Context, userID int64) (*DeviceToke
 }
 
 func (s *Service) GetBulkUsers(ctx context.Context, userIDs []int64) ([]BulkUserItemDto, error) {
-	var list []BulkUserItemDto
+	list := make([]BulkUserItemDto, 0)
 	for _, id := range userIDs {
 		p, err := s.queries.GetProfileByUserID(ctx, int32(id))
 		if err == nil {

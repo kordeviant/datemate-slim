@@ -39,6 +39,11 @@ func (s *Service) resolveAssetURL(raw string) string {
 		return raw
 	}
 	clean := strings.TrimPrefix(raw, "/")
+	if strings.HasPrefix(clean, "uploads/") {
+		clean = "assets/" + strings.TrimPrefix(clean, "uploads/")
+	} else if !strings.HasPrefix(clean, "assets/") {
+		clean = "assets/" + clean
+	}
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
@@ -218,7 +223,7 @@ func (s *Service) GetFriendRequests(ctx context.Context, currentUserID int64, q 
 	}
 
 	isSent := strings.ToLower(q.Type) == "sent"
-	var items []FriendItemDto
+	items := make([]FriendItemDto, 0)
 
 	if isSent {
 		rows, err := s.queries.ListFriendRequestsSent(ctx, int32(currentUserID))
@@ -315,8 +320,13 @@ func (s *Service) GetFriendRequests(ctx context.Context, currentUserID int64, q 
 		end = total
 	}
 
+	resultItems := items[start:end]
+	if resultItems == nil {
+		resultItems = make([]FriendItemDto, 0)
+	}
+
 	return &PaginatedFriendsDataDto{
-		Items:      items[start:end],
+		Items:      resultItems,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,
@@ -339,7 +349,7 @@ func (s *Service) GetFriends(ctx context.Context, currentUserID int64, q Friends
 		return nil, err
 	}
 
-	var items []FriendItemDto
+	items := make([]FriendItemDto, 0)
 	search := strings.ToLower(strings.TrimSpace(q.Search))
 
 	for _, r := range rows {
@@ -405,8 +415,13 @@ func (s *Service) GetFriends(ctx context.Context, currentUserID int64, q Friends
 		end = total
 	}
 
+	resultItems := items[start:end]
+	if resultItems == nil {
+		resultItems = make([]FriendItemDto, 0)
+	}
+
 	return &PaginatedFriendsDataDto{
-		Items:      items[start:end],
+		Items:      resultItems,
 		Total:      total,
 		Page:       page,
 		Limit:      limit,

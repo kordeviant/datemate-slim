@@ -130,6 +130,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 	// Generic asset serving
 	r.Get("/assets/{type}/{filename}", h.ServeAsset)
+	r.Get("/uploads/{type}/{filename}", h.ServeAsset)
 
 	// Specific asset category routes
 	r.Get("/assets/icons/{filename}", func(w http.ResponseWriter, r *http.Request) {

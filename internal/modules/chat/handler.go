@@ -97,12 +97,50 @@ func (h *Handler) ServeUpload(w http.ResponseWriter, r *http.Request) {
 	h.assetHandler.ServeAsset(w, r, "chat", fileName)
 }
 
+func (h *Handler) respondSuccess(w http.ResponseWriter, statusCode int, message string, data interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"status":  "success",
+		"message": message,
+		"data":    data,
+		"error":   nil,
+	})
+}
+
+func (h *Handler) respondError(w http.ResponseWriter, statusCode int, message, errType string) {
+	if errType == "" {
+		errType = common.ErrUnknownError
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": false,
+		"status":  "error",
+		"message": message,
+		"data":    nil,
+		"error": map[string]interface{}{
+			"type":    errType,
+			"message": message,
+		},
+	})
+}
+
+func (h *Handler) respondAppError(w http.ResponseWriter, err error) {
+	if appErr, ok := err.(*common.AppError); ok {
+		h.respondError(w, appErr.HTTPStatus, appErr.Message, appErr.Type)
+		return
+	}
+	h.respondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
+}
+
 func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 	u, _ := middleware.GetAuthUser(r.Context())
 
 	var dto CreateConversationDto
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
 
@@ -117,10 +155,10 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 			ParticipantIds: dto.ParticipantIds,
 		})
 		if err != nil {
-			common.RespondAppError(w, err)
+			h.respondAppError(w, err)
 			return
 		}
-		common.RespondSuccess(w, http.StatusOK, "Conversation created successfully", CreateConversationResponseData{Conversation: *conv})
+		h.respondSuccess(w, http.StatusOK, "Conversation created successfully", CreateConversationResponseData{Conversation: *conv})
 		return
 	}
 
@@ -130,17 +168,17 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 		targetID = dto.RecipientId
 	}
 	if targetID == nil {
-		common.RespondError(w, http.StatusBadRequest, "targetUserId is required for direct conversation", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "targetUserId is required for direct conversation", common.ErrBadRequest)
 		return
 	}
 
 	conv, err := h.svc.CreateDirectConversation(r.Context(), u.ID, *targetID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Conversation created or retrieved successfully", CreateConversationResponseData{Conversation: *conv})
+	h.respondSuccess(w, http.StatusOK, "Conversation created or retrieved successfully", CreateConversationResponseData{Conversation: *conv})
 }
 
 func (h *Handler) ListConversations(w http.ResponseWriter, r *http.Request) {
@@ -154,11 +192,11 @@ func (h *Handler) ListConversations(w http.ResponseWriter, r *http.Request) {
 
 	list, err := h.svc.ListConversations(r.Context(), u.ID, "", limit)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Conversations retrieved successfully", PaginatedResult[ConversationDto]{
+	h.respondSuccess(w, http.StatusOK, "Conversations retrieved successfully", PaginatedResult[ConversationDto]{
 		Items:   list,
 		HasMore: len(list) >= limit,
 	})
@@ -175,11 +213,11 @@ func (h *Handler) ListDirectConversations(w http.ResponseWriter, r *http.Request
 
 	list, err := h.svc.ListConversations(r.Context(), u.ID, "DIRECT", limit)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Direct conversations retrieved successfully", PaginatedResult[ConversationDto]{
+	h.respondSuccess(w, http.StatusOK, "Direct conversations retrieved successfully", PaginatedResult[ConversationDto]{
 		Items:   list,
 		HasMore: len(list) >= limit,
 	})
@@ -196,11 +234,11 @@ func (h *Handler) ListGroupConversations(w http.ResponseWriter, r *http.Request)
 
 	list, err := h.svc.ListConversations(r.Context(), u.ID, "GROUP", limit)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Group conversations retrieved successfully", PaginatedResult[ConversationDto]{
+	h.respondSuccess(w, http.StatusOK, "Group conversations retrieved successfully", PaginatedResult[ConversationDto]{
 		Items:   list,
 		HasMore: len(list) >= limit,
 	})
@@ -212,11 +250,11 @@ func (h *Handler) GetConversationDetails(w http.ResponseWriter, r *http.Request)
 
 	conv, err := h.svc.GetConversationDetails(r.Context(), convID, u.ID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Conversation details retrieved", conv)
+	h.respondSuccess(w, http.StatusOK, "Conversation details retrieved", conv)
 }
 
 func (h *Handler) GetMessageHistory(w http.ResponseWriter, r *http.Request) {
@@ -233,11 +271,11 @@ func (h *Handler) GetMessageHistory(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.GetMessageHistory(r.Context(), convID, u.ID, limit, cursor)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Messages retrieved successfully", res)
+	h.respondSuccess(w, http.StatusOK, "Messages retrieved successfully", res)
 }
 
 func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
@@ -245,23 +283,23 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 
 	var dto CreateGroupDto
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
 
 	conv, err := h.svc.CreateGroupConversation(r.Context(), u.ID, dto)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
 	grp, err := h.svc.GetGroup(r.Context(), conv.ConversationID, u.ID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusCreated, "Group conversation created successfully", grp)
+	h.respondSuccess(w, http.StatusCreated, "Group conversation created successfully", grp)
 }
 
 func (h *Handler) CreateGroupConversation(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +307,7 @@ func (h *Handler) CreateGroupConversation(w http.ResponseWriter, r *http.Request
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
 
@@ -296,11 +334,11 @@ func (h *Handler) CreateGroupConversation(w http.ResponseWriter, r *http.Request
 
 	conv, err := h.svc.CreateGroupConversation(r.Context(), u.ID, groupDto)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusCreated, "Group conversation created successfully", CreateConversationResponseData{Conversation: *conv})
+	h.respondSuccess(w, http.StatusCreated, "Group conversation created successfully", CreateConversationResponseData{Conversation: *conv})
 }
 
 func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
@@ -309,11 +347,11 @@ func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 	grp, err := h.svc.GetGroup(r.Context(), convID, u.ID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Group profile returned successfully", grp)
+	h.respondSuccess(w, http.StatusOK, "Group profile returned successfully", grp)
 }
 
 func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
@@ -322,17 +360,17 @@ func (h *Handler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 
 	var dto UpdateGroupDto
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
 
 	grp, err := h.svc.UpdateGroup(r.Context(), convID, u.ID, dto)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Group profile updated successfully", grp)
+	h.respondSuccess(w, http.StatusOK, "Group profile updated successfully", grp)
 }
 
 func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
@@ -341,11 +379,11 @@ func (h *Handler) JoinGroup(w http.ResponseWriter, r *http.Request) {
 
 	grp, err := h.svc.JoinGroup(r.Context(), convID, u.ID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "Joined group successfully", grp)
+	h.respondSuccess(w, http.StatusOK, "Joined group successfully", grp)
 }
 
 func (h *Handler) BanGroupUser(w http.ResponseWriter, r *http.Request) {
@@ -354,13 +392,13 @@ func (h *Handler) BanGroupUser(w http.ResponseWriter, r *http.Request) {
 
 	var dto BanGroupUserDto
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
 
 	err := h.svc.BanGroupUser(r.Context(), convID, u.ID, dto.UserID, dto.Reason)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
@@ -371,33 +409,33 @@ func (h *Handler) GetUserActivity(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "userId")
 	targetID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
 		return
 	}
 
 	act, err := h.svc.GetUserActivity(r.Context(), targetID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "User activity details", act)
+	h.respondSuccess(w, http.StatusOK, "User activity details", act)
 }
 
 func (h *Handler) GetBatchUserActivity(w http.ResponseWriter, r *http.Request) {
 	var dto BatchUserActivityRequestDto
 	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
 
 	activities, err := h.svc.GetBatchUserActivity(r.Context(), dto.UserIDs)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
 
-	common.RespondSuccess(w, http.StatusOK, "List of user activities", BatchUserActivityResponseDto{
+	h.respondSuccess(w, http.StatusOK, "List of user activities", BatchUserActivityResponseDto{
 		Activities: activities,
 	})
 }
@@ -406,25 +444,25 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	u, _ := middleware.GetAuthUser(r.Context())
 
 	if err := r.ParseMultipartForm(50 << 20); err != nil { // 50MB max
-		common.RespondError(w, http.StatusBadRequest, "Failed to parse multipart upload", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Failed to parse multipart upload", common.ErrBadRequest)
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Missing 'file' form field", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Missing 'file' form field", common.ErrBadRequest)
 		return
 	}
 	defer file.Close()
 
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Failed to read file", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Failed to read file", common.ErrBadRequest)
 		return
 	}
 
 	if err := storage.ValidateFilename(header.Filename); err != nil {
-		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
 		return
 	}
 
@@ -451,7 +489,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 
 	relPath, err := h.svc.storage.Save(r.Context(), "chat", safeFilename, bytes.NewReader(fileBytes), int64(len(fileBytes)), mimeType)
 	if err != nil {
-		common.RespondError(w, http.StatusInternalServerError, "Failed to save file", common.ErrUnknownError)
+		h.respondError(w, http.StatusInternalServerError, "Failed to save file", common.ErrUnknownError)
 		return
 	}
 
@@ -475,7 +513,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		MimeType:       mimeType,
 	}
 
-	common.RespondSuccess(w, http.StatusCreated, "File uploaded successfully", res)
+	h.respondSuccess(w, http.StatusCreated, "File uploaded successfully", res)
 	_ = u
 }
 
@@ -484,10 +522,10 @@ func (h *Handler) ListGroupParticipants(w http.ResponseWriter, r *http.Request) 
 	convID := chi.URLParam(r, "conversationId")
 	participants, err := h.svc.ListGroupParticipants(r.Context(), convID, u.ID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
-	common.RespondSuccess(w, http.StatusOK, "Group participants retrieved", participants)
+	h.respondSuccess(w, http.StatusOK, "Group participants retrieved", participants)
 }
 
 func (h *Handler) GetGroupParticipant(w http.ResponseWriter, r *http.Request) {
@@ -495,25 +533,25 @@ func (h *Handler) GetGroupParticipant(w http.ResponseWriter, r *http.Request) {
 	convID := chi.URLParam(r, "conversationId")
 	targetID, err := strconv.ParseInt(chi.URLParam(r, "userId"), 10, 64)
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid userId", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "Invalid userId", common.ErrBadRequest)
 		return
 	}
 	participant, err := h.svc.GetGroupParticipant(r.Context(), convID, u.ID, targetID)
 	if err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
-	common.RespondSuccess(w, http.StatusOK, "Group participant retrieved", participant)
+	h.respondSuccess(w, http.StatusOK, "Group participant retrieved", participant)
 }
 
 func (h *Handler) AcceptGroupInvitation(w http.ResponseWriter, r *http.Request) {
 	u, _ := middleware.GetAuthUser(r.Context())
 	convID := chi.URLParam(r, "conversationId")
 	if err := h.svc.AcceptGroupInvitation(r.Context(), convID, u.ID); err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
-	common.RespondSuccess(w, http.StatusOK, "Group invitation accepted", map[string]interface{}{"success": true})
+	h.respondSuccess(w, http.StatusOK, "Group invitation accepted", map[string]interface{}{"success": true})
 }
 
 type ApproveJoinRequestDto struct {
@@ -531,12 +569,12 @@ func (h *Handler) ApproveJoinRequest(w http.ResponseWriter, r *http.Request) {
 		applicantID = dto.UserID
 	}
 	if applicantID == 0 {
-		common.RespondError(w, http.StatusBadRequest, "applicantId is required", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "applicantId is required", common.ErrBadRequest)
 		return
 	}
 	if err := h.svc.ApproveJoinRequest(r.Context(), convID, u.ID, applicantID); err != nil {
-		common.RespondAppError(w, err)
+		h.respondAppError(w, err)
 		return
 	}
-	common.RespondSuccess(w, http.StatusOK, "Group join request approved", map[string]interface{}{"success": true})
+	h.respondSuccess(w, http.StatusOK, "Group join request approved", map[string]interface{}{"success": true})
 }

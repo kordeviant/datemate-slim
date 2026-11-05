@@ -8,7 +8,7 @@ BEGIN
         
         -- Insert missing question 5
         INSERT INTO questions (id, type, answer_type, name_en, name_fa)
-        VALUES (5, 'PERSONALITY', 'SINGLE', 'How much would you pay on a weekend?', 'حاظری در یک آخر هفته چقدر پول خرج کنی؟')
+        VALUES (5, 'PREFERENCES', 'SINGLE', 'How much would you pay on a weekend?', 'حاظری در یک آخر هفته چقدر پول خرج کنی؟')
         ON CONFLICT (id) DO NOTHING;
 
         -- Insert answers for question 5

@@ -22,7 +22,12 @@ func ProcessImage(input []byte, opts ProcessOptions) ([]byte, string, error) {
 	reader := bytes.NewReader(input)
 	img, err := imaging.Decode(reader, imaging.AutoOrientation(true))
 	if err != nil {
-		return nil, "", fmt.Errorf("unable to decode image: %w", err)
+		reader.Reset(input)
+		if webpImg, webpErr := webp.Decode(reader); webpErr == nil {
+			img = webpImg
+		} else {
+			return nil, "", fmt.Errorf("unable to decode image: %w", err)
+		}
 	}
 
 	var processed image.Image = img

@@ -62,6 +62,11 @@ func (s *Service) resolveAssetURL(raw string) string {
 		return raw
 	}
 	clean := strings.TrimPrefix(raw, "/")
+	if strings.HasPrefix(clean, "uploads/") {
+		clean = "assets/" + strings.TrimPrefix(clean, "uploads/")
+	} else if !strings.HasPrefix(clean, "assets/") {
+		clean = "assets/" + clean
+	}
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
@@ -90,7 +95,7 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 		return nil, fmt.Errorf("failed to query feed candidates: %w", err)
 	}
 
-	var results []FeedCandidateDto
+	results := make([]FeedCandidateDto, 0)
 
 	processRow := func(
 		id int32,
@@ -147,7 +152,7 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 			resolvedCity = &cityName.String
 		}
 
-		var galleryDtos []FeedGalleryItemDto
+		galleryDtos := make([]FeedGalleryItemDto, 0)
 		for _, g := range galleries {
 			galleryDtos = append(galleryDtos, FeedGalleryItemDto{
 				ID:               int(g.ID),
@@ -312,7 +317,7 @@ func (s *Service) GetLikesReceived(ctx context.Context, currentUserID int64) ([]
 		return nil, err
 	}
 
-	var results []LikedUserDto
+	results := make([]LikedUserDto, 0)
 	for _, r := range rows {
 		var fn *string
 		if r.LikerName.Valid {

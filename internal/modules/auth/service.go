@@ -99,7 +99,7 @@ func (s *Service) GenerateTokens(ctx context.Context, userID int64, email, role,
 	}
 
 	claims := jwt.MapClaims{
-		"sub":       userID,
+		"sub":       fmt.Sprintf("%d", userID),
 		"email":     email,
 		"role":      role,
 		"sessionId": session.ID,

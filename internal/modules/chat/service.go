@@ -52,6 +52,11 @@ func (s *Service) resolveAssetURL(raw string) string {
 		return raw
 	}
 	clean := strings.TrimPrefix(raw, "/")
+	if strings.HasPrefix(clean, "uploads/") {
+		clean = "assets/" + strings.TrimPrefix(clean, "uploads/")
+	} else if !strings.HasPrefix(clean, "assets/") {
+		clean = "assets/" + clean
+	}
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 
@@ -324,7 +329,7 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 		return nil, err
 	}
 
-	var res []ConversationDto
+	res := make([]ConversationDto, 0)
 	for _, r := range rows {
 		if convType != "" && !strings.EqualFold(r.ConversationType, convType) {
 			continue

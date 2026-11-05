@@ -122,6 +122,8 @@ type UpdateProfilePayload struct {
 	Lat              *float64           `json:"lat,omitempty"`
 	Lon              *float64           `json:"lon,omitempty"`
 	ProfilePictureID *int               `json:"profilePictureId,omitempty"`
+	Avatar           *string            `json:"avatar,omitempty"`
+	AvatarUrl        *string            `json:"avatarUrl,omitempty"`
 	Gallery          *GalleryPayloadDto `json:"gallery,omitempty"`
 	Answers          interface{}        `json:"answers,omitempty"`
 	LikedActivities  interface{}        `json:"likedActivities,omitempty"`
@@ -131,6 +133,8 @@ type UpdateProfilePayload struct {
 		PhoneNumber *string   `json:"phoneNumber,omitempty"`
 		Bio         *string   `json:"bio,omitempty"`
 		Languages   *[]string `json:"languages,omitempty"`
+		Avatar      *string   `json:"avatar,omitempty"`
+		AvatarUrl   *string   `json:"avatarUrl,omitempty"`
 		Demographic *struct {
 			BirthDate      *string `json:"birthDate,omitempty"`
 			Gender         *string `json:"gender,omitempty"`

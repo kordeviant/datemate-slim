@@ -66,11 +66,18 @@ func DocsProtection(cfg *config.Config) func(http.Handler) http.Handler {
 
 func isDocsOrRulesRoute(path string) bool {
 	normalized := strings.TrimRight(path, "/")
+	if normalized == "/docs-yaml" || normalized == "/asyncapi.json" {
+		return false
+	}
 	return normalized == "/docs" || strings.HasPrefix(normalized, "/docs/") ||
 		normalized == "/rules" || strings.HasPrefix(normalized, "/rules/") ||
 		normalized == "/v1/docs" || strings.HasPrefix(normalized, "/v1/docs/") ||
 		normalized == "/v1/rules" || strings.HasPrefix(normalized, "/v1/rules/") ||
-		normalized == "/docs-json" || normalized == "/v1/docs-json"
+		normalized == "/docs-json" || normalized == "/v1/docs-json" ||
+		normalized == "/chat-docs" || strings.HasPrefix(normalized, "/chat-docs/") ||
+		normalized == "/asyncapi" || strings.HasPrefix(normalized, "/asyncapi/") ||
+		normalized == "/asyncapi-json" ||
+		normalized == "/usage" || strings.HasPrefix(normalized, "/usage/")
 }
 
 func getClientIP(r *http.Request) string {

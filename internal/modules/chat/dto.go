@@ -1,6 +1,9 @@
 package chat
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type CreateConversationDto struct {
 	Type           string  `json:"type"`                     // "DIRECT" | "GROUP"
@@ -59,6 +62,21 @@ type PaginatedResult[T any] struct {
 	Items      []T     `json:"items"`
 	NextCursor *string `json:"nextCursor,omitempty"`
 	HasMore    bool    `json:"hasMore"`
+}
+
+func (p PaginatedResult[T]) MarshalJSON() ([]byte, error) {
+	items := p.Items
+	if items == nil {
+		items = make([]T, 0)
+	}
+	type Alias PaginatedResult[T]
+	return json.Marshal(&struct {
+		Items []T `json:"items"`
+		Alias
+	}{
+		Items: items,
+		Alias: (Alias)(p),
+	})
 }
 
 type MessageAttachmentDto struct {

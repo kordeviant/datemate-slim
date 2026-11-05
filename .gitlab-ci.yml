@@ -100,7 +100,7 @@ test:
       H_GID=\$(id -g)
       sudo -n chown -R \$H_UID:\$H_GID $TARGET_DIR 2>/dev/null || docker run --rm -v $TARGET_DIR:/target alpine sh -c \"chown -R \$H_UID:\$H_GID /target && chmod -R u+rwX /target\" 2>/dev/null || true
     "
-    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --overwrite --no-same-owner --no-same-permissions -m -xzf - -C $TARGET_DIR"
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' --exclude='bin' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --overwrite --no-same-owner --no-same-permissions -m -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'
@@ -112,6 +112,7 @@ test:
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
       set -e
       cd $TARGET_DIR
+      rm -rf bin
 
       # Stop legacy host PM2 process if running
       if command -v pm2 >/dev/null 2>&1; then
@@ -180,7 +181,7 @@ test:
       H_GID=\$(id -g)
       sudo -n chown -R \$H_UID:\$H_GID $TARGET_DIR 2>/dev/null || docker run --rm -v $TARGET_DIR:/target alpine sh -c \"chown -R \$H_UID:\$H_GID /target && chmod -R u+rwX /target\" 2>/dev/null || true
     "
-    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --overwrite --no-same-owner --no-same-permissions -m -xzf - -C $TARGET_DIR"
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' --exclude='bin' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --overwrite --no-same-owner --no-same-permissions -m -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'
@@ -192,6 +193,7 @@ test:
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
       set -e
       cd $TARGET_DIR
+      rm -rf bin
 
       # Stop legacy host PM2 process if running
       if command -v pm2 >/dev/null 2>&1; then

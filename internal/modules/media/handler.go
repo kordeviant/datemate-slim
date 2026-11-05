@@ -135,6 +135,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/assets/icons/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		h.assetHandler.ServeAsset(w, r, "icons", chi.URLParam(r, "filename"))
 	})
+	r.Get("/icons/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		h.assetHandler.ServeAsset(w, r, "icons", chi.URLParam(r, "filename"))
+	})
 	r.Get("/assets/images/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		h.assetHandler.ServeAsset(w, r, "images", chi.URLParam(r, "filename"))
 	})

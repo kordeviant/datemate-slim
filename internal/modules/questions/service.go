@@ -35,6 +35,9 @@ func (s *Service) resolveAssetURL(raw string) string {
 		return raw
 	}
 	clean := strings.TrimPrefix(raw, "/")
+	if strings.HasPrefix(clean, "icons/") && !strings.HasPrefix(clean, "assets/") {
+		clean = "assets/" + clean
+	}
 	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
 }
 

@@ -783,5 +783,114 @@ func AutoSeedIfEmpty(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config
 		}
 	}
 
+	// 5. Seed Users if empty
+	var uCount int64
+	if err := pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&uCount); err == nil && uCount == 0 {
+		log.Println("Users table is empty. Running auto-seeder for test users...")
+		if err := SeedUsers(ctx, pool); err != nil {
+			log.Printf("Warning: Auto-seed users failed: %v", err)
+		} else {
+			log.Println("Test users auto-seeded successfully.")
+		}
+	}
+
+	// 6. Ensure Admin user exists with credentials
+	if err := EnsureAdminUser(ctx, pool); err != nil {
+		log.Printf("Warning: Ensure admin user failed: %v", err)
+	} else {
+		log.Println("Admin user ensured successfully.")
+	}
+
+	return nil
+}
+
+// EnsureAdminUser ensures a system administrator user exists with valid credentials.
+func EnsureAdminUser(ctx context.Context, pool *pgxpool.Pool) error {
+	adminEmail := "admin@datemate.com"
+	adminUsername := "admin"
+	adminPassword := "Password123!"
+	if envPwd := os.Getenv("ADMIN_DEFAULT_PASSWORD"); envPwd != "" {
+		adminPassword = envPwd
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash admin password: %w", err)
+	}
+	hashStr := string(passwordHash)
+
+	// 1. Get or create admin user in users table
+	var uID int64
+	err = pool.QueryRow(ctx, `SELECT id FROM users WHERE email = $1`, adminEmail).Scan(&uID)
+	if err != nil {
+		err = pool.QueryRow(ctx, `
+			INSERT INTO users (email, password_hash, role, profile_validated, updated_at)
+			VALUES ($1, $2, 'ADMIN', true, NOW())
+			RETURNING id
+		`, adminEmail, hashStr).Scan(&uID)
+		if err != nil {
+			return fmt.Errorf("create admin user: %w", err)
+		}
+		log.Printf("Admin user created (id: %d, email: %s)", uID, adminEmail)
+	} else {
+		// Update password, role and validated flag
+		_, err = pool.Exec(ctx, `
+			UPDATE users SET password_hash = $1, role = 'ADMIN', profile_validated = true, updated_at = NOW()
+			WHERE id = $2
+		`, hashStr, uID)
+		if err != nil {
+			return fmt.Errorf("update admin user: %w", err)
+		}
+		log.Printf("Admin user credentials ensured (id: %d, email: %s)", uID, adminEmail)
+	}
+
+	// 2. Ensure Profile exists
+	var pID int
+	err = pool.QueryRow(ctx, `SELECT id FROM profiles WHERE user_id = $1`, uID).Scan(&pID)
+	if err != nil {
+		_, err = pool.Exec(ctx, `
+			INSERT INTO profiles (user_id, username, first_name, avatar_url, bio, is_private, relation_type, latitude, longitude, updated_at)
+			VALUES ($1, $2, 'DateMate Admin', '/assets/avatars/default.png', 'DateMate System Administrator', false, 'LONG', 35.6892, 51.3890, NOW())
+		`, uID, adminUsername)
+		if err != nil {
+			// In case username conflict from another user, fallback without failing
+			_, _ = pool.Exec(ctx, `
+				INSERT INTO profiles (user_id, username, first_name, avatar_url, bio, is_private, relation_type, latitude, longitude, updated_at)
+				VALUES ($1, $2, 'DateMate Admin', '/assets/avatars/default.png', 'DateMate System Administrator', false, 'LONG', 35.6892, 51.3890, NOW())
+				ON CONFLICT (user_id) DO NOTHING
+			`, uID, fmt.Sprintf("admin_%d", uID))
+		}
+	} else {
+		_, _ = pool.Exec(ctx, `
+			UPDATE profiles SET first_name = 'DateMate Admin', updated_at = NOW()
+			WHERE user_id = $1
+		`, uID)
+	}
+
+	// 3. Ensure Demographic exists
+	var dID int
+	err = pool.QueryRow(ctx, `SELECT id FROM demographics WHERE user_id = $1`, uID).Scan(&dID)
+	if err != nil {
+		var cityID *int
+		var cID int
+		if err := pool.QueryRow(ctx, `SELECT id FROM cities WHERE name ILIKE '%Tehran%' LIMIT 1`).Scan(&cID); err == nil {
+			cityID = &cID
+		}
+		_, err = pool.Exec(ctx, `
+			INSERT INTO demographics (user_id, birth_date, gender, height, weight, city_id, city_name, relation_status, degree)
+			VALUES ($1, '1990-01-01', 'MALE', 180, 75, $2, 'Tehran', 'SINGLE', 'MASTER_DEGREE')
+		`, uID, cityID)
+		if err != nil {
+			log.Printf("Warning: failed to create admin demographic: %v", err)
+		}
+	}
+
+	// 4. Ensure Preferences exists
+	_, _ = pool.Exec(ctx, `
+		INSERT INTO preferences (user_id, relation)
+		VALUES ($1, 'LONG')
+		ON CONFLICT (user_id) DO NOTHING
+	`, uID)
+
 	return nil
 }

@@ -64,7 +64,14 @@ func main() {
 		log.Println("Database migrations applied cleanly.")
 	}
 
-	// 3b. Auto-seed empty reference tables (questions, interests, geo, icons) in background
+	// 3b. Ensure Admin User exists synchronously
+	if err := seeder.EnsureAdminUser(ctx, pool); err != nil {
+		log.Printf("Warning: Ensure admin user: %v", err)
+	} else {
+		log.Println("Admin user ensured successfully.")
+	}
+
+	// 3c. Auto-seed empty reference tables (questions, interests, geo, icons, test users) in background
 	go func() {
 		seedCtx, seedCancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer seedCancel()

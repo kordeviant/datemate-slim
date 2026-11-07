@@ -29,6 +29,7 @@ func NewAppError(httpStatus int, errType, message string) *AppError {
 }
 
 type ResponseResult[T any] struct {
+	Success bool           `json:"success"`
 	Status  string         `json:"status"`
 	Message string         `json:"message"`
 	Data    T              `json:"data"`
@@ -74,6 +75,7 @@ func RespondSuccess[T any](w http.ResponseWriter, statusCode int, message string
 		message = "Operation successful"
 	}
 	res := ResponseResult[T]{
+		Success: true,
 		Status:  StatusSuccess,
 		Message: message,
 		Data:    data,
@@ -89,6 +91,7 @@ func RespondError(w http.ResponseWriter, statusCode int, message, errType string
 		errType = ErrUnknownError
 	}
 	res := ResponseResult[any]{
+		Success: false,
 		Status:  StatusError,
 		Message: message,
 		Data:    nil,

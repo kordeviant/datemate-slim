@@ -165,28 +165,30 @@ func (c *City) UnmarshalJSON(data []byte) error {
 }
 
 type Service struct {
-	mu           sync.RWMutex
-	dataDir      string
-	countries    []Country
-	states       []State
-	cities       []City
-	cityByID     map[int]*City
-	stateByID    map[int]*State
-	countryByID  map[int]*Country
-	statesByCID  map[int][]*State
-	citiesBySID  map[int][]*City
-	citiesByName map[string][]*City
+	mu             sync.RWMutex
+	dataDir        string
+	countries      []Country
+	states         []State
+	cities         []City
+	cityByID       map[int]*City
+	stateByID      map[int]*State
+	countryByID    map[int]*Country
+	statesByCID    map[int][]*State
+	citiesBySID    map[int][]*City
+	citiesByName   map[string][]*City
+	hierarchyByCID map[int]map[string]interface{}
 }
 
 func NewService(dataDir string) *Service {
 	s := &Service{
-		dataDir:      dataDir,
-		cityByID:     make(map[int]*City),
-		stateByID:    make(map[int]*State),
-		countryByID:  make(map[int]*Country),
-		statesByCID:  make(map[int][]*State),
-		citiesBySID:  make(map[int][]*City),
-		citiesByName: make(map[string][]*City),
+		dataDir:        dataDir,
+		cityByID:       make(map[int]*City),
+		stateByID:      make(map[int]*State),
+		countryByID:    make(map[int]*Country),
+		statesByCID:    make(map[int][]*State),
+		citiesBySID:    make(map[int][]*City),
+		citiesByName:   make(map[string][]*City),
+		hierarchyByCID: make(map[int]map[string]interface{}),
 	}
 
 	_ = s.loadFromDir(dataDir)
@@ -223,6 +225,106 @@ func (s *Service) loadFromDir(dataDir string) error {
 		return nil
 	}
 	s.dataDir = foundDir
+
+	// Try loading full countries_states_cities.json first if available (contains full coordinates)
+	hierarchyPath := filepath.Join(foundDir, "countries_states_cities.json")
+	if hData, err := os.ReadFile(hierarchyPath); err == nil {
+		type rawCity struct {
+			ID        int     `json:"id"`
+			Name      string  `json:"name"`
+			StateID   int     `json:"stateId"`
+			CountryID int     `json:"countryId"`
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+		}
+		type rawState struct {
+			ID        int       `json:"id"`
+			Name      string    `json:"name"`
+			CountryID int       `json:"countryId"`
+			Cities    []rawCity `json:"cities"`
+		}
+		type rawCountry struct {
+			ID     int        `json:"id"`
+			Name   string     `json:"name"`
+			Native *string    `json:"native"`
+			Emoji  *string    `json:"emoji"`
+			States []rawState `json:"states"`
+		}
+
+		var rawList []rawCountry
+		if json.Unmarshal(hData, &rawList) == nil && len(rawList) > 0 {
+			for _, rc := range rawList {
+				c := Country{
+					ID:     rc.ID,
+					Name:   rc.Name,
+					Native: rc.Native,
+					Emoji:  rc.Emoji,
+				}
+				s.countries = append(s.countries, c)
+				cPtr := &s.countries[len(s.countries)-1]
+				s.countryByID[c.ID] = cPtr
+
+				stateMaps := make([]map[string]interface{}, 0, len(rc.States))
+				for _, rs := range rc.States {
+					st := State{
+						ID:        rs.ID,
+						CountryID: rc.ID,
+						Name:      rs.Name,
+					}
+					s.states = append(s.states, st)
+					stPtr := &s.states[len(s.states)-1]
+					s.stateByID[st.ID] = stPtr
+					s.statesByCID[rc.ID] = append(s.statesByCID[rc.ID], stPtr)
+
+					cityMaps := make([]map[string]interface{}, 0, len(rs.Cities))
+					for _, rct := range rs.Cities {
+						ct := City{
+							ID:        rct.ID,
+							StateID:   rs.ID,
+							CountryID: rc.ID,
+							Name:      rct.Name,
+							Latitude:  rct.Latitude,
+							Longitude: rct.Longitude,
+						}
+						s.cities = append(s.cities, ct)
+						ctPtr := &s.cities[len(s.cities)-1]
+						s.cityByID[ct.ID] = ctPtr
+						s.citiesBySID[rs.ID] = append(s.citiesBySID[rs.ID], ctPtr)
+						lower := strings.ToLower(ct.Name)
+						s.citiesByName[lower] = append(s.citiesByName[lower], ctPtr)
+
+						cityMaps = append(cityMaps, map[string]interface{}{
+							"id":        rct.ID,
+							"name":      rct.Name,
+							"stateId":   rs.ID,
+							"countryId": rc.ID,
+							"latitude":  rct.Latitude,
+							"longitude": rct.Longitude,
+						})
+					}
+
+					stateMaps = append(stateMaps, map[string]interface{}{
+						"id":        rs.ID,
+						"name":      rs.Name,
+						"countryId": rc.ID,
+						"cities":    cityMaps,
+					})
+				}
+
+				s.hierarchyByCID[rc.ID] = map[string]interface{}{
+					"id":     rc.ID,
+					"name":   rc.Name,
+					"native": rc.Native,
+					"emoji":  rc.Emoji,
+					"states": stateMaps,
+				}
+			}
+
+			log.Printf("Loaded Geo in-memory dataset from countries_states_cities.json: %d countries, %d states, %d cities from %s",
+				len(s.countries), len(s.states), len(s.cities), foundDir)
+			return nil
+		}
+	}
 
 	cData, err := os.ReadFile(filepath.Join(foundDir, "countries.json"))
 	if err == nil {
@@ -467,6 +569,10 @@ func (s *Service) GetCountryHierarchy(idOrName string) map[string]interface{} {
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if h, ok := s.hierarchyByCID[country.ID]; ok {
+		return h
+	}
 
 	states := s.statesByCID[country.ID]
 	stateList := make([]map[string]interface{}, 0, len(states))

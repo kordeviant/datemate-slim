@@ -47,6 +47,10 @@ func (h *Handler) AddFriend(w http.ResponseWriter, r *http.Request) {
 		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
 		return
 	}
+	if payload.UserID <= 0 {
+		common.RespondError(w, http.StatusBadRequest, "userId must be a positive integer", common.ErrBadRequest)
+		return
+	}
 
 	item, msg, err := h.svc.AddFriend(r.Context(), u.ID, int64(payload.UserID))
 	if err != nil {

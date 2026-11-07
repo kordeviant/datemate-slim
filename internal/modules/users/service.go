@@ -263,10 +263,20 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		}
 	}
 
-	// LikedActivities map
-	likedActivities := make(map[string]interface{})
+	// LikedActivities map: { [categoryId]: interestId | interestId[] }
+	catInterests := make(map[string][]int)
 	for _, in := range interests {
-		likedActivities[strconv.Itoa(int(in.CategoryID))] = int(in.InterestID)
+		catStr := strconv.Itoa(int(in.CategoryID))
+		catInterests[catStr] = append(catInterests[catStr], int(in.InterestID))
+	}
+	likedActivities := make(map[string]interface{})
+	for catStr, ids := range catInterests {
+		sort.Ints(ids)
+		if len(ids) > 1 {
+			likedActivities[catStr] = ids
+		} else if len(ids) == 1 {
+			likedActivities[catStr] = ids[0]
+		}
 	}
 
 	// Languages
@@ -780,8 +790,17 @@ func (s *Service) UpdateProfile(
 				}
 			}
 
+			uniqueIDs := make([]int32, 0, len(interestIDs))
+			seen := make(map[int32]bool)
+			for _, id := range interestIDs {
+				if !seen[id] {
+					seen[id] = true
+					uniqueIDs = append(uniqueIDs, id)
+				}
+			}
+
 			_ = s.queries.DeleteUserInterests(ctx, int32(userID))
-			for _, iID := range interestIDs {
+			for _, iID := range uniqueIDs {
 				_ = s.queries.InsertUserInterest(ctx, db.InsertUserInterestParams{
 					UserID:     int32(userID),
 					InterestID: iID,

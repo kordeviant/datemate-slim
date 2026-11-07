@@ -113,7 +113,7 @@ func JwtAuthGuard(cfg *config.Config, pool *pgxpool.Pool) func(http.Handler) htt
 			if sessionID > 0 {
 				sess, err := queries.GetUserSessionByID(r.Context(), int32(sessionID))
 				if err != nil || int64(sess.UserID) != userID {
-					common.RespondError(w, http.StatusUnauthorized, "Session expired or terminated", common.ErrUnauthorized)
+					respondAuthError("Session expired or terminated", common.ErrUnauthorized)
 					return
 				}
 			}

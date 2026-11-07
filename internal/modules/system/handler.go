@@ -22,9 +22,11 @@ func NewHandler(docsDir string) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Get("/", h.HealthCheck)
+	r.Get("/", h.Root)
 	r.Get("/health", h.HealthCheck)
+	r.Get("/v1/health", h.HealthCheck)
 	r.Get("/time", h.GetServerTime)
+	r.Get("/v1/time", h.GetServerTime)
 
 	r.Get("/rules", h.GetRules)
 	r.Get("/docs/rules", h.GetRules)
@@ -39,11 +41,31 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/usage", h.GetUsage)
 }
 
+func (h *Handler) Root(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"status":  "success",
+		"message": "Operation successful",
+		"data": map[string]interface{}{
+			"status": "ok",
+		},
+		"error": nil,
+	})
+}
+
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"status":  "ok",
+		"message": "Operation successful",
+		"data": map[string]interface{}{
+			"status": "ok",
+		},
+		"error": nil,
 	})
 }
 

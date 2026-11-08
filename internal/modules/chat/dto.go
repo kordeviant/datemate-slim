@@ -6,11 +6,12 @@ import (
 )
 
 type CreateConversationDto struct {
-	Type           string  `json:"type"`                     // "DIRECT" | "GROUP"
+	Type           string  `json:"type"`                     // "direct" | "group" / "DIRECT" | "GROUP"
 	TargetUserId   *int64  `json:"targetUserId,omitempty"`   // for DIRECT
 	RecipientId    *int64  `json:"recipientId,omitempty"`    // alias for targetUserId
 	Title          *string `json:"title,omitempty"`          // for GROUP
-	ParticipantIds []int64 `json:"participantIds,omitempty"` // for GROUP
+	Name           *string `json:"name,omitempty"`           // alias for title (legacy chat service / Swagger)
+	ParticipantIds []int64 `json:"participantIds,omitempty"` // for DIRECT and GROUP
 }
 
 type LastMessageDto struct {

@@ -144,11 +144,13 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	convType := strings.ToUpper(dto.Type)
+	convType := strings.ToUpper(strings.TrimSpace(dto.Type))
 	if convType == "GROUP" {
 		title := "Group Conversation"
 		if dto.Title != nil && *dto.Title != "" {
 			title = *dto.Title
+		} else if dto.Name != nil && *dto.Name != "" {
+			title = *dto.Name
 		}
 		conv, err := h.svc.CreateGroupConversation(r.Context(), u.ID, CreateGroupDto{
 			Title:          title,
@@ -162,13 +164,26 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// DIRECT conversation
+	// DIRECT conversation (default)
 	targetID := dto.TargetUserId
 	if targetID == nil {
 		targetID = dto.RecipientId
 	}
+	if targetID == nil && len(dto.ParticipantIds) > 0 {
+		for _, pid := range dto.ParticipantIds {
+			if pid != u.ID && pid > 0 {
+				targetID = &pid
+				break
+			}
+		}
+		if targetID == nil && len(dto.ParticipantIds) == 1 && dto.ParticipantIds[0] == u.ID {
+			h.respondError(w, http.StatusBadRequest, "Self-conversation is not allowed", common.ErrBadRequest)
+			return
+		}
+	}
+
 	if targetID == nil {
-		h.respondError(w, http.StatusBadRequest, "targetUserId is required for direct conversation", common.ErrBadRequest)
+		h.respondError(w, http.StatusBadRequest, "targetUserId or participantIds is required for direct conversation", common.ErrBadRequest)
 		return
 	}
 
@@ -322,6 +337,8 @@ func (h *Handler) CreateGroupConversation(w http.ResponseWriter, r *http.Request
 		title = groupDto.Title
 	} else if convDto.Title != nil && *convDto.Title != "" {
 		title = *convDto.Title
+	} else if convDto.Name != nil && *convDto.Name != "" {
+		title = *convDto.Name
 	}
 
 	participantIDs := groupDto.ParticipantIds

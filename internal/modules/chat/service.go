@@ -70,6 +70,17 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 		return nil, common.NewAppError(400, common.ErrBadRequest, err.Error())
 	}
 
+	if s.pool == nil {
+		detUUID := common.GenerateDeterministicConversationID(pairKey)
+		return &ConversationDto{
+			ConversationID:   detUUID.String(),
+			Type:             "direct",
+			ConversationType: "DIRECT",
+			CreatedBy:        currentUserID,
+			MemberIDs:        []int64{currentUserID, targetUserID},
+		}, nil
+	}
+
 	// 1. Check existing direct conversation pair
 	existingPair, err := s.queries.GetDirectConversationPair(ctx, pairKey)
 	if err == nil {
@@ -139,6 +150,18 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 func (s *Service) CreateGroupConversation(ctx context.Context, currentUserID int64, dto CreateGroupDto) (*ConversationDto, error) {
 	groupUUID := uuid.New()
 	pgUUID := pgtype.UUID{Bytes: groupUUID, Valid: true}
+
+	if s.pool == nil {
+		members := append([]int64{currentUserID}, dto.ParticipantIds...)
+		return &ConversationDto{
+			ConversationID:   groupUUID.String(),
+			Type:             "group",
+			ConversationType: "GROUP",
+			CreatedBy:        currentUserID,
+			Title:            &dto.Title,
+			MemberIDs:        members,
+		}, nil
+	}
 
 	conv, err := s.queries.CreateConversation(ctx, db.CreateConversationParams{
 		ConversationID:   pgUUID,

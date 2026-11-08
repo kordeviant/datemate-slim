@@ -109,25 +109,30 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 	) *FeedCandidateDto {
 		galleries, _ := s.queries.ListUserGalleries(ctx, id)
 
-		// Rule 4: Active photo resolution
+		// Active photo resolution: candidate must have a valid non-placeholder profile picture
 		var primaryPhoto string
 		for _, g := range galleries {
-			if g.IsProfilePicture {
+			if g.IsProfilePicture && common.HasValidPhoto(g.ImageUrl) {
 				primaryPhoto = g.ImageUrl
 				break
 			}
 		}
-		if primaryPhoto == "" && len(galleries) > 0 {
-			primaryPhoto = galleries[0].ImageUrl
+		if primaryPhoto == "" {
+			for _, g := range galleries {
+				if common.HasValidPhoto(g.ImageUrl) {
+					primaryPhoto = g.ImageUrl
+					break
+				}
+			}
 		}
-		if primaryPhoto == "" && profilePictureUrl.Valid && profilePictureUrl.String != "" {
+		if primaryPhoto == "" && profilePictureUrl.Valid && common.HasValidPhoto(profilePictureUrl.String) {
 			primaryPhoto = profilePictureUrl.String
 		}
-		if primaryPhoto == "" && avatarUrl != "" {
+		if primaryPhoto == "" && common.HasValidPhoto(avatarUrl) {
 			primaryPhoto = avatarUrl
 		}
 
-		if primaryPhoto == "" {
+		if !common.HasValidPhoto(primaryPhoto) {
 			return nil
 		}
 
@@ -154,11 +159,13 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 
 		galleryDtos := make([]FeedGalleryItemDto, 0)
 		for _, g := range galleries {
-			galleryDtos = append(galleryDtos, FeedGalleryItemDto{
-				ID:               int(g.ID),
-				ImageUrl:         s.resolveAssetURL(g.ImageUrl),
-				IsProfilePicture: g.IsProfilePicture,
-			})
+			if common.HasValidPhoto(g.ImageUrl) {
+				galleryDtos = append(galleryDtos, FeedGalleryItemDto{
+					ID:               int(g.ID),
+					ImageUrl:         s.resolveAssetURL(g.ImageUrl),
+					IsProfilePicture: g.IsProfilePicture,
+				})
+			}
 		}
 
 		var fn *string

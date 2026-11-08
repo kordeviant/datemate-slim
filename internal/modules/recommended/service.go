@@ -280,10 +280,33 @@ func (s *Service) GetRankedCandidatePool(ctx context.Context, currentUserID int6
 			totalScore = 0
 		}
 
-		photo := c.AvatarUrl
-		if c.ProfilePictureUrl.Valid && c.ProfilePictureUrl.String != "" {
+		photo := ""
+		if c.ProfilePictureUrl.Valid && common.HasValidPhoto(c.ProfilePictureUrl.String) {
 			photo = c.ProfilePictureUrl.String
+		} else if common.HasValidPhoto(c.AvatarUrl) {
+			photo = c.AvatarUrl
+		} else {
+			galleries, _ := s.queries.ListUserGalleries(ctx, c.ID)
+			for _, g := range galleries {
+				if g.IsProfilePicture && common.HasValidPhoto(g.ImageUrl) {
+					photo = g.ImageUrl
+					break
+				}
+			}
+			if photo == "" {
+				for _, g := range galleries {
+					if common.HasValidPhoto(g.ImageUrl) {
+						photo = g.ImageUrl
+						break
+					}
+				}
+			}
 		}
+
+		if !common.HasValidPhoto(photo) {
+			continue // Candidates without avatar or profile picture must not appear in recommendations
+		}
+
 		resolvedPhoto := s.resolveAssetURL(photo)
 
 		var resolvedCity *string

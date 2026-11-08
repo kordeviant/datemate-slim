@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"datemate/internal/common"
 	"datemate/internal/config"
 	"datemate/internal/platform/database/db"
 	"datemate/internal/platform/geo"
@@ -125,10 +126,10 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 
 	// Fallback for profile picture if not in gallery
 	if activeProfilePicURL == nil {
-		if p.ProfilePictureUrl.Valid && p.ProfilePictureUrl.String != "" {
+		if p.ProfilePictureUrl.Valid && common.HasValidPhoto(p.ProfilePictureUrl.String) {
 			resolved := s.resolveAssetURL(p.ProfilePictureUrl.String)
 			activeProfilePicURL = &resolved
-		} else if p.AvatarUrl != "" {
+		} else if common.HasValidPhoto(p.AvatarUrl) {
 			resolved := s.resolveAssetURL(p.AvatarUrl)
 			activeProfilePicURL = &resolved
 		}
@@ -324,7 +325,7 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		relationTypeStr = &rt
 	}
 
-	profileCompleted := p.FirstName != "" && (p.AvatarUrl != "" || len(galleryDtos) > 0) && d.Gender != ""
+	profileCompleted := p.FirstName != "" && (common.HasValidPhoto(p.AvatarUrl) || len(galleryDtos) > 0 || (p.ProfilePictureUrl.Valid && common.HasValidPhoto(p.ProfilePictureUrl.String))) && d.Gender != ""
 
 	nested := ProfileNestedResponseDto{
 		FullName:         fullName,

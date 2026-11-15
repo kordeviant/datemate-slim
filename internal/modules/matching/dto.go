@@ -29,6 +29,7 @@ type SwipeRequestDto struct {
 
 type LikedUserDto struct {
 	ID        int     `json:"id"`
+	UserID    int     `json:"userId"`
 	FullName  *string `json:"fullName"`
 	Username  *string `json:"username"`
 	City      *string `json:"city"`

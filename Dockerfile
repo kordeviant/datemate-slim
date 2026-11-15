@@ -4,7 +4,7 @@
 # ==========================================
 
 # Stage 1: Build binary
-FROM golang:1.24-alpine AS builder
+FROM golang:alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev
 
@@ -35,6 +35,7 @@ COPY --from=builder /src/bin/seed /usr/local/bin/seed
 # Copy migrations and documentation for automated startup
 COPY migrations ./migrations
 COPY docs ./docs
+COPY data ./data
 
 # Ensure uploads directory exists
 RUN mkdir -p /app/uploads

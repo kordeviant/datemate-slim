@@ -58,6 +58,7 @@ CREATE TABLE "users" (
     "wallet" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     "score" DOUBLE PRECISION NOT NULL DEFAULT 1.0,
     "notifications_on" BOOLEAN NOT NULL DEFAULT true,
+    "privacy_accepted_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

@@ -3,7 +3,6 @@ package interests
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"datemate/internal/common"
 	"datemate/internal/config"
@@ -28,14 +27,7 @@ func NewService(cfg *config.Config, pool *pgxpool.Pool) *Service {
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
-	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
 func (s *Service) GetInterests(ctx context.Context, language string, idFilter *int) ([]InterestCategoryResponseDto, error) {

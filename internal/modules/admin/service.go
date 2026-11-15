@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"datemate/internal/common"
 	"datemate/internal/config"
 	"datemate/internal/platform/database/db"
 	platformRedis "datemate/internal/platform/redis"
@@ -32,14 +33,7 @@ func NewService(cfg *config.Config, pool *pgxpool.Pool, rdb *platformRedis.Clien
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
-	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
 func (s *Service) GetStats(ctx context.Context) (*AdminDashboardStatsDto, error) {

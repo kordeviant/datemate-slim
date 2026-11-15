@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -41,9 +43,15 @@ func NewHandler(svc *Service, cfg *config.Config, pool *pgxpool.Pool) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	// Public or JWT file serving
+	// Public file serving for chat media/attachments
 	r.Get("/uploads/{fileName}", h.ServeUpload)
+	r.Head("/uploads/{fileName}", h.ServeUpload)
+	r.Get("/uploads/chat/{fileName}", h.ServeUpload)
+	r.Head("/uploads/chat/{fileName}", h.ServeUpload)
 	r.Get("/chat/files/{fileName}", h.ServeUpload)
+	r.Head("/chat/files/{fileName}", h.ServeUpload)
+	r.Get("/assets/chat/{fileName}", h.ServeUpload)
+	r.Head("/assets/chat/{fileName}", h.ServeUpload)
 
 	if h.cfg != nil && h.pool != nil {
 		jwtAuth := middleware.JwtAuthGuard(h.cfg, h.pool)
@@ -70,7 +78,10 @@ func (h *Handler) registerProtected(pr chi.Router) {
 	pr.Get("/groups/{conversationId}", h.GetGroup)
 	pr.Patch("/groups/{conversationId}", h.UpdateGroup)
 	pr.Post("/groups/{conversationId}/join", h.JoinGroup)
+	pr.Post("/groups/{conversationId}/members", h.AddGroupMember)
+	pr.Delete("/groups/{conversationId}/members/{userId}", h.RemoveGroupMember)
 	pr.Post("/groups/{conversationId}/bans", h.BanGroupUser)
+	pr.Delete("/groups/{conversationId}/bans/{userId}", h.UnbanGroupUser)
 	pr.Get("/groups/{conversationId}/participants", h.ListGroupParticipants)
 	pr.Get("/groups/{conversationId}/participants/{userId}", h.GetGroupParticipant)
 	pr.Post("/groups/{conversationId}/invitations/accept", h.AcceptGroupInvitation)
@@ -107,6 +118,8 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 		title := "Group Conversation"
 		if dto.Title != nil && *dto.Title != "" {
 			title = *dto.Title
+		} else if dto.Name != nil && *dto.Name != "" {
+			title = *dto.Name
 		}
 		conv, err := h.svc.CreateGroupConversation(r.Context(), u.ID, CreateGroupDto{
 			Title:          title,
@@ -124,6 +137,17 @@ func (h *Handler) CreateConversation(w http.ResponseWriter, r *http.Request) {
 	targetID := dto.TargetUserId
 	if targetID == nil {
 		targetID = dto.RecipientId
+	}
+	if targetID == nil && len(dto.ParticipantIds) > 0 {
+		for i := range dto.ParticipantIds {
+			if dto.ParticipantIds[i] != u.ID {
+				targetID = &dto.ParticipantIds[i]
+				break
+			}
+		}
+		if targetID == nil && len(dto.ParticipantIds) > 0 {
+			targetID = &dto.ParticipantIds[0]
+		}
 	}
 	if targetID == nil {
 		common.RespondError(w, http.StatusBadRequest, "targetUserId is required for direct conversation", common.ErrBadRequest)
@@ -153,6 +177,9 @@ func (h *Handler) ListConversations(w http.ResponseWriter, r *http.Request) {
 		common.RespondAppError(w, err)
 		return
 	}
+	if list == nil {
+		list = make([]ConversationDto, 0)
+	}
 
 	common.RespondSuccess(w, http.StatusOK, "Conversations retrieved successfully", PaginatedResult[ConversationDto]{
 		Items:   list,
@@ -174,6 +201,9 @@ func (h *Handler) ListDirectConversations(w http.ResponseWriter, r *http.Request
 		common.RespondAppError(w, err)
 		return
 	}
+	if list == nil {
+		list = make([]ConversationDto, 0)
+	}
 
 	common.RespondSuccess(w, http.StatusOK, "Direct conversations retrieved successfully", PaginatedResult[ConversationDto]{
 		Items:   list,
@@ -194,6 +224,9 @@ func (h *Handler) ListGroupConversations(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		common.RespondAppError(w, err)
 		return
+	}
+	if list == nil {
+		list = make([]ConversationDto, 0)
 	}
 
 	common.RespondSuccess(w, http.StatusOK, "Group conversations retrieved successfully", PaginatedResult[ConversationDto]{
@@ -324,6 +357,78 @@ func (h *Handler) BanGroupUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	convID := chi.URLParam(r, "conversationId")
+
+	var payload AddGroupMemberPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid payload", common.ErrBadRequest)
+		return
+	}
+
+	var targets []int64
+	if payload.UserID != nil {
+		targets = append(targets, *payload.UserID)
+	}
+	if len(payload.UserIDs) > 0 {
+		targets = append(targets, payload.UserIDs...)
+	}
+
+	if len(targets) == 0 {
+		common.RespondError(w, http.StatusBadRequest, "userId or userIds is required", common.ErrBadRequest)
+		return
+	}
+
+	var lastRes *GroupResponseDto
+	var err error
+	for _, targetID := range targets {
+		lastRes, err = h.svc.AddGroupMember(r.Context(), convID, u.ID, targetID)
+		if err != nil {
+			common.RespondAppError(w, err)
+			return
+		}
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "Member(s) added successfully", lastRes)
+}
+
+func (h *Handler) RemoveGroupMember(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	convID := chi.URLParam(r, "conversationId")
+	userIDStr := chi.URLParam(r, "userId")
+	targetID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid target userId", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.RemoveGroupMember(r.Context(), convID, u.ID, targetID); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess[any](w, http.StatusOK, "Member removed successfully", nil)
+}
+
+func (h *Handler) UnbanGroupUser(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	convID := chi.URLParam(r, "conversationId")
+	userIDStr := chi.URLParam(r, "userId")
+	targetID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid target userId", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.UnbanGroupUser(r.Context(), convID, u.ID, targetID); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess[any](w, http.StatusOK, "User unbanned successfully", nil)
+}
+
 func (h *Handler) GetUserActivity(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "userId")
 	targetID, err := strconv.ParseInt(idStr, 10, 64)
@@ -367,9 +472,19 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Missing 'file' form field", common.ErrBadRequest)
+	var file multipart.File
+	var header *multipart.FileHeader
+	for _, fieldName := range []string{"file", "media", "audio", "voice", "image", "attachment"} {
+		f, hd, err := r.FormFile(fieldName)
+		if err == nil {
+			file = f
+			header = hd
+			break
+		}
+	}
+
+	if file == nil || header == nil {
+		common.RespondError(w, http.StatusBadRequest, "Missing upload file (supported fields: file, media, audio, voice, image, attachment)", common.ErrBadRequest)
 		return
 	}
 	defer file.Close()
@@ -380,52 +495,104 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := storage.ValidateFilename(header.Filename); err != nil {
-		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
-		return
-	}
-
-	ext := strings.ToLower(filepath.Ext(header.Filename))
-	mediaType := "file"
-	switch ext {
-	case ".jpg", ".jpeg", ".png", ".webp", ".gif":
-		mediaType = "image"
-	case ".mp4", ".mov", ".avi", ".webm":
-		mediaType = "video"
-	case ".mp3", ".ogg", ".wav", ".m4a":
-		mediaType = "voice"
-	}
-	if formType := r.FormValue("type"); formType != "" {
-		mediaType = formType
-	}
+	rawFilename := header.Filename
+	ext := strings.ToLower(filepath.Ext(rawFilename))
 
 	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = http.DetectContentType(fileBytes)
+	}
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
 
-	safeFilename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
+	// If extension missing or client uploaded generic "blob" (common in mobile voice recorders)
+	if ext == "" || strings.EqualFold(rawFilename, "blob") {
+		switch {
+		case strings.Contains(mimeType, "ogg"):
+			ext = ".ogg"
+		case strings.Contains(mimeType, "mp4") || strings.Contains(mimeType, "m4a") || strings.Contains(mimeType, "aac"):
+			ext = ".m4a"
+		case strings.Contains(mimeType, "mpeg") || strings.Contains(mimeType, "mp3"):
+			ext = ".mp3"
+		case strings.Contains(mimeType, "wav"):
+			ext = ".wav"
+		case strings.Contains(mimeType, "opus"):
+			ext = ".opus"
+		case strings.Contains(mimeType, "webm"):
+			ext = ".webm"
+		case strings.Contains(mimeType, "jpeg"):
+			ext = ".jpg"
+		case strings.Contains(mimeType, "png"):
+			ext = ".png"
+		case strings.Contains(mimeType, "webp"):
+			ext = ".webp"
+		}
+		if rawFilename == "" || strings.EqualFold(rawFilename, "blob") {
+			rawFilename = "upload" + ext
+		}
+	}
 
-	relPath, err := h.svc.storage.Save(r.Context(), "chat", safeFilename, bytes.NewReader(fileBytes), int64(len(fileBytes)), mimeType)
-	if err != nil {
-		common.RespondError(w, http.StatusInternalServerError, "Failed to save file", common.ErrUnknownError)
+	if err := storage.ValidateFilename(rawFilename); err != nil {
+		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
 		return
 	}
 
-	resolvedUrl := h.svc.resolveAssetURL(relPath)
+	mediaType := "file"
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic":
+		mediaType = "image"
+	case ".mp4", ".mov", ".avi", ".webm", ".m4v", ".mkv":
+		mediaType = "video"
+	case ".mp3", ".ogg", ".wav", ".m4a", ".aac", ".opus", ".weba":
+		mediaType = "voice"
+	}
+
+	if formType := strings.ToLower(strings.TrimSpace(r.FormValue("type"))); formType != "" {
+		switch formType {
+		case "voice", "audio":
+			mediaType = "voice"
+		case "image", "photo", "picture":
+			mediaType = "image"
+		case "video":
+			mediaType = "video"
+		case "file", "document":
+			mediaType = "file"
+		default:
+			mediaType = formType
+		}
+	}
 
 	var dur *float64
 	if durStr := r.FormValue("duration"); durStr != "" {
-		if d, err := strconv.ParseFloat(durStr, 64); err == nil {
+		if d, err := strconv.ParseFloat(durStr, 64); err == nil && d > 0 {
 			dur = &d
+			if mediaType == "file" {
+				mediaType = "voice"
+			}
 		}
 	}
+
+	safeFilename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
+
+	_, err = h.svc.storage.Save(r.Context(), "chat", safeFilename, bytes.NewReader(fileBytes), int64(len(fileBytes)), mimeType)
+	if err != nil {
+		log.Printf("[ERROR chat Upload] Failed to save file %s: %v (storage=%T)", safeFilename, err, h.svc.storage)
+		common.RespondError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save file: %v", err), common.ErrUnknownError)
+		return
+	}
+
+	baseURL := "http://localhost:3000"
+	if h.cfg != nil && h.cfg.AssetBaseURL != "" {
+		baseURL = strings.TrimRight(h.cfg.AssetBaseURL, "/")
+	}
+	resolvedUrl := fmt.Sprintf("%s/uploads/%s", baseURL, safeFilename)
 
 	res := UploadMediaResponseData{
 		Url:            resolvedUrl,
 		Type:           mediaType,
 		Duration:       dur,
-		FileName:       header.Filename,
+		FileName:       rawFilename,
 		StoredFileName: safeFilename,
 		FileSize:       int64(len(fileBytes)),
 		Size:           int64(len(fileBytes)),

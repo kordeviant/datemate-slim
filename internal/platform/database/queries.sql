@@ -27,6 +27,12 @@ UPDATE users SET profile_validated = $2, updated_at = CURRENT_TIMESTAMP WHERE id
 -- name: UpdateUserIsPremium :exec
 UPDATE users SET is_premium = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
+-- name: AcceptUserPrivacy :one
+UPDATE users
+SET privacy_accepted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING id, privacy_accepted_at;
+
 -- name: UpdateUserRole :exec
 UPDATE users SET role = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
@@ -86,7 +92,7 @@ INSERT INTO profiles (
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
-    $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    COALESCE(sqlc.narg('latitude')::numeric, 0::numeric), COALESCE(sqlc.narg('longitude')::numeric, 0::numeric), $12, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT (user_id) DO UPDATE SET
     first_name = CASE WHEN EXCLUDED.first_name != '' THEN EXCLUDED.first_name ELSE profiles.first_name END,
@@ -102,6 +108,22 @@ ON CONFLICT (user_id) DO UPDATE SET
     latitude = CASE WHEN EXCLUDED.latitude != 0 THEN EXCLUDED.latitude ELSE profiles.latitude END,
     longitude = CASE WHEN EXCLUDED.longitude != 0 THEN EXCLUDED.longitude ELSE profiles.longitude END,
     geohash = COALESCE(EXCLUDED.geohash, profiles.geohash),
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: UpdateProfileAvatar :one
+INSERT INTO profiles (user_id, first_name, avatar_url, latitude, longitude, updated_at)
+VALUES ($1, '', $2, 0, 0, CURRENT_TIMESTAMP)
+ON CONFLICT (user_id) DO UPDATE SET
+    avatar_url = EXCLUDED.avatar_url,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: UpdateProfileSelfie :one
+INSERT INTO profiles (user_id, first_name, avatar_url, selfie_url, latitude, longitude, updated_at)
+VALUES ($1, '', '', $2, 0, 0, CURRENT_TIMESTAMP)
+ON CONFLICT (user_id) DO UPDATE SET
+    selfie_url = EXCLUDED.selfie_url,
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
@@ -558,7 +580,7 @@ RETURNING *;
 SELECT * FROM messages_by_conversation
 WHERE conversation_id = $1 AND bucket = $2
 ORDER BY created_at DESC, message_id ASC
-LIMIT $3;
+LIMIT $3 OFFSET $4;
 
 -- name: UpsertConversationByUser :exec
 INSERT INTO conversations_by_user (

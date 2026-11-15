@@ -61,3 +61,44 @@ func TestFeedDataDto_Serialization(t *testing.T) {
 		t.Errorf("expected fullName %s, got %v", name, c0["fullName"])
 	}
 }
+
+func TestLikedUserDto_Serialization(t *testing.T) {
+	name := "Sara"
+	un := "sara_dev"
+	city := "Tehran"
+	avatar := "https://cdn.example.com/avatar.jpg"
+
+	dto := LikedUserDto{
+		ID:        42,
+		UserID:    42,
+		FullName:  &name,
+		Username:  &un,
+		City:      &city,
+		IsOnline:  true,
+		AvatarUrl: &avatar,
+	}
+
+	data, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatalf("failed to marshal LikedUserDto: %v", err)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	// Verify both 'id' and 'userId' are serialized properly for mobile and web clients
+	if raw["id"] != float64(42) {
+		t.Errorf("expected id 42, got %v", raw["id"])
+	}
+	if raw["userId"] != float64(42) {
+		t.Errorf("expected userId 42, got %v", raw["userId"])
+	}
+	if raw["fullName"] != name {
+		t.Errorf("expected fullName %s, got %v", name, raw["fullName"])
+	}
+	if raw["isOnline"] != true {
+		t.Errorf("expected isOnline true, got %v", raw["isOnline"])
+	}
+}

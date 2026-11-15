@@ -38,6 +38,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 		pr.Post("/questions", h.CreateQuestion)
 		pr.Put("/questions/{id}", h.UpdateQuestion)
+		pr.Patch("/questions/{id}", h.UpdateQuestion)
 		pr.Delete("/questions/{id}", h.DeleteQuestion)
 	})
 }

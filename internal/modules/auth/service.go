@@ -221,20 +221,6 @@ func (s *Service) VerifyCode(ctx context.Context, code, email, device, userAgent
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:pending:%s", email)).Err()
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("otp:signup:%s", email)).Err()
 
-	// Initialize basic profile and demographic
-	_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
-		UserID:    user.ID,
-		FirstName: "User",
-		AvatarUrl: "",
-		Latitude:  pgtype.Numeric{Valid: false},
-		Longitude: pgtype.Numeric{Valid: false},
-	})
-	_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
-		UserID:    user.ID,
-		BirthDate: pgtype.Date{Time: time.Now().AddDate(-25, 0, 0), Valid: true},
-		Gender:    db.GenderMALE,
-	})
-
 	deviceInfo := ""
 	if device != "" && userAgent != "" {
 		deviceInfo = fmt.Sprintf("%s (%s)", device, userAgent)
@@ -364,9 +350,10 @@ func (s *Service) Logout(ctx context.Context, rawRefreshToken string, currentSes
 	return nil
 }
 
-func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role string) (*AuthResult, error) {
+func (s *Service) SocialAuth(ctx context.Context, email, provider, role, deviceInfo, fcmToken, firstName string) (*AuthResult, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	user, err := s.queries.GetUserByEmail(ctx, email)
+	isNew := false
 	if err != nil {
 		// Create new user
 		randomPwd := GenerateSecureRandomString(16)
@@ -382,20 +369,22 @@ func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role stri
 		if err != nil {
 			return nil, err
 		}
-
-		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
-			UserID:    user.ID,
-			FirstName: strings.Title(strings.Split(email, "@")[0]),
-			AvatarUrl: "",
-			Latitude:  pgtype.Numeric{Valid: true},
-			Longitude: pgtype.Numeric{Valid: true},
-		})
-		_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
-			UserID:    user.ID,
-			BirthDate: pgtype.Date{Time: time.Now().AddDate(-24, 0, 0), Valid: true},
-			Gender:    db.GenderMALE,
-		})
+		isNew = true
 	}
 
-	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), "", "")
+	if (isNew || user.ID > 0) && firstName != "" {
+		prof, pErr := s.queries.GetProfileByUserID(ctx, user.ID)
+		if pErr != nil || prof.FirstName == "" {
+			_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+				UserID:    user.ID,
+				FirstName: strings.TrimSpace(firstName),
+			})
+		}
+	}
+
+	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), deviceInfo, fcmToken)
+}
+
+func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role string) (*AuthResult, error) {
+	return s.SocialAuth(ctx, email, provider, role, "", "", "")
 }

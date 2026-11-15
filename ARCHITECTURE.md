@@ -313,6 +313,27 @@ The User Gallery system enables users to upload, manage, and curate their photo 
   - **Response Contract**: Returns an array of `UserAvatarDto` (`[{ id, avatarUrl }]`), preserving the requested order of valid IDs.
   - **Error Handling**: Missing/invalid token returns `401 Unauthorized`.
 
+### 7.10 Privacy Acceptance & Profile Completion (`POST /v1/users/privacy`)
+- **Accept Privacy (`POST /v1/users/privacy`)**:
+  - Authenticated user endpoint (`Bearer <token>`).
+  - Records user acceptance of privacy policy in `users.privacy_accepted_at` (TIMESTAMP).
+  - Can also be set during profile updates via `"privacyAccepted": true` in `PUT /v1/users/profile`.
+  - Response contract (`AcceptPrivacyResponseDto`):
+    ```json
+    {
+      "status": "success",
+      "message": "Privacy policy accepted successfully",
+      "data": {
+        "privacyAcceptedAt": "2026-11-11T13:19:58.889Z",
+        "profileCompleted": true
+      }
+    }
+    ```
+- **Profile Completion Invariants**:
+  - In `GET /v1/users/profile` (`CheckProfileStatus`), `GET /v1/users/me`, and `PUT /v1/users/profile`, `profileCompleted` is evaluated strictly as:
+    `FirstName != ""` AND `(AvatarUrl != "" || len(gallery) > 0)` AND `Gender != ""` AND `PrivacyAcceptedAt != null`.
+  - All four conditions must be satisfied for a profile to be deemed complete (`true`). Missing privacy acceptance will hold `profileCompleted` at `false`.
+
 ---
 
 

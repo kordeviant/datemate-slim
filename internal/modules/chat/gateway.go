@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	platformRedis "datemate/internal/platform/redis"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zishang520/socket.io/v2/socket"
 )
@@ -60,7 +62,8 @@ func NewGateway(
 		userMap:  make(map[socket.SocketId]*SocketUserData),
 	}
 
-	gw.setupNamespace()
+	gw.attachNamespaceHandlers(chatNsp)
+	gw.attachNamespaceHandlers(ioServer.Sockets())
 	return gw
 }
 
@@ -68,9 +71,9 @@ func (gw *Gateway) ServeHandler() http.Handler {
 	return gw.ioServer.ServeHandler(nil)
 }
 
-func (gw *Gateway) setupNamespace() {
+func (gw *Gateway) attachNamespaceHandlers(nsp socket.Namespace) {
 	// 1. Handshake Auth Middleware
-	gw.chatNsp.Use(func(s *socket.Socket, next func(*socket.ExtendedError)) {
+	nsp.Use(func(s *socket.Socket, next func(*socket.ExtendedError)) {
 		hs := s.Handshake()
 		token := ""
 
@@ -101,6 +104,11 @@ func (gw *Gateway) setupNamespace() {
 			return
 		}
 
+		if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+			token = strings.TrimSpace(token[7:])
+		}
+		token = strings.Trim(token, `"' `)
+
 		// Verify JWT token
 		parsed, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -120,15 +128,23 @@ func (gw *Gateway) setupNamespace() {
 			return
 		}
 
-		sub, err := claims.GetSubject()
-		if err != nil || sub == "" {
-			next(socket.NewExtendedError("Unauthorized: missing subject claim", nil))
-			return
+		var uid int64
+		if subVal, hasSub := claims["sub"]; hasSub && subVal != nil {
+			switch v := subVal.(type) {
+			case float64:
+				uid = int64(v)
+			case int64:
+				uid = v
+			case int:
+				uid = int64(v)
+			case string:
+				_, _ = fmt.Sscanf(v, "%d", &uid)
+			default:
+				_, _ = fmt.Sscanf(fmt.Sprintf("%v", v), "%d", &uid)
+			}
 		}
 
-		var uid int64
-		_, err = fmt.Sscanf(sub, "%d", &uid)
-		if err != nil || uid <= 0 {
+		if uid <= 0 {
 			next(socket.NewExtendedError("Unauthorized: invalid user ID in subject", nil))
 			return
 		}
@@ -136,20 +152,24 @@ func (gw *Gateway) setupNamespace() {
 		email, _ := claims["email"].(string)
 		role, _ := claims["role"].(string)
 
-		gw.mu.Lock()
-		gw.userMap[s.Id()] = &SocketUserData{
+		userData := &SocketUserData{
 			UserID: uid,
 			Email:  email,
 			Role:   role,
 			Rooms:  make(map[string]struct{}),
 		}
+		s.SetData(userData)
+
+		gw.mu.Lock()
+		gw.userMap[s.Id()] = userData
 		gw.mu.Unlock()
 
 		next(nil)
 	})
 
 	// 2. Connection Event
-	gw.chatNsp.On("connection", func(args ...any) {
+	nsp.On("connection", func(args ...any) {
+		log.Printf("[DEBUG WS] connection event triggered with %d args", len(args))
 		if len(args) == 0 {
 			return
 		}
@@ -158,9 +178,17 @@ func (gw *Gateway) setupNamespace() {
 			return
 		}
 
-		gw.mu.RLock()
-		userData := gw.userMap[s.Id()]
-		gw.mu.RUnlock()
+		var userData *SocketUserData
+		if d := s.Data(); d != nil {
+			if ud, ok := d.(*SocketUserData); ok {
+				userData = ud
+			}
+		}
+		if userData == nil {
+			gw.mu.RLock()
+			userData = gw.userMap[s.Id()]
+			gw.mu.RUnlock()
+		}
 
 		if userData == nil {
 			s.Disconnect(true)
@@ -169,6 +197,16 @@ func (gw *Gateway) setupNamespace() {
 
 		ctx := context.Background()
 		_ = gw.svc.SetUserPresence(ctx, userData.UserID, true)
+
+		// Automatically join personal user room so direct messages and conversation updates
+		// are delivered in real-time even when not in the specific conversation room.
+		userRoom := fmt.Sprintf("user:%d", userData.UserID)
+		s.Join(socket.Room(userRoom))
+		gw.mu.Lock()
+		if uData := gw.userMap[s.Id()]; uData != nil {
+			uData.Rooms[userRoom] = struct{}{}
+		}
+		gw.mu.Unlock()
 
 		// On Disconnect
 		s.On("disconnect", func(dArgs ...any) {
@@ -198,7 +236,7 @@ func (gw *Gateway) setupNamespace() {
 						lastSeen := time.Now().UTC().Format(time.RFC3339)
 
 						for r := range rooms {
-							gw.chatNsp.To(socket.Room(r)).Emit("user.activity", map[string]interface{}{
+							nsp.To(socket.Room(r)).Emit("user.activity", map[string]interface{}{
 								"userId":     uid,
 								"isOnline":   false,
 								"lastSeenAt": lastSeen,
@@ -211,14 +249,21 @@ func (gw *Gateway) setupNamespace() {
 
 		// On conversation.join
 		s.On("conversation.join", func(eArgs ...any) {
+			log.Printf("[DEBUG WS] conversation.join called with %d args: %#v", len(eArgs), eArgs)
 			var ack socket.Ack
 			var payload JoinConversationWsDto
 
 			for _, a := range eArgs {
 				if fn, ok := a.(socket.Ack); ok {
 					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
 				} else if m, ok := a.(map[string]interface{}); ok {
-					if id, ok := m["conversationId"].(string); ok {
+					if id, ok := m["conversationId"].(string); ok && id != "" {
+						payload.ConversationID = id
+					} else if id, ok := m["id"].(string); ok && id != "" {
+						payload.ConversationID = id
+					} else if id, ok := m["conversation_id"].(string); ok && id != "" {
 						payload.ConversationID = id
 					}
 				} else if b, err := json.Marshal(a); err == nil {
@@ -227,8 +272,17 @@ func (gw *Gateway) setupNamespace() {
 			}
 
 			if payload.ConversationID == "" {
+				if payload.ID != "" {
+					payload.ConversationID = payload.ID
+				} else if payload.ConversationIdSnake != "" {
+					payload.ConversationID = payload.ConversationIdSnake
+				}
+			}
+
+			if payload.ConversationID == "" {
 				if ack != nil {
 					ack([]any{map[string]interface{}{
+						"success": false,
 						"status":  "error",
 						"message": "conversationId is required",
 						"error":   map[string]string{"type": "BAD_REQUEST", "message": "conversationId is required"},
@@ -247,7 +301,7 @@ func (gw *Gateway) setupNamespace() {
 			gw.mu.Unlock()
 
 			// Broadcast user active in this room
-			gw.chatNsp.To(socket.Room(roomName)).Emit("user.activity", map[string]interface{}{
+			nsp.To(socket.Room(roomName)).Emit("user.activity", map[string]interface{}{
 				"userId":         userData.UserID,
 				"conversationId": payload.ConversationID,
 				"isOnline":       true,
@@ -256,6 +310,7 @@ func (gw *Gateway) setupNamespace() {
 
 			if ack != nil {
 				ack([]any{map[string]interface{}{
+					"success": true,
 					"status":  "success",
 					"message": "Joined conversation successfully",
 					"data":    map[string]string{"conversationId": payload.ConversationID},
@@ -273,11 +328,23 @@ func (gw *Gateway) setupNamespace() {
 				if fn, ok := a.(socket.Ack); ok {
 					ack = fn
 				} else if m, ok := a.(map[string]interface{}); ok {
-					if id, ok := m["conversationId"].(string); ok {
+					if id, ok := m["conversationId"].(string); ok && id != "" {
+						payload.ConversationID = id
+					} else if id, ok := m["id"].(string); ok && id != "" {
+						payload.ConversationID = id
+					} else if id, ok := m["conversation_id"].(string); ok && id != "" {
 						payload.ConversationID = id
 					}
 				} else if b, err := json.Marshal(a); err == nil {
 					_ = json.Unmarshal(b, &payload)
+				}
+			}
+
+			if payload.ConversationID == "" {
+				if payload.ID != "" {
+					payload.ConversationID = payload.ID
+				} else if payload.ConversationIdSnake != "" {
+					payload.ConversationID = payload.ConversationIdSnake
 				}
 			}
 
@@ -292,6 +359,7 @@ func (gw *Gateway) setupNamespace() {
 
 			if ack != nil {
 				ack([]any{map[string]interface{}{
+					"success": true,
 					"status":  "success",
 					"message": "Left conversation successfully",
 					"data":    map[string]string{"conversationId": payload.ConversationID},
@@ -333,6 +401,7 @@ func (gw *Gateway) setupNamespace() {
 				activities, err := gw.svc.GetBatchUserActivity(ctx, targetUserIDs)
 				if err != nil {
 					ack([]any{map[string]interface{}{
+						"success": false,
 						"status":  "error",
 						"message": err.Error(),
 						"error":   map[string]string{"type": "UNKNOWN_ERROR", "message": err.Error()},
@@ -340,6 +409,7 @@ func (gw *Gateway) setupNamespace() {
 					return
 				}
 				ack([]any{map[string]interface{}{
+					"success": true,
 					"status":  "success",
 					"message": "User activities retrieved",
 					"data":    map[string]interface{}{"activities": activities},
@@ -350,6 +420,7 @@ func (gw *Gateway) setupNamespace() {
 				activity, err := gw.svc.GetUserActivity(ctx, *targetUserID)
 				if err != nil {
 					ack([]any{map[string]interface{}{
+						"success": false,
 						"status":  "error",
 						"message": err.Error(),
 						"error":   map[string]string{"type": "UNKNOWN_ERROR", "message": err.Error()},
@@ -357,6 +428,7 @@ func (gw *Gateway) setupNamespace() {
 					return
 				}
 				ack([]any{map[string]interface{}{
+					"success": true,
 					"status":  "success",
 					"message": "User activity retrieved",
 					"data":    activity,
@@ -366,6 +438,7 @@ func (gw *Gateway) setupNamespace() {
 			}
 
 			ack([]any{map[string]interface{}{
+				"success": false,
 				"status":  "error",
 				"message": "Either userId or userIds must be provided",
 				"error":   map[string]string{"type": "BAD_REQUEST", "message": "Either userId or userIds must be provided"},
@@ -374,26 +447,62 @@ func (gw *Gateway) setupNamespace() {
 
 		// On message.send
 		s.On("message.send", func(eArgs ...any) {
+			log.Printf("[DEBUG WS] message.send called with %d args: %#v", len(eArgs), eArgs)
 			var ack socket.Ack
 			var dto SendMessageWsDto
 
 			for _, a := range eArgs {
 				if fn, ok := a.(socket.Ack); ok {
 					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					// Handle string duration gracefully before unmarshal
+					if dStr, ok := m["duration"].(string); ok && dStr != "" {
+						if dF, err := strconv.ParseFloat(dStr, 64); err == nil {
+							m["duration"] = dF
+						}
+					}
+					if att, ok := m["attachment"].(map[string]interface{}); ok {
+						if dStr, ok := att["duration"].(string); ok && dStr != "" {
+							if dF, err := strconv.ParseFloat(dStr, 64); err == nil {
+								att["duration"] = dF
+							}
+						}
+					}
+					if b, err := json.Marshal(m); err == nil {
+						_ = json.Unmarshal(b, &dto)
+					}
 				} else if b, err := json.Marshal(a); err == nil {
 					_ = json.Unmarshal(b, &dto)
 				}
 			}
 
-			if dto.ConversationID == "" || dto.ClientMessageID == "" {
+			// Fallback: extract url/type/duration from attachment if root fields are empty
+			if dto.Url == "" && dto.Attachment != nil && dto.Attachment.Url != "" {
+				dto.Url = dto.Attachment.Url
+			}
+			if dto.Type == "" && dto.Attachment != nil && dto.Attachment.Type != "" {
+				dto.Type = dto.Attachment.Type
+			}
+			if dto.Duration == nil && dto.Attachment != nil && dto.Attachment.Duration != nil {
+				dto.Duration = dto.Attachment.Duration
+			}
+
+			if dto.ConversationID == "" {
 				if ack != nil {
 					ack([]any{map[string]interface{}{
+						"success": false,
 						"status":  "error",
-						"message": "conversationId and clientMessageId are required",
-						"error":   map[string]string{"type": "BAD_REQUEST", "message": "conversationId and clientMessageId are required"},
+						"message": "conversationId is required",
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": "conversationId is required"},
 					}}, nil)
 				}
 				return
+			}
+
+			if dto.ClientMessageID == "" {
+				dto.ClientMessageID = uuid.NewString()
 			}
 
 			ctx := context.Background()
@@ -406,6 +515,7 @@ func (gw *Gateway) setupNamespace() {
 						errType = appErr.Type
 					}
 					ack([]any{map[string]interface{}{
+						"success": false,
 						"status":  "error",
 						"message": err.Error(),
 						"error":   map[string]string{"type": errType, "message": err.Error()},
@@ -417,7 +527,7 @@ func (gw *Gateway) setupNamespace() {
 			// Broadcast to room members if not duplicate
 			if !res.IsDuplicate {
 				roomName := "conversation:" + dto.ConversationID
-				gw.chatNsp.To(socket.Room(roomName)).Emit("message.created", map[string]interface{}{
+				msgPayload := map[string]interface{}{
 					"messageId":       res.Message.MessageID,
 					"conversationId":  res.Message.ConversationID,
 					"senderId":        res.Message.SenderID,
@@ -428,11 +538,30 @@ func (gw *Gateway) setupNamespace() {
 					"url":             res.Message.Url,
 					"duration":        res.Message.Duration,
 					"attachment":      res.Message.Attachment,
-				})
+				}
+				// 1. Broadcast to conversation room members
+				nsp.To(socket.Room(roomName)).Emit("message.created", msgPayload)
+
+				// 2. Broadcast to each recipient's personal user room
+				// Guarantees real-time delivery even when the recipient is on the inbox, feed, or navigating
+				for _, rID := range res.RecipientUserIDs {
+					if rID != userData.UserID {
+						recipientRoom := fmt.Sprintf("user:%d", rID)
+						nsp.To(socket.Room(recipientRoom)).Emit("message.created", msgPayload)
+						nsp.To(socket.Room(recipientRoom)).Emit("conversation.updated", map[string]interface{}{
+							"conversationId": dto.ConversationID,
+							"lastMessage":    msgPayload,
+						})
+					}
+				}
+
+				// 3. Sender confirmation
+				s.Emit("message.sent", msgPayload)
 			}
 
 			if ack != nil {
 				ack([]any{map[string]interface{}{
+					"success": true,
 					"status":  "success",
 					"message": "Message persisted successfully",
 					"data": map[string]interface{}{

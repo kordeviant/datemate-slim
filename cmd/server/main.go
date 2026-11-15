@@ -94,7 +94,7 @@ func main() {
 	mailer := mail.NewService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
 
 	// 8. Initialize FCM Push Dispatcher
-	fcmDispatcher := fcm.NewDispatcher(pool, cfg.FCMMockMode, 4, 1000)
+	fcmDispatcher := fcm.NewDispatcher(pool, cfg.FCMMockMode, 4, 1000, cfg.FirebaseCredentialsPath, cfg.FirebaseServiceAccountJSON)
 	defer fcmDispatcher.Close()
 
 	// 9. Initialize Domain Services
@@ -148,7 +148,7 @@ func main() {
 	// Docs protection (IP whitelist & HTTP Basic Auth)
 	r.Use(middleware.DocsProtection(cfg))
 
-	// Mount Socket.IO server on /socket.io/ and /chat
+	// Mount Socket.IO server on /socket.io and /chat
 	socketHandler := chatGateway.ServeHandler()
 	r.Mount("/socket.io", socketHandler)
 	r.Mount("/chat", socketHandler)

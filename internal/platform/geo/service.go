@@ -103,17 +103,69 @@ type Country struct {
 
 type State struct {
 	ID        int    `json:"id"`
-	CountryID int    `json:"country_id"`
+	CountryID int    `json:"countryId,omitempty"`
 	Name      string `json:"name"`
 	Code      string `json:"code,omitempty"`
 }
 
+func (s *State) UnmarshalJSON(data []byte) error {
+	type Alias State
+	aux := struct {
+		CountryIDSnake int `json:"country_id"`
+		CountryIDCam   int `json:"countryId"`
+		*Alias
+	}{
+		Alias: (*Alias)(s),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.CountryIDCam != 0 {
+		s.CountryID = aux.CountryIDCam
+	} else if aux.CountryIDSnake != 0 {
+		s.CountryID = aux.CountryIDSnake
+	}
+	return nil
+}
+
 type City struct {
-	ID        int     `json:"id"`
-	StateID   int     `json:"state_id"`
-	Name      string  `json:"name"`
-	Latitude  float64 `json:"latitude,omitempty"`
-	Longitude float64 `json:"longitude,omitempty"`
+	ID        int      `json:"id"`
+	StateID   int      `json:"stateId,omitempty"`
+	CountryID int      `json:"countryId,omitempty"`
+	Name      string   `json:"name"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+}
+
+func (c *City) UnmarshalJSON(data []byte) error {
+	type Alias City
+	aux := struct {
+		StateIDSnake   int      `json:"state_id"`
+		StateIDCam     int      `json:"stateId"`
+		CountryIDSnake int      `json:"country_id"`
+		CountryIDCam   int      `json:"countryId"`
+		Latitude       *float64 `json:"latitude"`
+		Longitude      *float64 `json:"longitude"`
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.StateIDCam != 0 {
+		c.StateID = aux.StateIDCam
+	} else if aux.StateIDSnake != 0 {
+		c.StateID = aux.StateIDSnake
+	}
+	if aux.CountryIDCam != 0 {
+		c.CountryID = aux.CountryIDCam
+	} else if aux.CountryIDSnake != 0 {
+		c.CountryID = aux.CountryIDSnake
+	}
+	c.Latitude = aux.Latitude
+	c.Longitude = aux.Longitude
+	return nil
 }
 
 type Service struct {
@@ -208,6 +260,11 @@ func (s *Service) loadFromDir(dataDir string) error {
 			s.cities = list
 			for i := range s.cities {
 				ct := &s.cities[i]
+				if ct.CountryID == 0 {
+					if st, ok := s.stateByID[ct.StateID]; ok && st != nil {
+						ct.CountryID = st.CountryID
+					}
+				}
 				s.cityByID[ct.ID] = ct
 				s.citiesBySID[ct.StateID] = append(s.citiesBySID[ct.StateID], ct)
 				lower := strings.ToLower(ct.Name)

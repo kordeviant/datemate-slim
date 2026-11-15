@@ -32,10 +32,50 @@ type StateItem struct {
 	CountryID int    `json:"countryId"`
 }
 
+func (s *StateItem) UnmarshalJSON(data []byte) error {
+	type Alias StateItem
+	aux := struct {
+		CountryIDSnake int `json:"country_id"`
+		CountryIDCam   int `json:"countryId"`
+		*Alias
+	}{
+		Alias: (*Alias)(s),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.CountryIDCam != 0 {
+		s.CountryID = aux.CountryIDCam
+	} else if aux.CountryIDSnake != 0 {
+		s.CountryID = aux.CountryIDSnake
+	}
+	return nil
+}
+
 type CityItem struct {
 	ID      int    `json:"id"`
 	Name    string `json:"name"`
 	StateID int    `json:"stateId"`
+}
+
+func (c *CityItem) UnmarshalJSON(data []byte) error {
+	type Alias CityItem
+	aux := struct {
+		StateIDSnake int `json:"state_id"`
+		StateIDCam   int `json:"stateId"`
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	if aux.StateIDCam != 0 {
+		c.StateID = aux.StateIDCam
+	} else if aux.StateIDSnake != 0 {
+		c.StateID = aux.StateIDSnake
+	}
+	return nil
 }
 
 func main() {
@@ -245,7 +285,7 @@ func seedGeo(ctx context.Context, pool *pgxpool.Pool, geoDir string) error {
 			fmt.Fprintf(&query, "($%d, $%d, $%d)", idx+1, idx+2, idx+3)
 			args = append(args, s.ID, s.CountryID, name)
 		}
-		query.WriteString(" ON CONFLICT (id) DO NOTHING")
+		query.WriteString(" ON CONFLICT (id) DO UPDATE SET country_id = EXCLUDED.country_id, name = EXCLUDED.name")
 
 		if _, err := pool.Exec(ctx, query.String(), args...); err != nil {
 			return fmt.Errorf("insert states chunk: %w", err)
@@ -286,7 +326,7 @@ func seedGeo(ctx context.Context, pool *pgxpool.Pool, geoDir string) error {
 			fmt.Fprintf(&query, "($%d, $%d, $%d)", idx+1, idx+2, idx+3)
 			args = append(args, c.ID, c.StateID, name)
 		}
-		query.WriteString(" ON CONFLICT (id) DO NOTHING")
+		query.WriteString(" ON CONFLICT (id) DO UPDATE SET state_id = EXCLUDED.state_id, name = EXCLUDED.name")
 
 		if _, err := pool.Exec(ctx, query.String(), args...); err != nil {
 			return fmt.Errorf("insert cities chunk: %w", err)
@@ -369,46 +409,47 @@ func seedQuestions(ctx context.Context, pool *pgxpool.Pool) error {
 			IconAlt: "Kids",
 			Answers: [][2]string{{"Love kids", "عاشق بچه‌ها هستم"}, {"Maybe someday want kids", "شاید در آینده بچه بخواهم"}, {"Undecided about kids", "هنوز تصمیم نگرفته‌ام"}, {"Do not want kids", "بچه نمی‌خواهم"}, {"Already have kids", "در حال حاضر فرزند دارم"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
 		},
-		{
-			Type:    "PERSONALITY",
-			NameEn:  "What is your highest level of education?",
-			NameFa:  "بالاترین مدرک تحصیلی شما چیست؟",
-			Icon:    "icons/education.svg",
-			IconAlt: "Education",
-			Answers: [][2]string{{"High school diploma", "دیپلم دبیرستان"}, {"Some college", "دانشجو یا انصرافی"}, {"Associate degree", "کاردانی / فوق دیپلم"}, {"Bachelor's degree", "کارشناسی / لیسانس"}, {"Master's degree", "کارشناسی ارشد / فوق لیسانس"}, {"Doctorate", "دکتری"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
-		},
-		{
-			Type:    "PERSONALITY",
-			NameEn:  "How would you describe your personality type?",
-			NameFa:  "تیپ شخصیتی خود را چگونه توصیف می‌کنید؟",
-			Icon:    "icons/mood.svg",
-			IconAlt: "Personality",
-			Answers: [][2]string{{"Introvert", "درون‌گرا"}, {"Extrovert", "برون‌گرا"}, {"Somewhere in between", "میانه‌رو / میان‌گرا"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
-		},
-		{
-			Type:    "PERSONALITY",
-			NameEn:  "What is your zodiac star sign?",
-			NameFa:  "ماه تولد یا نماد زودیاک شما چیست؟",
-			Icon:    "icons/star-sign.svg",
-			IconAlt: "Zodiac",
-			Answers: [][2]string{{"Aries", "حمل (فروردین)"}, {"Taurus", "ثور (اردیبهشت)"}, {"Gemini", "جوزا (خرداد)"}, {"Cancer", "سرطان (تیر)"}, {"Leo", "اسد (مرداد)"}, {"Virgo", "سنبله (شهریور)"}, {"Libra", "میزان (مهر)"}, {"Scorpio", "عقرب (آبان)"}, {"Sagittarius", "قوس (آذر)"}, {"Capricorn", "جدی (دی)"}, {"Aquarius", "دلو (بهمن)"}, {"Pisces", "حوت (اسفند)"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
-		},
-		{
-			Type:    "PERSONALITY",
-			NameEn:  "Do you have any pets?",
-			NameFa:  "آیا حیوان خانگی دارید؟",
-			Icon:    "icons/pets.svg",
-			IconAlt: "Pets",
-			Answers: [][2]string{{"Cats", "گربه"}, {"Dogs", "سگ"}, {"Both cats and dogs", "هم گربه و هم سگ"}, {"Other animals", "سایر حیوانات"}, {"No pets", "حیوان خانگی ندارم"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
-		},
-		{
-			Type:    "PERSONALITY",
-			NameEn:  "What are your religious or spiritual beliefs?",
-			NameFa:  "باورهای مذهبی یا معنوی شما چیست؟",
-			Icon:    "icons/religion.svg",
-			IconAlt: "Religion",
-			Answers: [][2]string{{"Christianity", "مسیحیت"}, {"Islam", "اسلام"}, {"Hinduism", "هندوئیسم"}, {"Buddhism", "بودیسم"}, {"Judaism", "یهودیت"}, {"Spirituality", "معنوی (اسپیریچوال)"}, {"Agnostic", "ندانم‌گرا (آگنوستیک)"}, {"Atheism", "خداناباور (آتئیست)"}, {"Other", "سایر موارد"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
-		},
+		// The following PERSONALITY questions are commented out to keep exactly 4 questions per type:
+		// {
+		// 	Type:    "PERSONALITY",
+		// 	NameEn:  "What is your highest level of education?",
+		// 	NameFa:  "بالاترین مدرک تحصیلی شما چیست؟",
+		// 	Icon:    "icons/education.svg",
+		// 	IconAlt: "Education",
+		// 	Answers: [][2]string{{"High school diploma", "دیپلم دبیرستان"}, {"Some college", "دانشجو یا انصرافی"}, {"Associate degree", "کاردانی / فوق دیپلم"}, {"Bachelor's degree", "کارشناسی / لیسانس"}, {"Master's degree", "کارشناسی ارشد / فوق لیسانس"}, {"Doctorate", "دکتری"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
+		// },
+		// {
+		// 	Type:    "PERSONALITY",
+		// 	NameEn:  "How would you describe your personality type?",
+		// 	NameFa:  "تیپ شخصیتی خود را چگونه توصیف می‌کنید؟",
+		// 	Icon:    "icons/mood.svg",
+		// 	IconAlt: "Personality",
+		// 	Answers: [][2]string{{"Introvert", "درون‌گرا"}, {"Extrovert", "برون‌گرا"}, {"Somewhere in between", "میانه‌رو / میان‌گرا"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
+		// },
+		// {
+		// 	Type:    "PERSONALITY",
+		// 	NameEn:  "What is your zodiac star sign?",
+		// 	NameFa:  "ماه تولد یا نماد زودیاک شما چیست؟",
+		// 	Icon:    "icons/star-sign.svg",
+		// 	IconAlt: "Zodiac",
+		// 	Answers: [][2]string{{"Aries", "حمل (فروردین)"}, {"Taurus", "ثور (اردیبهشت)"}, {"Gemini", "جوزا (خرداد)"}, {"Cancer", "سرطان (تیر)"}, {"Leo", "اسد (مرداد)"}, {"Virgo", "سنبله (شهریور)"}, {"Libra", "میزان (مهر)"}, {"Scorpio", "عقرب (آبان)"}, {"Sagittarius", "قوس (آذر)"}, {"Capricorn", "جدی (دی)"}, {"Aquarius", "دلو (بهمن)"}, {"Pisces", "حوت (اسفند)"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
+		// },
+		// {
+		// 	Type:    "PERSONALITY",
+		// 	NameEn:  "Do you have any pets?",
+		// 	NameFa:  "آیا حیوان خانگی دارید؟",
+		// 	Icon:    "icons/pets.svg",
+		// 	IconAlt: "Pets",
+		// 	Answers: [][2]string{{"Cats", "گربه"}, {"Dogs", "سگ"}, {"Both cats and dogs", "هم گربه و هم سگ"}, {"Other animals", "سایر حیوانات"}, {"No pets", "حیوان خانگی ندارم"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
+		// },
+		// {
+		// 	Type:    "PERSONALITY",
+		// 	NameEn:  "What are your religious or spiritual beliefs?",
+		// 	NameFa:  "باورهای مذهبی یا معنوی شما چیست؟",
+		// 	Icon:    "icons/religion.svg",
+		// 	IconAlt: "Religion",
+		// 	Answers: [][2]string{{"Christianity", "مسیحیت"}, {"Islam", "اسلام"}, {"Hinduism", "هندوئیسم"}, {"Buddhism", "بودیسم"}, {"Judaism", "یهودیت"}, {"Spirituality", "معنوی (اسپیریچوال)"}, {"Agnostic", "ندانم‌گرا (آگنوستیک)"}, {"Atheism", "خداناباور (آتئیست)"}, {"Other", "سایر موارد"}, {"Prefer not to say", "ترجیح می‌دهم نگویم"}},
+		// },
 	}
 
 	for _, q := range questions {

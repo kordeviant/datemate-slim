@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -45,14 +44,101 @@ func NewService(
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
+}
+
+func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.UUID) []RecentMessageDto {
+	rows, err := s.pool.Query(ctx, `
+		SELECT message_id, sender_id, content, created_at, message_type, media_url, duration,
+		       attachment_name, attachment_size, mime_type
+		FROM messages_by_conversation
+		WHERE conversation_id = $1
+		ORDER BY created_at DESC
+		LIMIT 20
+	`, conversationID)
+	if err != nil {
+		return make([]RecentMessageDto, 0)
 	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
+	defer rows.Close()
+
+	var list []RecentMessageDto
+	for rows.Next() {
+		var msgUUID pgtype.UUID
+		var senderID int64
+		var content pgtype.Text
+		var createdAt time.Time
+		var msgType string
+		var mediaUrl pgtype.Text
+		var dur pgtype.Float8
+		var attachName, mimeType pgtype.Text
+		var attachSize pgtype.Int8
+
+		if err := rows.Scan(&msgUUID, &senderID, &content, &createdAt, &msgType, &mediaUrl, &dur, &attachName, &attachSize, &mimeType); err != nil {
+			continue
+		}
+
+		var urlPtr *string
+		if mediaUrl.Valid && mediaUrl.String != "" {
+			u := s.resolveAssetURL(mediaUrl.String)
+			urlPtr = &u
+		}
+
+		var durPtr *float64
+		if dur.Valid {
+			d := dur.Float64
+			durPtr = &d
+		}
+
+		var attach *MessageAttachmentDto
+		if urlPtr != nil {
+			var fn *string
+			if attachName.Valid {
+				fn = &attachName.String
+			}
+			var fs *int64
+			if attachSize.Valid {
+				fs = &attachSize.Int64
+			}
+			var mt *string
+			if mimeType.Valid {
+				mt = &mimeType.String
+			}
+			attach = &MessageAttachmentDto{
+				Url:      *urlPtr,
+				Type:     msgType,
+				Duration: durPtr,
+				FileName: fn,
+				FileSize: fs,
+				MimeType: mt,
+			}
+		}
+
+		cnt := ""
+		if content.Valid {
+			cnt = content.String
+		}
+
+		list = append(list, RecentMessageDto{
+			MessageID:  uuid.UUID(msgUUID.Bytes).String(),
+			SenderID:   senderID,
+			Content:    cnt,
+			CreatedAt:  createdAt.UTC().Format(time.RFC3339Nano),
+			Type:       msgType,
+			Url:        urlPtr,
+			Duration:   durPtr,
+			Attachment: attach,
+		})
 	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+
+	// Reverse to chronological order (oldest to newest)
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
+		list[i], list[j] = list[j], list[i]
+	}
+
+	if list == nil {
+		list = make([]RecentMessageDto, 0)
+	}
+	return list
 }
 
 func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, targetUserID int64) (*ConversationDto, error) {
@@ -69,6 +155,18 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 	existingPair, err := s.queries.GetDirectConversationPair(ctx, pairKey)
 	if err == nil {
 		convIDStr := uuid.UUID(existingPair.ConversationID.Bytes).String()
+		_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
+			UserID:           currentUserID,
+			LastMessageAt:    existingPair.CreatedAt,
+			ConversationID:   existingPair.ConversationID,
+			ConversationType: "DIRECT",
+		})
+		_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
+			UserID:           targetUserID,
+			LastMessageAt:    existingPair.CreatedAt,
+			ConversationID:   existingPair.ConversationID,
+			ConversationType: "DIRECT",
+		})
 		return s.GetConversationDetails(ctx, convIDStr, currentUserID)
 	}
 
@@ -121,12 +219,19 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 	})
 
 	convIDStr := detUUID.String()
+	isCreated := true
+	peerAct, _ := s.GetUserActivity(ctx, targetUserID)
 	return &ConversationDto{
 		ConversationID:   convIDStr,
+		Type:             "direct",
 		ConversationType: conv.ConversationType,
 		CreatedBy:        conv.CreatedBy,
 		CreatedAt:        conv.CreatedAt.Time,
+		Title:            nil,
 		MemberIDs:        []int64{currentUserID, targetUserID},
+		RecentMessages:   make([]RecentMessageDto, 0),
+		PeerActivity:     peerAct,
+		Created:          &isCreated,
 	}, nil
 }
 
@@ -226,13 +331,17 @@ func (s *Service) CreateGroupConversation(ctx context.Context, currentUserID int
 		titlePtr = &conv.Title.String
 	}
 
+	isCreated := true
 	return &ConversationDto{
 		ConversationID:   groupUUID.String(),
+		Type:             "group",
 		ConversationType: conv.ConversationType,
 		CreatedBy:        conv.CreatedBy,
 		CreatedAt:        conv.CreatedAt.Time,
 		Title:            titlePtr,
 		MemberIDs:        memberIDs,
+		RecentMessages:   make([]RecentMessageDto, 0),
+		Created:          &isCreated,
 	}, nil
 }
 
@@ -281,8 +390,53 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		lastSender = &id
 	}
 
+	var peerActivity *UserActivityDto
+	var peerID int64
+	for _, id := range memberIDs {
+		if id != currentUserID {
+			peerID = id
+			break
+		}
+	}
+	if strings.EqualFold(conv.ConversationType, "DIRECT") && peerID > 0 {
+		peerActivity, _ = s.GetUserActivity(ctx, peerID)
+	}
+
+	recent := s.getRecentMessages(ctx, pgUUID)
+
+	var lastMsg *LastMessageDto
+	if conv.LastMessagePreview.Valid && conv.LastMessagePreview.String != "" {
+		var createdAtStr string
+		if conv.LastMessageAt.Valid {
+			createdAtStr = conv.LastMessageAt.Time.UTC().Format(time.RFC3339Nano)
+		}
+		var msgIDStr string
+		if conv.LastMessageID.Valid {
+			msgIDStr = uuid.UUID(conv.LastMessageID.Bytes).String()
+		} else if len(recent) > 0 {
+			msgIDStr = recent[len(recent)-1].MessageID
+		}
+		lastMsg = &LastMessageDto{
+			MessageID: msgIDStr,
+			SenderID:  conv.LastMessageSenderID.Int64,
+			Content:   conv.LastMessagePreview.String,
+			CreatedAt: createdAtStr,
+			Type:      "text",
+		}
+	} else if len(recent) > 0 {
+		lastRecent := recent[len(recent)-1]
+		lastMsg = &LastMessageDto{
+			MessageID: lastRecent.MessageID,
+			SenderID:  lastRecent.SenderID,
+			Content:   lastRecent.Content,
+			CreatedAt: lastRecent.CreatedAt,
+			Type:      lastRecent.Type,
+		}
+	}
+
 	return &ConversationDto{
 		ConversationID:      conversationID,
+		Type:                strings.ToLower(conv.ConversationType),
 		ConversationType:    conv.ConversationType,
 		CreatedBy:           conv.CreatedBy,
 		CreatedAt:           conv.CreatedAt.Time,
@@ -290,7 +444,10 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		LastMessageAt:       lastMsgAt,
 		LastMessagePreview:  lastMsgPrev,
 		LastMessageSenderID: lastSender,
+		LastMessage:         lastMsg,
 		MemberIDs:           memberIDs,
+		RecentMessages:      recent,
+		PeerActivity:        peerActivity,
 	}, nil
 }
 
@@ -307,9 +464,9 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 		return nil, err
 	}
 
-	var res []ConversationDto
+	res := make([]ConversationDto, 0, len(rows))
 	for _, r := range rows {
-		if convType != "" && r.ConversationType != convType {
+		if convType != "" && !strings.EqualFold(r.ConversationType, convType) {
 			continue
 		}
 
@@ -332,8 +489,55 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			lastMsgAt = &r.LastMessageAt.Time
 		}
 
+		// Fetch members for this conversation
+		members, _ := s.queries.ListConversationMembers(ctx, r.ConversationID)
+		memberIDs := make([]int64, 0, len(members))
+		var peerID int64
+		for _, m := range members {
+			memberIDs = append(memberIDs, m.UserID)
+			if m.UserID != currentUserID && peerID == 0 {
+				peerID = m.UserID
+			}
+		}
+
+		var peerActivity *UserActivityDto
+		if strings.EqualFold(r.ConversationType, "DIRECT") && peerID > 0 {
+			peerActivity, _ = s.GetUserActivity(ctx, peerID)
+		}
+
+		recent := s.getRecentMessages(ctx, r.ConversationID)
+
+		var lastMsg *LastMessageDto
+		if r.LastMessagePreview.Valid && r.LastMessagePreview.String != "" {
+			var createdAtStr string
+			if r.LastMessageAt.Valid {
+				createdAtStr = r.LastMessageAt.Time.UTC().Format(time.RFC3339Nano)
+			}
+			var msgIDStr string
+			if len(recent) > 0 {
+				msgIDStr = recent[len(recent)-1].MessageID
+			}
+			lastMsg = &LastMessageDto{
+				MessageID: msgIDStr,
+				SenderID:  r.LastMessageSenderID.Int64,
+				Content:   r.LastMessagePreview.String,
+				CreatedAt: createdAtStr,
+				Type:      "text",
+			}
+		} else if len(recent) > 0 {
+			lastRecent := recent[len(recent)-1]
+			lastMsg = &LastMessageDto{
+				MessageID: lastRecent.MessageID,
+				SenderID:  lastRecent.SenderID,
+				Content:   lastRecent.Content,
+				CreatedAt: lastRecent.CreatedAt,
+				Type:      lastRecent.Type,
+			}
+		}
+
 		res = append(res, ConversationDto{
 			ConversationID:      convUUIDStr,
+			Type:                strings.ToLower(r.ConversationType),
 			ConversationType:    r.ConversationType,
 			CreatedBy:           0,
 			CreatedAt:           r.LastMessageAt.Time,
@@ -341,6 +545,10 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			LastMessageAt:       lastMsgAt,
 			LastMessagePreview:  lastMsgPrev,
 			LastMessageSenderID: lastSender,
+			LastMessage:         lastMsg,
+			MemberIDs:           memberIDs,
+			RecentMessages:      recent,
+			PeerActivity:        peerActivity,
 		})
 	}
 
@@ -380,30 +588,32 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 		}
 	}
 
-	var items []MessageItemDto
+	items := make([]MessageItemDto, 0)
 	currentBucket := bucket
+	bucketOffset := offset
 	lookbackDays := 0
+	hasMore := false
+	var nextCursor *string
 
 	for len(items) < limit && lookbackDays < 30 {
+		needed := limit - len(items)
 		rows, err := s.queries.ListMessagesByConversationBucket(ctx, db.ListMessagesByConversationBucketParams{
 			ConversationID: pgUUID,
 			Bucket:         currentBucket,
-			Limit:          int32(limit - len(items) + 1),
+			Limit:          int32(needed + 1),
+			Offset:         int32(bucketOffset),
 		})
 		if err != nil {
 			break
 		}
 
-		if offset > 0 && len(rows) > 0 {
-			if offset >= len(rows) {
-				rows = nil
-			} else {
-				rows = rows[offset:]
-			}
-			offset = 0
+		bucketHasMore := len(rows) > needed
+		takeRows := rows
+		if bucketHasMore {
+			takeRows = rows[:needed]
 		}
 
-		for _, r := range rows {
+		for _, r := range takeRows {
 			msgUUIDStr := uuid.UUID(r.MessageID.Bytes).String()
 			var clientMsgID *string
 			if r.ClientMessageID.Valid {
@@ -420,6 +630,7 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 			}
 
 			var attachment *MessageAttachmentDto
+			normType := normalizeMessageType(r.MessageType)
 			if urlPtr != nil {
 				var fn *string
 				if r.AttachmentName.Valid {
@@ -435,7 +646,7 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 				}
 				attachment = &MessageAttachmentDto{
 					Url:      *urlPtr,
-					Type:     r.MessageType,
+					Type:     normType,
 					Duration: durPtr,
 					FileName: fn,
 					FileSize: fs,
@@ -450,32 +661,42 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 				Content:         r.Content.String,
 				CreatedAt:       r.CreatedAt.Time.UTC().Format(time.RFC3339Nano),
 				ClientMessageID: clientMsgID,
-				Type:            r.MessageType,
+				Type:            normType,
 				Url:             urlPtr,
 				Duration:        durPtr,
 				Attachment:      attachment,
 			})
-
-			if len(items) >= limit {
-				break
-			}
 		}
 
-		currentBucket = common.GetPreviousBucket(currentBucket)
-		lookbackDays++
-	}
+		if bucketHasMore {
+			hasMore = true
+			cStr, err := common.EncodeCursor(common.PageCursorData{
+				Bucket: currentBucket,
+				Offset: bucketOffset + len(takeRows),
+				T:      time.Now().UnixMilli(),
+			})
+			if err == nil {
+				nextCursor = &cStr
+			}
+			break
+		}
 
-	var nextCursor *string
-	hasMore := false
-	if len(items) >= limit {
-		hasMore = true
-		cStr, err := common.EncodeCursor(common.PageCursorData{
-			Bucket: currentBucket,
-			Offset: len(items),
-			T:      time.Now().UnixMilli(),
-		})
-		if err == nil {
-			nextCursor = &cStr
+		// Current bucket exhausted; move to previous day bucket
+		currentBucket = common.GetPreviousBucket(currentBucket)
+		bucketOffset = 0
+		lookbackDays++
+
+		if len(items) >= limit {
+			hasMore = true
+			cStr, err := common.EncodeCursor(common.PageCursorData{
+				Bucket: currentBucket,
+				Offset: 0,
+				T:      time.Now().UnixMilli(),
+			})
+			if err == nil {
+				nextCursor = &cStr
+			}
+			break
 		}
 	}
 
@@ -484,6 +705,27 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
 	}, nil
+}
+
+func normalizeMessageType(t string) string {
+	lower := strings.ToLower(strings.TrimSpace(t))
+	switch lower {
+	case "voice", "audio":
+		return "voice"
+	case "image", "photo", "picture":
+		return "image"
+	case "video":
+		return "video"
+	case "file", "document":
+		return "file"
+	case "text":
+		return "text"
+	default:
+		if lower == "" {
+			return "text"
+		}
+		return lower
+	}
 }
 
 type SendMessageResult struct {
@@ -529,14 +771,32 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 		return nil, common.NewAppError(400, common.ErrBadRequest, "Message content cannot be empty without attachment")
 	}
 
-	msgType := "TEXT"
+	msgType := "text"
 	if dto.Type != "" {
-		msgType = strings.ToUpper(dto.Type)
+		msgType = normalizeMessageType(dto.Type)
 	} else if hasAttachment {
-		msgType = "FILE"
+		msgType = "file"
 	}
-	if dto.Duration != nil && *dto.Duration > 0 {
-		msgType = "VOICE"
+	if dto.Duration != nil && *dto.Duration > 0 && (msgType == "text" || msgType == "file") {
+		msgType = "voice"
+	}
+
+	if hasAttachment {
+		if dto.Attachment == nil {
+			dto.Attachment = &MessageAttachmentDto{
+				Url:      mediaUrl,
+				Type:     msgType,
+				Duration: dto.Duration,
+			}
+		} else {
+			dto.Attachment.Type = msgType
+			if dto.Attachment.Url == "" {
+				dto.Attachment.Url = mediaUrl
+			}
+			if dto.Attachment.Duration == nil {
+				dto.Attachment.Duration = dto.Duration
+			}
+		}
 	}
 
 	now := time.Now().UTC()
@@ -561,6 +821,14 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 		})
 		if getErr == nil {
 			exMsgUUID := uuid.UUID(existing.MessageID.Bytes).String()
+			var exUrlPtr *string
+			if mediaUrl != "" {
+				u := s.resolveAssetURL(mediaUrl)
+				exUrlPtr = &u
+				if dto.Attachment != nil {
+					dto.Attachment.Url = u
+				}
+			}
 			return &SendMessageResult{
 				Message: MessageItemDto{
 					MessageID:       exMsgUUID,
@@ -570,7 +838,7 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 					CreatedAt:       existing.CreatedAt.Time.Format(time.RFC3339Nano),
 					ClientMessageID: &dto.ClientMessageID,
 					Type:            msgType,
-					Url:             &mediaUrl,
+					Url:             exUrlPtr,
 					Duration:        dto.Duration,
 					Attachment:      dto.Attachment,
 				},
@@ -621,7 +889,16 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 	// 6. Update conversation last message
 	preview := dto.Content
 	if preview == "" && hasAttachment {
-		preview = fmt.Sprintf("[%s]", msgType)
+		switch msgType {
+		case "voice":
+			preview = "[Voice message]"
+		case "image":
+			preview = "[Photo]"
+		case "video":
+			preview = "[Video]"
+		default:
+			preview = "[Attachment]"
+		}
 	}
 	if len(preview) > 100 {
 		preview = preview[:100]
@@ -658,12 +935,26 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 
 	// 8. Dispatch Push Notification to other members
 	if s.dispatcher != nil {
+		senderTitle := dto.SenderName
+		if senderTitle == "" {
+			if senderProf, err := s.queries.GetProfileByUserID(ctx, int32(senderID)); err == nil {
+				if senderProf.FirstName != "" {
+					senderTitle = senderProf.FirstName
+				} else if senderProf.Username.Valid && senderProf.Username.String != "" {
+					senderTitle = senderProf.Username.String
+				}
+			}
+		}
+		if senderTitle == "" {
+			senderTitle = "New message"
+		}
+
 		for _, rID := range recipients {
 			if rID != senderID {
 				recID := rID
 				s.dispatcher.Enqueue(fcm.NotificationJob{
 					UserID: &recID,
-					Title:  dto.SenderName,
+					Title:  senderTitle,
 					Body:   preview,
 					Data: map[string]interface{}{
 						"conversationId": dto.ConversationID,
@@ -679,6 +970,9 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 	if mediaUrl != "" {
 		u := s.resolveAssetURL(mediaUrl)
 		urlPtr = &u
+		if dto.Attachment != nil {
+			dto.Attachment.Url = u
+		}
 	}
 
 	return &SendMessageResult{
@@ -846,6 +1140,77 @@ func (s *Service) BanGroupUser(ctx context.Context, conversationID string, curre
 		ConversationID: pgUUID,
 		UserID:         targetUserID,
 	})
+}
+
+func (s *Service) AddGroupMember(ctx context.Context, conversationID string, currentUserID, targetUserID int64) (*GroupResponseDto, error) {
+	grp, err := s.GetGroup(ctx, conversationID, currentUserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if grp.OwnerID != currentUserID {
+		return nil, common.NewAppError(403, common.ErrForbidden, "Only the group owner can add members")
+	}
+
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return nil, common.NewAppError(400, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	pgUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	_, _ = s.queries.AddConversationMember(ctx, db.AddConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         targetUserID,
+		Role:           "MEMBER",
+	})
+
+	_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
+		UserID:           targetUserID,
+		LastMessageAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ConversationID:   pgUUID,
+		ConversationType: "GROUP",
+		Title:            pgtype.Text{String: grp.Title, Valid: true},
+	})
+
+	return s.GetGroup(ctx, conversationID, currentUserID)
+}
+
+func (s *Service) RemoveGroupMember(ctx context.Context, conversationID string, currentUserID, targetUserID int64) error {
+	grp, err := s.GetGroup(ctx, conversationID, currentUserID)
+	if err != nil {
+		return err
+	}
+
+	if grp.OwnerID != currentUserID && currentUserID != targetUserID {
+		return common.NewAppError(403, common.ErrForbidden, "Only the group owner can remove members")
+	}
+	if grp.OwnerID == targetUserID {
+		return common.NewAppError(400, common.ErrBadRequest, "The owner cannot be removed")
+	}
+
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return common.NewAppError(400, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	pgUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	return s.queries.RemoveConversationMember(ctx, db.RemoveConversationMemberParams{
+		ConversationID: pgUUID,
+		UserID:         targetUserID,
+	})
+}
+
+func (s *Service) UnbanGroupUser(ctx context.Context, conversationID string, currentUserID, targetUserID int64) error {
+	grp, err := s.GetGroup(ctx, conversationID, currentUserID)
+	if err != nil {
+		return err
+	}
+
+	if grp.OwnerID != currentUserID {
+		return common.NewAppError(403, common.ErrForbidden, "Only the group owner can unban users")
+	}
+
+	return nil
 }
 
 func (s *Service) GetUserActivity(ctx context.Context, userID int64) (*UserActivityDto, error) {

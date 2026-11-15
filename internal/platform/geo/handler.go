@@ -378,14 +378,29 @@ func (h *Handler) GetCity(w http.ResponseWriter, r *http.Request) {
 	c, st, co, _ := h.svc.ResolveCityHierarchy(city.ID)
 	handleDownloadHeaders(w, r, fmt.Sprintf("city_%s.json", sanitizeFilename(city.Name)))
 
+	var stateObj interface{}
+	if st != nil {
+		stateObj = map[string]interface{}{
+			"id":   st.ID,
+			"name": st.Name,
+		}
+	}
+	var countryObj interface{}
+	if co != nil {
+		countryObj = map[string]interface{}{
+			"id":   co.ID,
+			"name": co.Name,
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"id":        c.ID,
 		"name":      c.Name,
 		"stateId":   c.StateID,
 		"countryId": func() *int { if co != nil { return &co.ID }; return nil }(),
-		"state":     st,
-		"country":   co,
+		"state":     stateObj,
+		"country":   countryObj,
 	})
 }
 
@@ -408,14 +423,30 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 		}
 		c, st, co, _ := h.svc.ResolveCityHierarchy(city.ID)
 		handleDownloadHeaders(w, r, fmt.Sprintf("city_%s.json", sanitizeFilename(city.Name)))
+
+		var stateObj interface{}
+		if st != nil {
+			stateObj = map[string]interface{}{
+				"id":   st.ID,
+				"name": st.Name,
+			}
+		}
+		var countryObj interface{}
+		if co != nil {
+			countryObj = map[string]interface{}{
+				"id":   co.ID,
+				"name": co.Name,
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":        c.ID,
 			"name":      c.Name,
 			"stateId":   c.StateID,
 			"countryId": func() *int { if co != nil { return &co.ID }; return nil }(),
-			"state":     st,
-			"country":   co,
+			"state":     stateObj,
+			"country":   countryObj,
 		})
 		return
 	}

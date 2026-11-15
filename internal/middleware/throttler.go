@@ -13,6 +13,9 @@ import (
 
 func Throttler(rdb *platformRedis.Client, cfg *config.Config) func(http.Handler) http.Handler {
 	window := time.Duration(cfg.ThrottleTTL) * time.Millisecond
+	if cfg.ThrottleTTL > 0 && cfg.ThrottleTTL < 1000 {
+		window = time.Duration(cfg.ThrottleTTL) * time.Second
+	}
 	defaultLimit := cfg.ThrottleLimit
 	authLimit := cfg.ThrottleAuthLimit
 
@@ -20,8 +23,15 @@ func Throttler(rdb *platformRedis.Client, cfg *config.Config) func(http.Handler)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := strings.ToLower(r.URL.Path)
 
-			// Skip throttling for internal health, static assets, and websocket handshake
-			if path == "/health" || path == "/v1/health" || strings.HasPrefix(path, "/assets/") || strings.HasPrefix(path, "/static/") || strings.HasPrefix(path, "/chat") {
+			// Skip throttling for internal health, static assets, uploads, and websocket / socket.io handshake
+			if path == "/health" || path == "/v1/health" ||
+				strings.Contains(path, "/assets/") ||
+				strings.Contains(path, "/uploads") ||
+				strings.Contains(path, "/chat/files") ||
+				strings.Contains(path, "/static/") ||
+				strings.HasPrefix(path, "/chat") ||
+				strings.HasPrefix(path, "/socket.io") ||
+				strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 				next.ServeHTTP(w, r)
 				return
 			}

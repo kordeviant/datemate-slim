@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
       POSTGRES_DB: ${POSTGRES_DB:-datemate_db}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_EXTERNAL_PORT:-5433}:5432"
     volumes:
       - datemate_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-datemate}_redis
     restart: always
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_EXTERNAL_PORT:-6380}:6379"
     volumes:
       - datemate_redisdata:/data
     healthcheck:
@@ -37,12 +37,14 @@ services:
       dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-datemate}_backend
     restart: always
-    network_mode: "host"
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
     env_file:
       - .env
     volumes:
       - ./uploads:/app/uploads
       - ./data:/app/data:ro
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
     depends_on:
       - postgres
       - redis

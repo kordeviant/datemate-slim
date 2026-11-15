@@ -122,12 +122,28 @@ func ApiKeyGuard(cfg *config.Config) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("x-api-key")
 			if apiKey == "" {
+				apiKey = r.Header.Get("x-api-token")
+			}
+			if apiKey == "" {
+				apiKey = r.URL.Query().Get("api_key")
+			}
+			if apiKey == "" {
+				apiKey = r.URL.Query().Get("apiKey")
+			}
+			if apiKey == "" {
+				authHeader := r.Header.Get("authorization")
+				if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+					apiKey = strings.TrimSpace(authHeader[7:])
+				}
+			}
+
+			if apiKey == "" {
 				common.RespondError(w, http.StatusUnauthorized, "Missing x-api-key header", common.ErrUnauthorized)
 				return
 			}
 
 			if apiKey != cfg.InternalAPIKey && apiKey != cfg.DeviceTokenAPIKey && apiKey != cfg.PushNotificationAPIKey {
-				common.RespondError(w, http.StatusForbidden, "Invalid API key", common.ErrForbidden)
+				common.RespondError(w, http.StatusUnauthorized, "Invalid API key", common.ErrUnauthorized)
 				return
 			}
 

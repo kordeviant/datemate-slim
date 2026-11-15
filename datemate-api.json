@@ -3597,6 +3597,46 @@
           }
         ]
       }
+    },
+    "/users/privacy": {
+      "post": {
+        "operationId": "UsersController_acceptPrivacy",
+        "summary": "Accept privacy policy",
+        "description": "Records user acceptance of the privacy policy. Required for profile completion.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Privacy policy accepted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptPrivacyResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
     }
   },
   "info": {
@@ -3624,23 +3664,27 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "user@example.com",
-            "description": "User email address for verification"
+            "example": "pmsa@gmail.com",
+            "description": "User email address for verification",
+            "default": "pmsa@gmail.com"
           },
           "password": {
             "type": "string",
-            "example": "StrongPassword123!",
-            "description": "User password (minimum 6 characters)"
+            "example": "Password123!@#",
+            "description": "User password (minimum 6 characters)",
+            "default": "Password123!@#"
           },
           "integrityToken": {
             "type": "string",
-            "example": "base64_google_play_integrity_token_here",
-            "description": "Google Play Integrity token from Android device"
+            "example": "dev-integrity-token",
+            "description": "Google Play Integrity token from Android device",
+            "default": "dev-integrity-token"
           },
           "packageName": {
             "type": "string",
-            "example": "com.dmate.datemate",
-            "description": "Android application package name"
+            "example": "com.datemate.app",
+            "description": "Android application package name",
+            "default": "com.datemate.app"
           }
         },
         "required": [
@@ -3656,22 +3700,26 @@
           "code": {
             "type": "string",
             "example": "123456",
-            "description": "6-digit OTP verification code received via email"
+            "description": "6-digit OTP verification code received via email",
+            "default": "123456"
           },
           "device": {
             "type": "string",
-            "example": "Samsung Galaxy S23",
-            "description": "Client device model"
+            "example": "Google Pixel 8",
+            "description": "Client device model",
+            "default": "Google Pixel 8"
           },
           "userAgent": {
             "type": "string",
-            "example": "DateMate/2.6 (Android 14)",
-            "description": "Client user-agent string"
+            "example": "DateMate-Android/1.0",
+            "description": "Client user-agent string",
+            "default": "DateMate-Android/1.0"
           },
           "fcmToken": {
             "type": "string",
-            "example": "eXamPLe-fCm-ToKen...",
-            "description": "Firebase Cloud Messaging device token for push alerts"
+            "example": "mock-fcm-device-token",
+            "description": "Firebase Cloud Messaging device token for push alerts",
+            "default": "mock-fcm-device-token"
           }
         },
         "required": [
@@ -3715,48 +3763,57 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "admin@example.com or admin",
-            "description": "User registered email address or username handle"
+            "example": "pmsa@gmail.com",
+            "description": "User registered email address or username handle",
+            "default": "pmsa@gmail.com"
           },
           "username": {
             "type": "string",
-            "example": "admin",
-            "description": "User handle or username (alias for identifier)"
+            "example": "pmsa",
+            "description": "User handle or username (alias for identifier)",
+            "default": "pmsa"
           },
           "usernameOrEmail": {
             "type": "string",
-            "example": "admin",
-            "description": "Username or email login identifier alias"
+            "example": "pmsa@gmail.com",
+            "description": "Username or email login identifier alias",
+            "default": "pmsa@gmail.com"
           },
           "password": {
             "type": "string",
-            "example": "StrongPassword123!",
-            "description": "Account password"
+            "example": "Password123!@#",
+            "description": "Account password",
+            "default": "Password123!@#"
           },
           "device": {
             "type": "string",
-            "example": "Google Pixel 8 or Web Browser",
-            "description": "Client device model"
+            "example": "Google Pixel 8",
+            "description": "Client device model",
+            "default": "Google Pixel 8"
           },
           "userAgent": {
             "type": "string",
-            "example": "DateMate/2.6 (Android 14) or Mozilla/5.0...",
-            "description": "Client user-agent string"
+            "example": "DateMate-Android/1.0",
+            "description": "Client user-agent string",
+            "default": "DateMate-Android/1.0"
           },
           "fcmToken": {
             "type": "string",
-            "example": "eXamPLe-fCm-ToKen...",
-            "description": "FCM push token for notifications"
+            "example": "mock-fcm-device-token",
+            "description": "FCM push token for notifications",
+            "default": "mock-fcm-device-token"
           },
           "integrityToken": {
             "type": "string",
-            "example": "base64_integrity_token_string",
-            "description": "Google Play Integrity token (for Android clients)"
+            "example": "dev-integrity-token",
+            "description": "Google Play Integrity token (for Android clients)",
+            "default": "dev-integrity-token"
           },
           "packageName": {
             "type": "string",
-            "example": "com.dmate.datemate",
-            "description": "Application package name (for Android clients)"
+            "example": "com.datemate.app",
+            "description": "Application package name (for Android clients)",
+            "default": "com.datemate.app"
           }
         },
         "required": [
@@ -3768,8 +3825,9 @@
         "properties": {
           "token": {
             "type": "string",
-            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
-            "description": "Long-lived refresh token string previously received"
+            "example": "{{refreshToken}}",
+            "description": "Long-lived refresh token string previously received",
+            "default": "{{refreshToken}}"
           }
         },
         "required": [
@@ -3781,8 +3839,9 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "user@example.com",
-            "description": "Email address of the account to reset password for"
+            "example": "pmsa@gmail.com",
+            "description": "Email address of the account to reset password for",
+            "default": "pmsa@gmail.com"
           }
         },
         "required": [
@@ -3794,18 +3853,21 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "user@example.com",
-            "description": "Email address of the account"
+            "example": "pmsa@gmail.com",
+            "description": "Email address of the account",
+            "default": "pmsa@gmail.com"
           },
           "code": {
             "type": "string",
-            "example": "654321",
-            "description": "6-digit password reset OTP received via email"
+            "example": "123456",
+            "description": "6-digit password reset OTP received via email",
+            "default": "123456"
           },
           "password": {
             "type": "string",
-            "example": "NewStrongPassword456!",
-            "description": "New password (minimum 6 characters)"
+            "example": "Password123!@#",
+            "description": "New password (minimum 6 characters)",
+            "default": "Password123!@#"
           }
         },
         "required": [
@@ -3829,8 +3891,9 @@
           },
           "integrityToken": {
             "type": "string",
-            "example": "base64_play_integrity_token",
-            "description": "Google Play Integrity token"
+            "example": "dev-integrity-token",
+            "description": "Google Play Integrity token",
+            "default": "dev-integrity-token"
           },
           "packageName": {
             "type": "string",
@@ -3889,8 +3952,9 @@
         "properties": {
           "refreshToken": {
             "type": "string",
-            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
-            "description": "Refresh token of the current session to terminate"
+            "example": "{{refreshToken}}",
+            "description": "Refresh token of the current session to terminate",
+            "default": "{{refreshToken}}"
           }
         },
         "required": [
@@ -4035,8 +4099,9 @@
           },
           "fcmToken": {
             "type": "string",
-            "example": "fcm_token_xyz",
-            "nullable": true
+            "example": "mock-fcm-device-token",
+            "nullable": true,
+            "default": "mock-fcm-device-token"
           },
           "isActive": {
             "type": "boolean",
@@ -4184,7 +4249,8 @@
           "refreshToken": {
             "type": "string",
             "description": "Refresh token of the current session to exclude when excludeCurrent=true (optional if authenticated via Bearer token with session).",
-            "example": "d9b7f5e1..."
+            "example": "{{refreshToken}}",
+            "default": "{{refreshToken}}"
           }
         }
       },
@@ -4487,9 +4553,10 @@
           },
           "email": {
             "type": "string",
-            "example": "user@example.com",
+            "example": "pmsa@gmail.com",
             "description": "User email",
-            "nullable": true
+            "nullable": true,
+            "default": "pmsa@gmail.com"
           },
           "language": {
             "type": "string",
@@ -4532,6 +4599,13 @@
             "items": {
               "$ref": "#/components/schemas/GalleryItemResponseDto"
             }
+          },
+          "privacyAcceptedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-11T13:19:58.889Z",
+            "description": "Timestamp when the user accepted the privacy policy, or null if pending",
+            "nullable": true
           }
         },
         "required": [
@@ -5068,6 +5142,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "privacyAccepted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Set to true to accept privacy policy during profile update"
           }
         }
       },
@@ -5821,7 +5900,8 @@
           "email": {
             "type": "string",
             "description": "User email address",
-            "example": "chichang@gmail.com"
+            "example": "pmsa@gmail.com",
+            "default": "pmsa@gmail.com"
           },
           "avatar": {
             "type": "string",
@@ -5933,7 +6013,8 @@
           },
           "email": {
             "type": "string",
-            "example": "user@example.com"
+            "example": "pmsa@gmail.com",
+            "default": "pmsa@gmail.com"
           },
           "fullName": {
             "type": "string",
@@ -6255,8 +6336,9 @@
           },
           "fcmToken": {
             "type": "string",
-            "example": "fcm-device-token...",
-            "nullable": true
+            "example": "mock-fcm-device-token",
+            "nullable": true,
+            "default": "mock-fcm-device-token"
           },
           "isActive": {
             "type": "boolean",
@@ -6339,7 +6421,8 @@
           },
           "email": {
             "type": "string",
-            "example": "sarah.smith@example.com"
+            "example": "pmsa@gmail.com",
+            "default": "pmsa@gmail.com"
           },
           "role": {
             "type": "string",
@@ -6557,7 +6640,8 @@
           },
           "email": {
             "type": "string",
-            "example": "user@example.com"
+            "example": "pmsa@gmail.com",
+            "default": "pmsa@gmail.com"
           },
           "isBanned": {
             "type": "boolean",
@@ -6957,7 +7041,8 @@
           },
           "email": {
             "type": "string",
-            "example": "sara@example.com"
+            "example": "pmsa@gmail.com",
+            "default": "pmsa@gmail.com"
           },
           "avatarUrl": {
             "type": "string",
@@ -7446,6 +7531,26 @@
           "status",
           "message",
           "data"
+        ]
+      },
+      "AcceptPrivacyResponseDto": {
+        "type": "object",
+        "properties": {
+          "privacyAcceptedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-11T13:19:58.889Z",
+            "description": "Timestamp when privacy policy was accepted"
+          },
+          "profileCompleted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Updated profile completion status"
+          }
+        },
+        "required": [
+          "privacyAcceptedAt",
+          "profileCompleted"
         ]
       }
     }

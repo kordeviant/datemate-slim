@@ -55,14 +55,7 @@ func calculateAge(birthDate time.Time) int {
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
-	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
 func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (*FeedDataDto, error) {
@@ -263,44 +256,72 @@ func (s *Service) RecordSwipe(ctx context.Context, currentUserID, targetUserID i
 		currentProfile, _ := s.queries.GetProfileByUserID(ctx, int32(currentUserID))
 		targetProfile, _ := s.queries.GetProfileByUserID(ctx, int32(targetUserID))
 
-		go func() {
+		currName := currentProfile.FirstName
+		if currName == "" {
+			if currentProfile.Username.Valid && currentProfile.Username.String != "" {
+				currName = currentProfile.Username.String
+			} else {
+				currName = "Someone"
+			}
+		}
+		targetName := targetProfile.FirstName
+		if targetName == "" {
+			if targetProfile.Username.Valid && targetProfile.Username.String != "" {
+				targetName = targetProfile.Username.String
+			} else {
+				targetName = "Someone"
+			}
+		}
+
+		if s.dispatcher != nil {
+			tID := targetUserID
+			cID := currentUserID
 			s.dispatcher.Enqueue(fcm.NotificationJob{
-				UserID: &targetUserID,
+				UserID: &tID,
 				Title:  "New Match!",
-				Body:   fmt.Sprintf("You matched with %s!", currentProfile.FirstName),
+				Body:   fmt.Sprintf("You matched with %s!", currName),
 				Data: map[string]interface{}{
 					"type":         "NEW_MATCH",
 					"partnerId":    currentUserID,
-					"partnerName":  currentProfile.FirstName,
+					"partnerName":  currName,
 					"partnerPhoto": s.resolveAssetURL(currentProfile.AvatarUrl),
 				},
 			})
 			s.dispatcher.Enqueue(fcm.NotificationJob{
-				UserID: &currentUserID,
+				UserID: &cID,
 				Title:  "New Match!",
-				Body:   fmt.Sprintf("You matched with %s!", targetProfile.FirstName),
+				Body:   fmt.Sprintf("You matched with %s!", targetName),
 				Data: map[string]interface{}{
 					"type":         "NEW_MATCH",
 					"partnerId":    targetUserID,
-					"partnerName":  targetProfile.FirstName,
+					"partnerName":  targetName,
 					"partnerPhoto": s.resolveAssetURL(targetProfile.AvatarUrl),
 				},
 			})
-		}()
+		}
 	} else if dir == "RIGHT" {
 		// Single like push notification
 		currentProfile, _ := s.queries.GetProfileByUserID(ctx, int32(currentUserID))
-		go func() {
+		currName := currentProfile.FirstName
+		if currName == "" {
+			if currentProfile.Username.Valid && currentProfile.Username.String != "" {
+				currName = currentProfile.Username.String
+			} else {
+				currName = "Someone"
+			}
+		}
+		if s.dispatcher != nil {
+			tID := targetUserID
 			s.dispatcher.Enqueue(fcm.NotificationJob{
-				UserID: &targetUserID,
+				UserID: &tID,
 				Title:  "New Like",
-				Body:   fmt.Sprintf("%s liked your profile!", currentProfile.FirstName),
+				Body:   fmt.Sprintf("%s liked your profile!", currName),
 				Data: map[string]interface{}{
 					"type":    "LIKE_USER",
 					"likerId": currentUserID,
 				},
 			})
-		}()
+		}
 	}
 
 	return nil
@@ -352,6 +373,7 @@ func (s *Service) GetLikesReceived(ctx context.Context, currentUserID int64) ([]
 
 		results = append(results, LikedUserDto{
 			ID:        int(r.LikerID),
+			UserID:    int(r.LikerID),
 			FullName:  fn,
 			Username:  un,
 			City:      resolvedCity,

@@ -11,6 +11,8 @@
 # Environment files
 .env
 .env*.local
+*service-account*.json
+firebase*.json
 
 # Logs
 logs

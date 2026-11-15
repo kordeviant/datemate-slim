@@ -3,10 +3,8 @@ package recommended
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math"
 	"sort"
-	"strings"
 	"time"
 
 	"datemate/internal/common"
@@ -55,14 +53,7 @@ func calculateAge(birthDate time.Time) int {
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
-	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
 func calculateQuestionScore(currentUserAns, candAns []int32, maxWeight int) int {

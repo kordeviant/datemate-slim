@@ -55,6 +55,15 @@ func (l *LocalEngine) Save(ctx context.Context, assetType, filename string, read
 func (l *LocalEngine) Open(ctx context.Context, assetType, filename string) (*StoredFile, error) {
 	filePath := l.resolvePath(assetType, filename)
 	f, err := os.Open(filePath)
+	if err != nil && assetType != "" {
+		// Fallback to checking root baseDir
+		fallbackPath := filepath.Join(l.baseDir, filepath.Base(filename))
+		if f2, err2 := os.Open(fallbackPath); err2 == nil {
+			f = f2
+			filePath = fallbackPath
+			err = nil
+		}
+	}
 	if err != nil {
 		return nil, os.ErrNotExist
 	}
@@ -69,7 +78,36 @@ func (l *LocalEngine) Open(ctx context.Context, assetType, filename string) (*St
 	ext := filepath.Ext(filename)
 	mimeType := mime.TypeByExtension(ext)
 	if mimeType == "" {
-		mimeType = "application/octet-stream"
+		switch strings.ToLower(ext) {
+		case ".ogg":
+			mimeType = "audio/ogg"
+		case ".m4a":
+			mimeType = "audio/mp4"
+		case ".mp3":
+			mimeType = "audio/mpeg"
+		case ".aac":
+			mimeType = "audio/aac"
+		case ".wav":
+			mimeType = "audio/wav"
+		case ".opus":
+			mimeType = "audio/opus"
+		case ".webm":
+			mimeType = "video/webm"
+		case ".mp4":
+			mimeType = "video/mp4"
+		case ".mov":
+			mimeType = "video/quicktime"
+		case ".jpg", ".jpeg":
+			mimeType = "image/jpeg"
+		case ".png":
+			mimeType = "image/png"
+		case ".webp":
+			mimeType = "image/webp"
+		case ".gif":
+			mimeType = "image/gif"
+		default:
+			mimeType = "application/octet-stream"
+		}
 	}
 
 	return &StoredFile{

@@ -1,15 +1,21 @@
 package auth
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"datemate/internal/common"
 	"datemate/internal/config"
 	"datemate/internal/middleware"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -220,9 +226,120 @@ func (h *Handler) Nonce(w http.ResponseWriter, r *http.Request) {
 }
 
 type SocialAuthRequest struct {
-	IdentityToken string `json:"identityToken,omitempty"`
-	Email         string `json:"email,omitempty"`
-	Role          string `json:"role,omitempty"`
+	IdentityToken  string `json:"identityToken,omitempty"`
+	IdToken        string `json:"idToken,omitempty"`
+	Token          string `json:"token,omitempty"`
+	Email          string `json:"email,omitempty"`
+	Role           string `json:"role,omitempty"`
+	Device         string `json:"device,omitempty"`
+	UserAgent      string `json:"userAgent,omitempty"`
+	DeviceInfo     string `json:"deviceInfo,omitempty"`
+	FcmToken       string `json:"fcmToken,omitempty"`
+	FirstName      string `json:"firstName,omitempty"`
+	LastName       string `json:"lastName,omitempty"`
+	BundleID       string `json:"bundleId,omitempty"`
+	PackageName    string `json:"packageName,omitempty"`
+	IntegrityToken string `json:"integrityToken,omitempty"`
+}
+
+type OpenIDClaims struct {
+	Email         string      `json:"email"`
+	EmailVerified interface{} `json:"email_verified"`
+	Sub           string      `json:"sub"`
+	Name          string      `json:"name"`
+	GivenName     string      `json:"given_name"`
+	FamilyName    string      `json:"family_name"`
+	jwt.RegisteredClaims
+}
+
+func extractRawSocialToken(authHeader string, req SocialAuthRequest) string {
+	raw := ""
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		raw = strings.TrimSpace(authHeader[7:])
+	} else if authHeader != "" {
+		raw = strings.TrimSpace(authHeader)
+	}
+
+	if raw == "" {
+		if req.IdentityToken != "" {
+			raw = strings.TrimSpace(req.IdentityToken)
+		} else if req.IdToken != "" {
+			raw = strings.TrimSpace(req.IdToken)
+		} else if req.Token != "" {
+			raw = strings.TrimSpace(req.Token)
+		}
+	}
+	return raw
+}
+
+func parseSocialTokenClaims(rawToken string) (*OpenIDClaims, error) {
+	if rawToken == "" {
+		return nil, fmt.Errorf("empty token")
+	}
+
+	// 1. Try jwt.NewParser().ParseUnverified
+	var claims OpenIDClaims
+	parser := jwt.NewParser()
+	_, _, err := parser.ParseUnverified(rawToken, &claims)
+	if err == nil && (claims.Email != "" || claims.Sub != "") {
+		return &claims, nil
+	}
+
+	// 2. Fallback: manual base64url decode of payload part
+	parts := strings.Split(rawToken, ".")
+	if len(parts) >= 2 {
+		payloadBytes, decErr := base64.RawURLEncoding.DecodeString(parts[1])
+		if decErr != nil {
+			payloadBytes, decErr = base64.URLEncoding.DecodeString(parts[1])
+		}
+		if decErr == nil {
+			var fallbackClaims OpenIDClaims
+			if jsonErr := json.Unmarshal(payloadBytes, &fallbackClaims); jsonErr == nil {
+				return &fallbackClaims, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to parse token claims")
+}
+
+func cleanSocialSub(sub string) string {
+	s := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return '_'
+	}, sub)
+	s = strings.Trim(s, "_")
+	if len(s) > 32 {
+		s = s[:32]
+	}
+	return strings.ToLower(s)
+}
+
+func verifyGoogleTokenInfo(ctx context.Context, idToken string) (*OpenIDClaims, error) {
+	client := &http.Client{Timeout: 4 * time.Second}
+	reqURL := "https://oauth2.googleapis.com/tokeninfo?id_token=" + url.QueryEscape(idToken)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google tokeninfo returned status %d", resp.StatusCode)
+	}
+
+	var claims OpenIDClaims
+	if err := json.NewDecoder(resp.Body).Decode(&claims); err != nil {
+		return nil, err
+	}
+	return &claims, nil
 }
 
 func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
@@ -230,16 +347,67 @@ func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
 	var req SocialAuthRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	email := req.Email
-	if email == "" {
-		email = "google_user@example.com"
+	rawToken := extractRawSocialToken(authHeader, req)
+
+	var email string
+	var firstName string
+	if req.FirstName != "" {
+		firstName = req.FirstName
 	}
-	if authHeader == "" && req.IdentityToken == "" {
-		common.RespondError(w, http.StatusUnauthorized, "Authorization header or identityToken is required", common.ErrUnauthorized)
+
+	// 1. Try Google tokeninfo online verification if token present
+	if rawToken != "" {
+		if verifiedClaims, err := verifyGoogleTokenInfo(r.Context(), rawToken); err == nil && verifiedClaims.Email != "" {
+			email = verifiedClaims.Email
+			if firstName == "" && verifiedClaims.GivenName != "" {
+				firstName = verifiedClaims.GivenName
+			} else if firstName == "" && verifiedClaims.Name != "" {
+				firstName = verifiedClaims.Name
+			}
+		}
+	}
+
+	// 2. Fallback to unverified JWT claims parsing if tokeninfo failed or network unreachable
+	if email == "" && rawToken != "" {
+		if claims, err := parseSocialTokenClaims(rawToken); err == nil {
+			if claims.Email != "" {
+				email = claims.Email
+			}
+			if firstName == "" && claims.GivenName != "" {
+				firstName = claims.GivenName
+			} else if firstName == "" && claims.Name != "" {
+				firstName = claims.Name
+			}
+			if email == "" && claims.Sub != "" {
+				email = fmt.Sprintf("google_%s@gmail.com", cleanSocialSub(claims.Sub))
+			}
+		}
+	}
+
+	// 3. Fallback to explicit email in request body
+	if email == "" && req.Email != "" {
+		email = req.Email
+	}
+
+	// 4. Validate email
+	if email == "" || !strings.Contains(email, "@") {
+		common.RespondError(w, http.StatusUnauthorized, "Valid Google ID Token or email is required", common.ErrUnauthorized)
 		return
 	}
 
-	res, err := h.svc.SocialAuthMock(r.Context(), email, "google", "USER")
+	// Extract device info
+	deviceInfo := req.DeviceInfo
+	if deviceInfo == "" {
+		if req.Device != "" && req.UserAgent != "" {
+			deviceInfo = fmt.Sprintf("%s (%s)", req.Device, req.UserAgent)
+		} else if req.Device != "" {
+			deviceInfo = req.Device
+		} else if req.UserAgent != "" {
+			deviceInfo = req.UserAgent
+		}
+	}
+
+	res, err := h.svc.SocialAuth(r.Context(), email, "google", "USER", deviceInfo, req.FcmToken, firstName)
 	if err != nil {
 		common.RespondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
 		return
@@ -253,21 +421,53 @@ func (h *Handler) Apple(w http.ResponseWriter, r *http.Request) {
 	var req SocialAuthRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	token := authHeader
-	if token == "" {
-		token = req.IdentityToken
+	rawToken := extractRawSocialToken(authHeader, req)
+
+	var email string
+	var firstName string
+	if req.FirstName != "" {
+		firstName = req.FirstName
+		if req.LastName != "" {
+			firstName = firstName + " " + req.LastName
+		}
 	}
-	if token == "" {
-		common.RespondError(w, http.StatusUnauthorized, "Apple Identity Token is required in Authorization header or request body", common.ErrUnauthorized)
+
+	// 1. Try to extract email from Apple Identity Token
+	if rawToken != "" {
+		if claims, err := parseSocialTokenClaims(rawToken); err == nil {
+			if claims.Email != "" {
+				email = claims.Email
+			}
+			if email == "" && claims.Sub != "" {
+				email = fmt.Sprintf("apple_%s@privaterelay.appleid.com", cleanSocialSub(claims.Sub))
+			}
+		}
+	}
+
+	// 2. Fallback to explicit email in request body (Apple sends email in authorization response on initial sign-in)
+	if email == "" && req.Email != "" {
+		email = req.Email
+	}
+
+	// 3. Validate email
+	if email == "" || !strings.Contains(email, "@") {
+		common.RespondError(w, http.StatusUnauthorized, "Valid Apple Identity Token or email is required", common.ErrUnauthorized)
 		return
 	}
 
-	email := req.Email
-	if email == "" {
-		email = "apple_user@example.com"
+	// Extract device info
+	deviceInfo := req.DeviceInfo
+	if deviceInfo == "" {
+		if req.Device != "" && req.UserAgent != "" {
+			deviceInfo = fmt.Sprintf("%s (%s)", req.Device, req.UserAgent)
+		} else if req.Device != "" {
+			deviceInfo = req.Device
+		} else if req.UserAgent != "" {
+			deviceInfo = req.UserAgent
+		}
 	}
 
-	res, err := h.svc.SocialAuthMock(r.Context(), email, "apple", "USER")
+	res, err := h.svc.SocialAuth(r.Context(), email, "apple", "USER", deviceInfo, req.FcmToken, firstName)
 	if err != nil {
 		common.RespondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
 		return

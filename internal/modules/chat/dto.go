@@ -7,19 +7,54 @@ type CreateConversationDto struct {
 	TargetUserId   *int64  `json:"targetUserId,omitempty"`   // for DIRECT
 	RecipientId    *int64  `json:"recipientId,omitempty"`    // alias for targetUserId
 	Title          *string `json:"title,omitempty"`          // for GROUP
-	ParticipantIds []int64 `json:"participantIds,omitempty"` // for GROUP
+	Name           *string `json:"name,omitempty"`           // alias for title (GROUP)
+	ParticipantIds []int64 `json:"participantIds,omitempty"` // for GROUP and DIRECT
+}
+
+type AddGroupMemberPayload struct {
+	UserID  *int64  `json:"userId,omitempty"`
+	UserIDs []int64 `json:"userIds,omitempty"`
+}
+
+type LastMessageDto struct {
+	MessageID  string                `json:"messageId,omitempty"`
+	SenderID   int64                 `json:"senderId"`
+	Content    string                `json:"content"`
+	CreatedAt  string                `json:"createdAt"`
+	Type       string                `json:"type,omitempty"`
+	Url        *string               `json:"url,omitempty"`
+	Duration   *float64              `json:"duration,omitempty"`
+	Attachment *MessageAttachmentDto `json:"attachment,omitempty"`
+}
+
+type RecentMessageDto struct {
+	MessageID  string                `json:"messageId"`
+	SenderID   int64                 `json:"senderId"`
+	Content    string                `json:"content"`
+	CreatedAt  string                `json:"createdAt"`
+	Type       string                `json:"type,omitempty"`
+	Url        *string               `json:"url,omitempty"`
+	Duration   *float64              `json:"duration,omitempty"`
+	Attachment *MessageAttachmentDto `json:"attachment,omitempty"`
 }
 
 type ConversationDto struct {
-	ConversationID      string    `json:"conversationId"`
-	ConversationType    string    `json:"conversationType"`
-	CreatedBy           int64     `json:"createdBy"`
-	CreatedAt           time.Time `json:"createdAt"`
-	Title               *string   `json:"title,omitempty"`
-	LastMessageAt       *time.Time `json:"lastMessageAt,omitempty"`
-	LastMessagePreview  *string   `json:"lastMessagePreview,omitempty"`
-	LastMessageSenderID *int64    `json:"lastMessageSenderId,omitempty"`
-	MemberIDs           []int64   `json:"memberIds,omitempty"`
+	ConversationID      string             `json:"conversationId"`
+	Type                string             `json:"type"`             // "direct" | "group" (canonical)
+	ConversationType    string             `json:"conversationType"` // "DIRECT" | "GROUP" (alias)
+	CreatedBy           int64              `json:"createdBy"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	Title               *string            `json:"title,omitempty"`
+	LastMessageAt       *time.Time         `json:"lastMessageAt,omitempty"`
+	LastMessagePreview  *string            `json:"lastMessagePreview,omitempty"`
+	LastMessageSenderID *int64             `json:"lastMessageSenderId,omitempty"`
+	LastMessage         *LastMessageDto    `json:"lastMessage,omitempty"`
+	MemberIDs           []int64            `json:"memberIds"`
+	RecentMessages      []RecentMessageDto `json:"recentMessages"`
+	PeerActivity        *UserActivityDto   `json:"peerActivity,omitempty"`
+	Created             *bool              `json:"created,omitempty"`
+	MembersCount        *int               `json:"membersCount,omitempty"`
+	LastUsers           []int64            `json:"lastUsers,omitempty"`
 }
 
 type CreateConversationResponseData struct {
@@ -33,7 +68,7 @@ type ListConversationsQuery struct {
 
 type PaginatedResult[T any] struct {
 	Items      []T     `json:"items"`
-	NextCursor *string `json:"nextCursor,omitempty"`
+	NextCursor *string `json:"nextCursor"`
 	HasMore    bool    `json:"hasMore"`
 }
 
@@ -71,11 +106,15 @@ type SendMessageWsDto struct {
 }
 
 type JoinConversationWsDto struct {
-	ConversationID string `json:"conversationId"`
+	ConversationID      string `json:"conversationId"`
+	ID                  string `json:"id,omitempty"`
+	ConversationIdSnake string `json:"conversation_id,omitempty"`
 }
 
 type LeaveConversationWsDto struct {
-	ConversationID string `json:"conversationId"`
+	ConversationID      string `json:"conversationId"`
+	ID                  string `json:"id,omitempty"`
+	ConversationIdSnake string `json:"conversation_id,omitempty"`
 }
 
 type UserActivityDto struct {

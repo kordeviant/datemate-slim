@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 
@@ -23,19 +25,36 @@ func (w *responseCaptureWriter) Write(b []byte) (int, error) {
 	return w.body.Write(b)
 }
 
+func (w *responseCaptureWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
+}
+
+func (w *responseCaptureWriter) Flush() {
+	if fl, ok := w.ResponseWriter.(http.Flusher); ok {
+		fl.Flush()
+	}
+}
+
 func TransformEnvelope() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := strings.ToLower(r.URL.Path)
 
-			// Bypass routes as configured in NestJS TransformInterceptor
+			// Bypass routes as configured in NestJS TransformInterceptor and WebSocket / Socket.IO transports / Static uploads
 			if strings.Contains(path, "/geo") ||
 				strings.Contains(path, "/downloads") ||
 				strings.Contains(path, "/static") ||
 				strings.Contains(path, "/assets/") ||
+				strings.Contains(path, "/uploads") ||
+				strings.Contains(path, "/chat/files") ||
+				strings.HasPrefix(path, "/socket.io") ||
+				strings.HasPrefix(path, "/chat") ||
 				path == "/health" || path == "/v1/health" ||
 				path == "/time" || path == "/v1/time" ||
-				strings.HasPrefix(path, "/chat") {
+				strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 				next.ServeHTTP(w, r)
 				return
 			}

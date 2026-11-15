@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"datemate/internal/common"
 	"datemate/internal/config"
 	"datemate/internal/platform/database/db"
 	"datemate/internal/platform/geo"
@@ -40,14 +42,7 @@ func NewService(cfg *config.Config, pool *pgxpool.Pool, geoService *geo.Service,
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
-	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
 func toInt32(val interface{}) (int32, bool) {
@@ -77,7 +72,7 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		// Return empty default profile
 		p = db.Profiles{
 			UserID:    int32(userID),
-			FirstName: "User",
+			FirstName: "",
 			AvatarUrl: "",
 		}
 	}
@@ -123,9 +118,6 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		if p.ProfilePictureUrl.Valid && p.ProfilePictureUrl.String != "" {
 			resolved := s.resolveAssetURL(p.ProfilePictureUrl.String)
 			activeProfilePicURL = &resolved
-		} else if p.AvatarUrl != "" {
-			resolved := s.resolveAssetURL(p.AvatarUrl)
-			activeProfilePicURL = &resolved
 		}
 	}
 
@@ -135,27 +127,19 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		cID := int(d.CityID.Int32)
 		city, state, country, ok := s.geoService.ResolveCityHierarchy(cID)
 		if ok && city != nil {
-			var stateDto *StateResponseDto
+			var stateName *string
 			if state != nil {
-				var countryDto *CountryResponseDto
-				if country != nil {
-					countryDto = &CountryResponseDto{
-						ID:   &country.ID,
-						Name: &country.Name,
-						Code: &country.Code,
-					}
-				}
-				stateDto = &StateResponseDto{
-					ID:        &state.ID,
-					Name:      &state.Name,
-					CountryID: &state.CountryID,
-					Country:   countryDto,
-				}
+				stateName = &state.Name
+			}
+			var countryName *string
+			if country != nil {
+				countryName = &country.Name
 			}
 			cityDto = &CityResponseDto{
-				ID:    &city.ID,
-				Name:  &city.Name,
-				State: stateDto,
+				ID:      &city.ID,
+				Name:    &city.Name,
+				State:   stateName,
+				Country: countryName,
 			}
 		} else if d.CityName.Valid && d.CityName.String != "" {
 			cName := d.CityName.String
@@ -258,10 +242,19 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		}
 	}
 
-	// LikedActivities map
-	likedActivities := make(map[string]interface{})
+	// LikedActivities map: map[string]interface{} where value is int or []int for multiple
+	interestsByCat := make(map[int32][]int)
 	for _, in := range interests {
-		likedActivities[strconv.Itoa(int(in.CategoryID))] = int(in.InterestID)
+		interestsByCat[in.CategoryID] = append(interestsByCat[in.CategoryID], int(in.InterestID))
+	}
+	likedActivities := make(map[string]interface{})
+	for catID, ids := range interestsByCat {
+		sort.Ints(ids)
+		if len(ids) == 1 {
+			likedActivities[strconv.Itoa(int(catID))] = ids[0]
+		} else if len(ids) > 1 {
+			likedActivities[strconv.Itoa(int(catID))] = ids
+		}
 	}
 
 	// Languages
@@ -287,7 +280,7 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 	}
 
 	var fullName *string
-	if p.FirstName != "" {
+	if p.FirstName != "" && p.FirstName != "User" {
 		fullName = &p.FirstName
 	}
 	var username *string
@@ -309,7 +302,8 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		relationTypeStr = &rt
 	}
 
-	profileCompleted := p.FirstName != "" && (p.AvatarUrl != "" || len(galleryDtos) > 0) && d.Gender != ""
+	hasPrivacy := u.PrivacyAcceptedAt.Valid && !u.PrivacyAcceptedAt.Time.IsZero()
+	profileCompleted := p.FirstName != "" && (p.AvatarUrl != "" || len(galleryDtos) > 0) && d.Gender != "" && hasPrivacy
 
 	nested := ProfileNestedResponseDto{
 		FullName:         fullName,
@@ -329,18 +323,25 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		LikedActivities:  likedActivities,
 	}
 
+	var privacyAcceptedAtStr *string
+	if hasPrivacy {
+		s := u.PrivacyAcceptedAt.Time.Format(time.RFC3339Nano)
+		privacyAcceptedAtStr = &s
+	}
+
 	emailStr := u.Email
 	return &ProfileResponseDto{
-		ID:               int(u.ID),
-		Email:            &emailStr,
-		Language:         string(u.Language),
-		Lat:              latVal,
-		Lon:              lonVal,
-		ProfileValidated: u.ProfileValidated,
-		IsPremium:        u.IsPremium,
-		Profile:          nested,
-		Gallery:          galleryDtos,
-		ProfilePictureID: activeProfilePicID,
+		ID:                int(u.ID),
+		Email:             &emailStr,
+		Language:          string(u.Language),
+		Lat:               latVal,
+		Lon:               lonVal,
+		ProfileValidated:  u.ProfileValidated,
+		IsPremium:         u.IsPremium,
+		PrivacyAcceptedAt: privacyAcceptedAtStr,
+		Profile:           nested,
+		Gallery:           galleryDtos,
+		ProfilePictureID:  activeProfilePicID,
 	}, nil
 }
 
@@ -350,6 +351,20 @@ func (s *Service) UpdateProfile(
 	payload *UpdateProfilePayload,
 	avatarData, selfieData, galleryData []byte,
 ) (*ProfileResponseDto, error) {
+	if payload != nil {
+		if payload.Profile == nil && payload.ProfileLower != nil {
+			payload.Profile = payload.ProfileLower
+		}
+		if payload.Profile != nil {
+			if payload.Profile.Demographic == nil && payload.Profile.DemographicLower != nil {
+				payload.Profile.Demographic = payload.Profile.DemographicLower
+			}
+			if payload.Profile.Preferences == nil && payload.Profile.PreferencesLower != nil {
+				payload.Profile.Preferences = payload.Profile.PreferencesLower
+			}
+		}
+	}
+
 	// 1. Process Avatar upload if provided
 	if len(avatarData) > 0 {
 		processed, mimeType, err := storage.ProcessImage(avatarData, storage.ProcessOptions{IsAvatarOrSelfie: true, Quality: 85})
@@ -357,13 +372,26 @@ func (s *Service) UpdateProfile(
 			filename := fmt.Sprintf("avatar_%d_%s.webp", userID, uuid.NewString()[:8])
 			path, err := s.storage.Save(ctx, "avatars", filename, bytes.NewReader(processed), int64(len(processed)), mimeType)
 			if err == nil {
-				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+				_, _ = s.queries.UpdateProfileAvatar(ctx, db.UpdateProfileAvatarParams{
 					UserID:    int32(userID),
 					AvatarUrl: path,
-					Latitude:  pgtype.Numeric{Valid: false},
-					Longitude: pgtype.Numeric{Valid: false},
 				})
 			}
+		}
+	} else {
+		var candidateAvatar string
+		if payload != nil {
+			if payload.Avatar != nil && strings.TrimSpace(*payload.Avatar) != "" {
+				candidateAvatar = strings.TrimSpace(*payload.Avatar)
+			} else if payload.Profile != nil && payload.Profile.Avatar != nil && strings.TrimSpace(*payload.Profile.Avatar) != "" {
+				candidateAvatar = strings.TrimSpace(*payload.Profile.Avatar)
+			}
+		}
+		if candidateAvatar != "" {
+			_, _ = s.queries.UpdateProfileAvatar(ctx, db.UpdateProfileAvatarParams{
+				UserID:    int32(userID),
+				AvatarUrl: candidateAvatar,
+			})
 		}
 	}
 
@@ -374,11 +402,9 @@ func (s *Service) UpdateProfile(
 			filename := fmt.Sprintf("selfie_%d_%s.webp", userID, uuid.NewString()[:8])
 			path, err := s.storage.Save(ctx, "selfies", filename, bytes.NewReader(processed), int64(len(processed)), mimeType)
 			if err == nil {
-				_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+				_, _ = s.queries.UpdateProfileSelfie(ctx, db.UpdateProfileSelfieParams{
 					UserID:    int32(userID),
 					SelfieUrl: pgtype.Text{String: path, Valid: true},
-					Latitude:  pgtype.Numeric{Valid: false},
-					Longitude: pgtype.Numeric{Valid: false},
 				})
 			}
 		}
@@ -495,7 +521,11 @@ func (s *Service) UpdateProfile(
 				languagesBytes, _ = json.Marshal(*payload.Profile.Languages)
 			}
 			if payload.Profile.RelationType != nil {
-				relationType = db.NullRelationType{RelationType: db.RelationType(*payload.Profile.RelationType), Valid: true}
+				relationType = normalizeRelationType(*payload.Profile.RelationType)
+			} else if payload.Profile.Preferences != nil && payload.Profile.Preferences.Relation != nil {
+				relationType = normalizeRelationType(*payload.Profile.Preferences.Relation)
+			} else if payload.Profile.Preferences != nil && payload.Profile.Preferences.Relation != nil {
+				relationType = db.NullRelationType{RelationType: db.RelationType(*payload.Profile.Preferences.Relation), Valid: true}
 			}
 		}
 
@@ -523,217 +553,454 @@ func (s *Service) UpdateProfile(
 		// Demographic updates
 		if payload.Profile != nil && payload.Profile.Demographic != nil {
 			dem := payload.Profile.Demographic
+			existingDem, _ := s.queries.GetDemographicByUserID(ctx, int32(userID))
+
 			var birthDate pgtype.Date
 			if dem.BirthDate != nil {
 				if t, err := time.Parse("2006-01-02", *dem.BirthDate); err == nil {
 					birthDate = pgtype.Date{Time: t, Valid: true}
 				}
-			}
-			gender := db.GenderMALE
-			if dem.Gender != nil && strings.EqualFold(*dem.Gender, "FEMALE") {
-				gender = db.GenderFEMALE
-			}
-			var height pgtype.Int2
-			if dem.Height != nil {
-				height = pgtype.Int2{Int16: int16(*dem.Height), Valid: true}
-			}
-			var degree db.NullEducationStatus
-			if dem.Degree != nil {
-				degree = db.NullEducationStatus{EducationStatus: db.EducationStatus(*dem.Degree), Valid: true}
-			}
-			var prof pgtype.Text
-			if dem.Profession != nil {
-				prof = pgtype.Text{String: *dem.Profession, Valid: true}
-			}
-			var relStatus db.NullRelationshipStatus
-			if dem.RelationStatus != nil {
-				relStatus = db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatus(*dem.RelationStatus), Valid: true}
-			}
-			var cityID pgtype.Int4
-			if dem.CityID != nil {
-				cityID = pgtype.Int4{Int32: int32(*dem.CityID), Valid: true}
-			}
-			var cityName pgtype.Text
-			if dem.CityName != nil {
-				cityName = pgtype.Text{String: *dem.CityName, Valid: true}
+			} else if existingDem.BirthDate.Valid {
+				birthDate = existingDem.BirthDate
 			}
 
-			_, _ = s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
-				UserID:         int32(userID),
-				BirthDate:      birthDate,
-				Gender:         gender,
-				Height:         height,
-				Degree:         degree,
-				Profession:     prof,
-				RelationStatus: relStatus,
-				CityID:         cityID,
-				CityName:       cityName,
-			})
+			var gender db.Gender
+			if dem.Gender != nil {
+				if strings.EqualFold(*dem.Gender, "FEMALE") {
+					gender = db.GenderFEMALE
+				} else {
+					gender = db.GenderMALE
+				}
+			} else if existingDem.Gender != "" {
+				gender = existingDem.Gender
+			}
+
+			if birthDate.Valid && gender != "" {
+				var height pgtype.Int2
+				if dem.Height != nil {
+					height = pgtype.Int2{Int16: int16(*dem.Height), Valid: true}
+				} else if existingDem.Height.Valid {
+					height = existingDem.Height
+				}
+				var degree db.NullEducationStatus
+				if dem.Degree != nil {
+					degree = normalizeEducationStatus(*dem.Degree)
+				} else if existingDem.Degree.Valid {
+					degree = existingDem.Degree
+				}
+				var prof pgtype.Text
+				if dem.Profession != nil {
+					prof = pgtype.Text{String: *dem.Profession, Valid: true}
+				} else if existingDem.Profession.Valid {
+					prof = existingDem.Profession
+				}
+				var relStatus db.NullRelationshipStatus
+				if dem.RelationStatus != nil {
+					relStatus = normalizeRelationshipStatus(*dem.RelationStatus)
+				} else if existingDem.RelationStatus.Valid {
+					relStatus = existingDem.RelationStatus
+				}
+				var cityID pgtype.Int4
+				targetCityID := dem.CityID
+				if targetCityID == nil && dem.City != nil && dem.City.ID != nil {
+					targetCityID = dem.City.ID
+				}
+				if targetCityID != nil {
+					cityID = pgtype.Int4{Int32: int32(*targetCityID), Valid: true}
+				} else if existingDem.CityID.Valid {
+					cityID = existingDem.CityID
+				}
+				var cityName pgtype.Text
+				if dem.CityName != nil {
+					cityName = pgtype.Text{String: *dem.CityName, Valid: true}
+				} else if targetCityID != nil {
+					if city, ok := s.geoService.GetCity(*targetCityID); ok && city != nil {
+						cityName = pgtype.Text{String: city.Name, Valid: true}
+					}
+				} else if existingDem.CityName.Valid {
+					cityName = existingDem.CityName
+				}
+
+				if _, err := s.queries.UpsertDemographic(ctx, db.UpsertDemographicParams{
+					UserID:         int32(userID),
+					BirthDate:      birthDate,
+					Gender:         gender,
+					Height:         height,
+					Degree:         degree,
+					Profession:     prof,
+					RelationStatus: relStatus,
+					CityID:         cityID,
+					CityName:       cityName,
+				}); err != nil {
+					log.Printf("[UpdateProfile] UpsertDemographic error for user %d: %v", userID, err)
+				}
+			}
+		}
+
+		// Privacy acceptance persistence if requested
+		if payload.PrivacyAccepted != nil && *payload.PrivacyAccepted {
+			_, _ = s.queries.AcceptUserPrivacy(ctx, int32(userID))
 		}
 
 		// User Question Answers persistence
-		var rawAnswers interface{}
-		if payload.Answers != nil {
-			rawAnswers = payload.Answers
-		} else if payload.Profile != nil && payload.Profile.Answers != nil {
-			rawAnswers = payload.Profile.Answers
-		}
-
-		if rawAnswers != nil {
-			allQAns, err := s.queries.ListQuestionAnswers(ctx)
-			if err == nil {
-				qAnswersMap := make(map[int32][]db.QuestionAnswers)
-				dbIDExists := make(map[int32]bool)
-				for _, qa := range allQAns {
-					qAnswersMap[qa.QuestionID] = append(qAnswersMap[qa.QuestionID], qa)
-					dbIDExists[qa.ID] = true
-				}
-
-				var targetAnswerDbIDs []int32
-
-				switch v := rawAnswers.(type) {
-				case map[string]interface{}:
-					for qKey, aVal := range v {
-						qID, err := strconv.Atoi(qKey)
-						if err != nil {
-							continue
-						}
-						qAnswers := qAnswersMap[int32(qID)]
-
-						var indices []int32
-						switch val := aVal.(type) {
-						case []interface{}:
-							for _, it := range val {
-								if idx, ok := toInt32(it); ok {
-									indices = append(indices, idx)
-								}
-							}
-						default:
-							if idx, ok := toInt32(val); ok {
-								indices = append(indices, idx)
-							}
-						}
-
-						for _, idx := range indices {
-							if idx >= 0 && int(idx) < len(qAnswers) {
-								targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[idx].ID)
-							} else if dbIDExists[idx] {
-								targetAnswerDbIDs = append(targetAnswerDbIDs, idx)
-							}
-						}
-					}
-				case []interface{}:
-					for _, item := range v {
-						if m, ok := item.(map[string]interface{}); ok {
-							var qIDVal, aIDVal int32
-							var hasQ, hasA bool
-							for _, k := range []string{"questionId", "questionid", "qId"} {
-								if val, exists := m[k]; exists {
-									if id, ok := toInt32(val); ok {
-										qIDVal = id
-										hasQ = true
-										break
-									}
-								}
-							}
-							for _, k := range []string{"answerId", "answerid", "aId", "id"} {
-								if val, exists := m[k]; exists {
-									if id, ok := toInt32(val); ok {
-										aIDVal = id
-										hasA = true
-										break
-									}
-								}
-							}
-							if hasQ && hasA {
-								qAnswers := qAnswersMap[qIDVal]
-								if aIDVal >= 0 && int(aIDVal) < len(qAnswers) {
-									targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[aIDVal].ID)
-								} else if dbIDExists[aIDVal] {
-									targetAnswerDbIDs = append(targetAnswerDbIDs, aIDVal)
-								}
-							}
-						} else if id, ok := toInt32(item); ok {
-							if dbIDExists[id] {
-								targetAnswerDbIDs = append(targetAnswerDbIDs, id)
-							}
-						}
-					}
-				}
-
-				if len(targetAnswerDbIDs) > 0 {
-					seen := make(map[int32]bool)
-					var uniqueAnswerIDs []int32
-					for _, id := range targetAnswerDbIDs {
-						if !seen[id] {
-							seen[id] = true
-							uniqueAnswerIDs = append(uniqueAnswerIDs, id)
-						}
-					}
-
-					_ = s.queries.DeleteUserQuestionAnswers(ctx, int32(userID))
-					for _, aID := range uniqueAnswerIDs {
-						_ = s.queries.InsertUserQuestionAnswer(ctx, db.InsertUserQuestionAnswerParams{
-							UserID:           int32(userID),
-							QuestionAnswerID: aID,
-						})
-					}
-				}
-			}
+		if err := s.updateQuestionAnswers(ctx, userID, payload); err != nil {
+			log.Printf("[UpdateProfile] updateQuestionAnswers error for user %d: %v", userID, err)
 		}
 
 		// Liked Activities / Interests persistence
-		var rawInterests interface{}
-		if payload.LikedActivities != nil {
-			rawInterests = payload.LikedActivities
-		} else if payload.Profile != nil && payload.Profile.LikedActivities != nil {
-			rawInterests = payload.Profile.LikedActivities
-		}
-
-		if rawInterests != nil {
-			var interestIDs []int32
-			switch v := rawInterests.(type) {
-			case []interface{}:
-				for _, item := range v {
-					if id, ok := toInt32(item); ok && id > 0 {
-						interestIDs = append(interestIDs, id)
-					} else if m, ok := item.(map[string]interface{}); ok {
-						for _, k := range []string{"interestId", "id"} {
-							if idVal, exists := m[k]; exists {
-								if id, ok := toInt32(idVal); ok && id > 0 {
-									interestIDs = append(interestIDs, id)
-									break
-								}
-							}
-						}
-					}
-				}
-			case map[string]interface{}:
-				for _, val := range v {
-					if id, ok := toInt32(val); ok && id > 0 {
-						interestIDs = append(interestIDs, id)
-					} else if arr, ok := val.([]interface{}); ok {
-						for _, item := range arr {
-							if id, ok := toInt32(item); ok && id > 0 {
-								interestIDs = append(interestIDs, id)
-							}
-						}
-					}
-				}
-			}
-
-			_ = s.queries.DeleteUserInterests(ctx, int32(userID))
-			for _, iID := range interestIDs {
-				_ = s.queries.InsertUserInterest(ctx, db.InsertUserInterestParams{
-					UserID:     int32(userID),
-					InterestID: iID,
-					IsLiked:    true,
-				})
-			}
+		if err := s.updateInterests(ctx, userID, payload); err != nil {
+			log.Printf("[UpdateProfile] updateInterests error for user %d: %v", userID, err)
 		}
 	}
 
 	return s.GetProfile(ctx, userID)
+}
+
+func (s *Service) updateInterests(ctx context.Context, userID int64, payload *UpdateProfilePayload) error {
+	if payload == nil {
+		return nil
+	}
+
+	var interestCandidates []interface{}
+	for _, c := range []interface{}{
+		payload.LikedActivities,
+		payload.LikedActivitiesCapital,
+		payload.Interests,
+		payload.InterestsCapital,
+		payload.Interest,
+		payload.Favorites,
+		payload.FavoritesCapital,
+	} {
+		if c != nil {
+			interestCandidates = append(interestCandidates, c)
+		}
+	}
+
+	if payload.Profile != nil {
+		for _, c := range []interface{}{
+			payload.Profile.LikedActivities,
+			payload.Profile.LikedActivitiesCapital,
+			payload.Profile.Interests,
+			payload.Profile.InterestsCapital,
+			payload.Profile.Interest,
+			payload.Profile.Favorites,
+			payload.Profile.FavoritesCapital,
+		} {
+			if c != nil {
+				interestCandidates = append(interestCandidates, c)
+			}
+		}
+	}
+
+	if len(interestCandidates) == 0 {
+		return nil
+	}
+
+	allInterests, err := s.queries.ListInterests(ctx)
+	isInterestID := make(map[int32]bool)
+	if err == nil {
+		for _, in := range allInterests {
+			isInterestID[in.ID] = true
+		}
+	}
+
+	var interestIDs []int32
+
+	for _, raw := range interestCandidates {
+		if str, ok := raw.(string); ok {
+			trimmed := strings.TrimSpace(str)
+			if strings.HasPrefix(trimmed, "[") || strings.HasPrefix(trimmed, "{") {
+				var unmarshaled interface{}
+				if err := json.Unmarshal([]byte(trimmed), &unmarshaled); err == nil {
+					raw = unmarshaled
+				}
+			} else if strings.Contains(trimmed, ",") {
+				parts := strings.Split(trimmed, ",")
+				for _, p := range parts {
+					if id, ok := toInt32(strings.TrimSpace(p)); ok && id > 0 {
+						interestIDs = append(interestIDs, id)
+					}
+				}
+				continue
+			} else if id, ok := toInt32(trimmed); ok && id > 0 {
+				interestIDs = append(interestIDs, id)
+				continue
+			}
+		}
+
+		switch v := raw.(type) {
+		case []interface{}:
+			for _, item := range v {
+				if id, ok := toInt32(item); ok && id > 0 {
+					interestIDs = append(interestIDs, id)
+				} else if m, ok := item.(map[string]interface{}); ok {
+					for _, k := range []string{"interestId", "interest_id", "id", "ID"} {
+						if idVal, exists := m[k]; exists {
+							if id, ok := toInt32(idVal); ok && id > 0 {
+								interestIDs = append(interestIDs, id)
+								break
+							}
+						}
+					}
+				}
+			}
+		case map[string]interface{}:
+			for k, val := range v {
+				kID, kOk := toInt32(k)
+
+				// Boolean value: e.g. {"10": true} -> 10 is interest ID
+				if b, ok := val.(bool); ok {
+					if b && kOk && kID > 0 {
+						interestIDs = append(interestIDs, kID)
+					}
+					continue
+				}
+
+				// String boolean: e.g. {"10": "true"}
+				if s, ok := val.(string); ok && (strings.EqualFold(s, "true") || s == "1") {
+					if kOk && kID > 0 {
+						interestIDs = append(interestIDs, kID)
+					}
+					continue
+				}
+
+				// Array value: e.g. {"1": [10, 11]} -> category 1, interests 10, 11
+				if arr, ok := val.([]interface{}); ok {
+					for _, item := range arr {
+						if id, ok := toInt32(item); ok && id > 0 {
+							interestIDs = append(interestIDs, id)
+						}
+					}
+					continue
+				}
+
+				// Map value: e.g. {"1": {"id": 10}}
+				if m, ok := val.(map[string]interface{}); ok {
+					for _, itemKey := range []string{"interestId", "interest_id", "id", "ID"} {
+						if idVal, exists := m[itemKey]; exists {
+							if id, ok := toInt32(idVal); ok && id > 0 {
+								interestIDs = append(interestIDs, id)
+								break
+							}
+						}
+					}
+					continue
+				}
+
+				// Number value: e.g. {"1": 10} or {"10": 1}
+				if vID, ok := toInt32(val); ok && vID > 0 {
+					if isInterestID[vID] {
+						interestIDs = append(interestIDs, vID)
+					} else if kOk && isInterestID[kID] && vID == 1 {
+						interestIDs = append(interestIDs, kID)
+					} else {
+						interestIDs = append(interestIDs, vID)
+					}
+				}
+			}
+		}
+	}
+
+	seen := make(map[int32]bool)
+	var uniqueInterestIDs []int32
+	for _, id := range interestIDs {
+		if !seen[id] && id > 0 && (len(isInterestID) == 0 || isInterestID[id]) {
+			seen[id] = true
+			uniqueInterestIDs = append(uniqueInterestIDs, id)
+		}
+	}
+
+	_ = s.queries.DeleteUserInterests(ctx, int32(userID))
+	for _, iID := range uniqueInterestIDs {
+		_ = s.queries.InsertUserInterest(ctx, db.InsertUserInterestParams{
+			UserID:     int32(userID),
+			InterestID: iID,
+			IsLiked:    true,
+		})
+	}
+
+	return nil
+}
+
+func (s *Service) updateQuestionAnswers(ctx context.Context, userID int64, payload *UpdateProfilePayload) error {
+	if payload == nil {
+		return nil
+	}
+
+	var answerCandidates []interface{}
+	for _, c := range []interface{}{
+		payload.Answers,
+		payload.AnswersCapital,
+		payload.Questions,
+		payload.QuestionsCapital,
+		payload.QuestionAnswers,
+	} {
+		if c != nil {
+			answerCandidates = append(answerCandidates, c)
+		}
+	}
+
+	if payload.Profile != nil {
+		for _, c := range []interface{}{
+			payload.Profile.Answers,
+			payload.Profile.AnswersCapital,
+			payload.Profile.Questions,
+			payload.Profile.QuestionsCapital,
+			payload.Profile.QuestionAnswers,
+		} {
+			if c != nil {
+				answerCandidates = append(answerCandidates, c)
+			}
+		}
+	}
+
+	if len(answerCandidates) == 0 {
+		return nil
+	}
+
+	allQAns, err := s.queries.ListQuestionAnswers(ctx)
+	if err != nil {
+		return err
+	}
+
+	qAnswersMap := make(map[int32][]db.QuestionAnswers)
+	dbIDExists := make(map[int32]bool)
+	for _, qa := range allQAns {
+		qAnswersMap[qa.QuestionID] = append(qAnswersMap[qa.QuestionID], qa)
+		dbIDExists[qa.ID] = true
+	}
+
+	var targetAnswerDbIDs []int32
+
+	for _, raw := range answerCandidates {
+		if str, ok := raw.(string); ok {
+			trimmed := strings.TrimSpace(str)
+			if strings.HasPrefix(trimmed, "[") || strings.HasPrefix(trimmed, "{") {
+				var unmarshaled interface{}
+				if err := json.Unmarshal([]byte(trimmed), &unmarshaled); err == nil {
+					raw = unmarshaled
+				}
+			}
+		}
+
+		switch v := raw.(type) {
+		case map[string]interface{}:
+			for qKey, aVal := range v {
+				qID, err := strconv.Atoi(qKey)
+				if err != nil {
+					continue
+				}
+				qID32 := int32(qID)
+
+				// Boolean value: e.g. {"6": true} where 6 is answer DB ID
+				if b, ok := aVal.(bool); ok {
+					if b && dbIDExists[qID32] {
+						targetAnswerDbIDs = append(targetAnswerDbIDs, qID32)
+					}
+					continue
+				}
+
+				qAnswers := qAnswersMap[qID32]
+
+				var items []interface{}
+				if arr, ok := aVal.([]interface{}); ok {
+					items = arr
+				} else {
+					items = []interface{}{aVal}
+				}
+
+				for _, it := range items {
+					if itMap, ok := it.(map[string]interface{}); ok {
+						for _, k := range []string{"answerId", "answerid", "answer_id", "id", "aId"} {
+							if val, exists := itMap[k]; exists {
+								if id, ok := toInt32(val); ok {
+									if dbIDExists[id] {
+										targetAnswerDbIDs = append(targetAnswerDbIDs, id)
+										break
+									} else if id >= 0 && int(id) < len(qAnswers) {
+										targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[id].ID)
+										break
+									}
+								}
+							}
+						}
+						if idxVal, exists := itMap["index"]; exists {
+							if idx, ok := toInt32(idxVal); ok && idx >= 0 && int(idx) < len(qAnswers) {
+								targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[idx].ID)
+							}
+						}
+						continue
+					}
+
+					if idx, ok := toInt32(it); ok {
+						if idx >= 0 && int(idx) < len(qAnswers) {
+							targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[idx].ID)
+						} else if dbIDExists[idx] {
+							targetAnswerDbIDs = append(targetAnswerDbIDs, idx)
+						}
+					}
+				}
+			}
+		case []interface{}:
+			for _, item := range v {
+				if m, ok := item.(map[string]interface{}); ok {
+					var qIDVal, aIDVal int32
+					var hasQ, hasA bool
+					for _, k := range []string{"questionId", "questionid", "question_id", "qId"} {
+						if val, exists := m[k]; exists {
+							if id, ok := toInt32(val); ok {
+								qIDVal = id
+								hasQ = true
+								break
+							}
+						}
+					}
+					for _, k := range []string{"answerId", "answerid", "answer_id", "aId", "id", "index"} {
+						if val, exists := m[k]; exists {
+							if id, ok := toInt32(val); ok {
+								aIDVal = id
+								hasA = true
+								break
+							}
+						}
+					}
+					if hasQ && hasA {
+						qAnswers := qAnswersMap[qIDVal]
+						if aIDVal >= 0 && int(aIDVal) < len(qAnswers) {
+							targetAnswerDbIDs = append(targetAnswerDbIDs, qAnswers[aIDVal].ID)
+						} else if dbIDExists[aIDVal] {
+							targetAnswerDbIDs = append(targetAnswerDbIDs, aIDVal)
+						}
+					} else if hasA && dbIDExists[aIDVal] {
+						targetAnswerDbIDs = append(targetAnswerDbIDs, aIDVal)
+					}
+				} else if id, ok := toInt32(item); ok {
+					if dbIDExists[id] {
+						targetAnswerDbIDs = append(targetAnswerDbIDs, id)
+					}
+				}
+			}
+		}
+	}
+
+	seen := make(map[int32]bool)
+	var uniqueAnswerIDs []int32
+	for _, id := range targetAnswerDbIDs {
+		if !seen[id] && id > 0 {
+			seen[id] = true
+			uniqueAnswerIDs = append(uniqueAnswerIDs, id)
+		}
+	}
+
+	_ = s.queries.DeleteUserQuestionAnswers(ctx, int32(userID))
+	for _, aID := range uniqueAnswerIDs {
+		_ = s.queries.InsertUserQuestionAnswer(ctx, db.InsertUserQuestionAnswerParams{
+			UserID:           int32(userID),
+			QuestionAnswerID: aID,
+		})
+	}
+
+	return nil
 }
 
 func (s *Service) DeleteAccount(ctx context.Context, userID int64) error {
@@ -866,11 +1133,25 @@ func (s *Service) TerminateAllDevices(ctx context.Context, userID, currentSessio
 }
 
 func (s *Service) UpdateDeviceToken(ctx context.Context, userID int64, token, deviceInfo string) error {
-	return s.queries.UpdateUserSessionDeviceToken(ctx, db.UpdateUserSessionDeviceTokenParams{
-		UserID:     int32(userID),
-		FcmToken:   pgtype.Text{String: token, Valid: true},
-		DeviceInfo: pgtype.Text{String: deviceInfo, Valid: deviceInfo != ""},
-	})
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE user_sessions
+		SET fcm_token = $2, device_info = COALESCE(NULLIF($3, ''), device_info)
+		WHERE user_id = $1
+	`, userID, token, deviceInfo)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		// If no session exists for this user, insert an active record so device token is preserved
+		_, err = s.pool.Exec(ctx, `
+			INSERT INTO user_sessions (user_id, refresh_token_hash, device_info, fcm_token, expires_at, created_at)
+			VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+		`, userID, uuid.NewString(), deviceInfo, token, time.Now().Add(30*24*time.Hour))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) GetDeviceToken(ctx context.Context, userID int64) (*DeviceTokenDto, error) {
@@ -931,4 +1212,88 @@ func (s *Service) GetBulkAvatars(ctx context.Context, userIDs []int64) ([]UserAv
 		}
 	}
 	return list, nil
+}
+
+func normalizeRelationType(raw string) db.NullRelationType {
+	s := strings.ToUpper(strings.TrimSpace(raw))
+	switch s {
+	case "FUN", "SHORT", "CASUAL":
+		return db.NullRelationType{RelationType: db.RelationTypeFUN, Valid: true}
+	case "OPEN", "FRIENDSHIP":
+		return db.NullRelationType{RelationType: db.RelationTypeOPEN, Valid: true}
+	case "LONG", "MARRIAGE":
+		return db.NullRelationType{RelationType: db.RelationTypeLONG, Valid: true}
+	default:
+		return db.NullRelationType{RelationType: db.RelationType(s), Valid: s != ""}
+	}
+}
+
+func normalizeEducationStatus(raw string) db.NullEducationStatus {
+	s := strings.ToUpper(strings.TrimSpace(raw))
+	switch s {
+	case "HIGH_SCHOOL", "HIGH_SCHOOL_DIPLOMA":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusHIGHSCHOOLDIPLOMA, Valid: true}
+	case "SOME_COLLEGE":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusSOMECOLLEGE, Valid: true}
+	case "ASSOCIATE", "ASSOCIATE_DEGREE":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusASSOCIATEDEGREE, Valid: true}
+	case "BACHELOR", "BACHELOR_DEGREE":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusBACHELORDEGREE, Valid: true}
+	case "MASTER", "MASTER_DEGREE":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusMASTERDEGREE, Valid: true}
+	case "DOCTORATE", "PHD":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusDOCTORATE, Valid: true}
+	case "RATHER_NOT_SAY", "OTHER":
+		return db.NullEducationStatus{EducationStatus: db.EducationStatusRATHERNOTSAY, Valid: true}
+	default:
+		return db.NullEducationStatus{EducationStatus: db.EducationStatus(s), Valid: s != ""}
+	}
+}
+
+func normalizeRelationshipStatus(raw string) db.NullRelationshipStatus {
+	s := strings.ToUpper(strings.TrimSpace(raw))
+	switch s {
+	case "SINGLE", "NEVER_MARRIED":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusSINGLE, Valid: true}
+	case "IN_RELATION", "IN_A_RELATIONSHIP":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusINARELATIONSHIP, Valid: true}
+	case "MARRIED":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusMARRIED, Valid: true}
+	case "COMPLICATED":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusCOMPLICATED, Valid: true}
+	case "OPEN_RELATIONSHIP", "OPEN":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusOPENRELATIONSHIP, Valid: true}
+	case "DIVORCED":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusDIVORCED, Valid: true}
+	case "WIDOWED":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusWIDOWED, Valid: true}
+	case "RATHER_NOT_SAY":
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatusRATHERNOTSAY, Valid: true}
+	default:
+		return db.NullRelationshipStatus{RelationshipStatus: db.RelationshipStatus(s), Valid: s != ""}
+	}
+}
+
+func (s *Service) AcceptPrivacy(ctx context.Context, userID int64) (*AcceptPrivacyResponseDto, error) {
+	row, err := s.queries.AcceptUserPrivacy(ctx, int32(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	prof, err := s.GetProfile(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var acceptedAt string
+	if row.PrivacyAcceptedAt.Valid {
+		acceptedAt = row.PrivacyAcceptedAt.Time.Format(time.RFC3339Nano)
+	} else {
+		acceptedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+
+	return &AcceptPrivacyResponseDto{
+		PrivacyAcceptedAt: acceptedAt,
+		ProfileCompleted:  prof.Profile.ProfileCompleted,
+	}, nil
 }

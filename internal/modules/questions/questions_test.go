@@ -205,7 +205,7 @@ func TestMapQuestion_LanguageLocalization(t *testing.T) {
 	if dtoEn.Answers[0].ID != 0 || dtoEn.Answers[1].ID != 1 {
 		t.Errorf("expected 0-based answer IDs, got %d, %d", dtoEn.Answers[0].ID, dtoEn.Answers[1].ID)
 	}
-	if dtoEn.Icon == nil || dtoEn.Icon.Url != "https://api.datemate.ir/icons/comm.png" {
+	if dtoEn.Icon == nil || dtoEn.Icon.Url != "https://api.datemate.ir/assets/icons/comm.png" {
 		t.Errorf("expected resolved icon URL, got %v", dtoEn.Icon)
 	}
 	if dtoEn.Icon.Alt != "Communication" {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -104,13 +105,28 @@ type Config struct {
 func Load() *Config {
 	_ = godotenv.Load(".env")
 
+	port := getEnv("PORT", "3000")
+	defaultBase := fmt.Sprintf("http://localhost:%s", port)
+	baseURL := strings.TrimRight(getEnv("BASE_URL", ""), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(getEnv("APP_BASE_URL", defaultBase), "/")
+	}
+
+	assetBaseURL := strings.TrimRight(getEnv("ASSET_BASE_URL", ""), "/")
+	if assetBaseURL == "" {
+		assetBaseURL = strings.TrimRight(getEnv("MEDIA_BASE_URL", ""), "/")
+	}
+	if assetBaseURL == "" {
+		assetBaseURL = baseURL
+	}
+
 	cfg := &Config{
-		Host:       getEnv("HOST", "0.0.0.0"),
-		Port:       getEnv("PORT", "3000"),
-		NodeEnv:    getEnv("NODE_ENV", "development"),
-		BaseURL:    getEnv("BASE_URL", "http://localhost:3000"),
-		AssetBaseURL: getEnv("ASSET_BASE_URL", "http://localhost:3000"),
-		TrustProxy: getEnv("TRUST_PROXY", "loopback"),
+		Host:         getEnv("HOST", "0.0.0.0"),
+		Port:         port,
+		NodeEnv:      getEnv("NODE_ENV", "development"),
+		BaseURL:      baseURL,
+		AssetBaseURL: assetBaseURL,
+		TrustProxy:   getEnv("TRUST_PROXY", "loopback"),
 
 		SMTPHost: getEnv("SMTP_HOST", "localhost"),
 		SMTPPort: getEnvInt("SMTP_PORT", 1025),

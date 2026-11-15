@@ -50,3 +50,29 @@ func TestProfileNestedResponseDto_AnswersSerialization(t *testing.T) {
 		t.Errorf("expected question 3 answer to be index 1, got %v", ansRaw["3"])
 	}
 }
+
+func TestProfileNestedResponseDto_AvatarSerialization(t *testing.T) {
+	avatarPic := "https://api-datemate.testdevvvv.site/assets/avatars/avatar_123.webp"
+	feedProfilePic := "https://api-datemate.testdevvvv.site/assets/images/gallery_1_abc.webp"
+	dto := ProfileNestedResponseDto{
+		Avatar:         avatarPic,
+		ProfilePicture: &feedProfilePic,
+	}
+
+	bytes, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatalf("failed to marshal ProfileNestedResponseDto: %v", err)
+	}
+
+	var rawMap map[string]interface{}
+	if err := json.Unmarshal(bytes, &rawMap); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	if rawMap["avatar"] != avatarPic {
+		t.Errorf("expected avatar '%s', got '%v'", avatarPic, rawMap["avatar"])
+	}
+	if rawMap["profilePicture"] != feedProfilePic {
+		t.Errorf("expected profilePicture '%s', got '%v'", feedProfilePic, rawMap["profilePicture"])
+	}
+}

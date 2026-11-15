@@ -130,6 +130,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 	// Generic asset serving
 	r.Get("/assets/{type}/{filename}", h.ServeAsset)
+	r.Get("/uploads/{type}/{filename}", h.ServeAsset)
 
 	// Specific asset category routes
 	r.Get("/assets/icons/{filename}", func(w http.ResponseWriter, r *http.Request) {
@@ -252,13 +253,14 @@ func (h *Handler) uploadAssetType(w http.ResponseWriter, r *http.Request, assetT
 		}
 	}
 
-	relPath, err := h.engine.Save(r.Context(), assetType, safeFilename, bytes.NewReader(data), int64(len(data)), detectedMime)
+	_, err = h.engine.Save(r.Context(), assetType, safeFilename, bytes.NewReader(data), int64(len(data)), detectedMime)
 	if err != nil {
 		common.RespondError(w, http.StatusInternalServerError, "Failed to store asset", common.ErrUnknownError)
 		return
 	}
 
-	fullURL := fmt.Sprintf("%s/%s", strings.TrimRight(h.cfg.AssetBaseURL, "/"), strings.TrimPrefix(relPath, "/"))
+	canonicalRelative := fmt.Sprintf("assets/%s/%s", strings.ToLower(assetType), safeFilename)
+	fullURL := common.ResolveAssetURL(h.cfg.AssetBaseURL, canonicalRelative)
 
 	common.RespondSuccess(w, http.StatusCreated, "Media successfully uploaded", MediaUploadResponseDto{
 		URL:          fullURL,
@@ -266,7 +268,7 @@ func (h *Handler) uploadAssetType(w http.ResponseWriter, r *http.Request, assetT
 		FileName:     safeFilename,
 		Filename:     safeFilename,
 		AssetType:    assetType,
-		RelativePath: relPath,
+		RelativePath: canonicalRelative,
 		MimeType:     detectedMime,
 		SizeBytes:    int64(len(data)),
 		CreatedAt:    time.Now().UTC().Format(time.RFC3339),

@@ -16,10 +16,11 @@ type StateResponseDto struct {
 }
 
 type CityResponseDto struct {
-	ID      *int              `json:"id"`
-	Name    *string           `json:"name"`
-	State   *StateResponseDto `json:"State"`
-	Country *string           `json:"country,omitempty"`
+	ID       *int              `json:"id,omitempty"`
+	Name     *string           `json:"name,omitempty"`
+	State    *string           `json:"state,omitempty"`
+	Country  *string           `json:"country,omitempty"`
+	StateObj *StateResponseDto `json:"State,omitempty"`
 }
 
 type DemographicResponseDto struct {
@@ -68,11 +69,21 @@ type ProfileResponseDto struct {
 	Language         string                   `json:"language"`
 	Lat              *float64                 `json:"lat"`
 	Lon              *float64                 `json:"lon"`
-	ProfileValidated bool                     `json:"profileValidated"`
-	IsPremium        bool                     `json:"isPremium"`
-	Profile          ProfileNestedResponseDto `json:"Profile"`
-	Gallery          []GalleryItemResponseDto `json:"gallery"`
-	ProfilePictureID *int                     `json:"profilePictureId"`
+	ProfileValidated  bool                     `json:"profileValidated"`
+	IsPremium         bool                     `json:"isPremium"`
+	PrivacyAcceptedAt *string                  `json:"privacyAcceptedAt"`
+	Profile           ProfileNestedResponseDto `json:"Profile"`
+	Gallery           []GalleryItemResponseDto `json:"gallery"`
+	ProfilePictureID  *int                     `json:"profilePictureId"`
+}
+
+type AcceptPrivacyRequestDto struct {
+	Accepted *bool `json:"accepted,omitempty"`
+}
+
+type AcceptPrivacyResponseDto struct {
+	PrivacyAcceptedAt string `json:"privacyAcceptedAt"`
+	ProfileCompleted  bool   `json:"profileCompleted"`
 }
 
 type BulkUserItemDto struct {
@@ -117,35 +128,70 @@ type GalleryPayloadDto struct {
 	Description      *string `json:"description,omitempty"`
 }
 
+type UpdateDemographicPayload struct {
+	BirthDate      *string `json:"birthDate,omitempty"`
+	Gender         *string `json:"gender,omitempty"`
+	Height         *int    `json:"height,omitempty"`
+	Degree         *string `json:"degree,omitempty"`
+	Profession     *string `json:"profession,omitempty"`
+	RelationStatus *string `json:"relationStatus,omitempty"`
+	CityID         *int    `json:"cityId,omitempty"`
+	City           *struct {
+		ID *int `json:"id,omitempty"`
+	} `json:"City,omitempty"`
+	CityName       *string `json:"cityName,omitempty"`
+}
+
+type UpdatePreferencesPayload struct {
+	Relation *string `json:"relation,omitempty"`
+}
+
+type UpdateProfileNestedDto struct {
+	FullName               *string                   `json:"fullName,omitempty"`
+	Username               *string                   `json:"username,omitempty"`
+	PhoneNumber            *string                   `json:"phoneNumber,omitempty"`
+	Bio                    *string                   `json:"bio,omitempty"`
+	Languages              *[]string                 `json:"languages,omitempty"`
+	Avatar                 *string                   `json:"avatar,omitempty"`
+	Demographic            *UpdateDemographicPayload `json:"Demographic,omitempty"`
+	DemographicLower       *UpdateDemographicPayload `json:"demographic,omitempty"`
+	Preferences            *UpdatePreferencesPayload `json:"Preferences,omitempty"`
+	PreferencesLower       *UpdatePreferencesPayload `json:"preferences,omitempty"`
+	RelationType           *string                   `json:"relationType,omitempty"`
+	Answers                interface{}               `json:"answers,omitempty"`
+	AnswersCapital         interface{}               `json:"Answers,omitempty"`
+	Questions              interface{}               `json:"questions,omitempty"`
+	QuestionsCapital       interface{}               `json:"Questions,omitempty"`
+	QuestionAnswers        interface{}               `json:"questionAnswers,omitempty"`
+	LikedActivities        interface{}               `json:"likedActivities,omitempty"`
+	LikedActivitiesCapital interface{}               `json:"LikedActivities,omitempty"`
+	Interests              interface{}               `json:"interests,omitempty"`
+	InterestsCapital       interface{}               `json:"Interests,omitempty"`
+	Interest               interface{}               `json:"interest,omitempty"`
+	Favorites              interface{}               `json:"favorites,omitempty"`
+	FavoritesCapital       interface{}               `json:"Favorites,omitempty"`
+}
+
 type UpdateProfilePayload struct {
-	Language         *string            `json:"language,omitempty"`
-	Lat              *float64           `json:"lat,omitempty"`
-	Lon              *float64           `json:"lon,omitempty"`
-	ProfilePictureID *int               `json:"profilePictureId,omitempty"`
-	Gallery          *GalleryPayloadDto `json:"gallery,omitempty"`
-	Answers          interface{}        `json:"answers,omitempty"`
-	LikedActivities  interface{}        `json:"likedActivities,omitempty"`
-	Profile          *struct {
-		FullName    *string   `json:"fullName,omitempty"`
-		Username    *string   `json:"username,omitempty"`
-		PhoneNumber *string   `json:"phoneNumber,omitempty"`
-		Bio         *string   `json:"bio,omitempty"`
-		Languages   *[]string `json:"languages,omitempty"`
-		Demographic *struct {
-			BirthDate      *string `json:"birthDate,omitempty"`
-			Gender         *string `json:"gender,omitempty"`
-			Height         *int    `json:"height,omitempty"`
-			Degree         *string `json:"degree,omitempty"`
-			Profession     *string `json:"profession,omitempty"`
-			RelationStatus *string `json:"relationStatus,omitempty"`
-			CityID         *int    `json:"cityId,omitempty"`
-			CityName       *string `json:"cityName,omitempty"`
-		} `json:"Demographic,omitempty"`
-		Preferences *struct {
-			Relation *string `json:"relation,omitempty"`
-		} `json:"Preferences,omitempty"`
-		RelationType    *string     `json:"relationType,omitempty"`
-		Answers         interface{} `json:"answers,omitempty"`
-		LikedActivities interface{} `json:"likedActivities,omitempty"`
-	} `json:"Profile,omitempty"`
+	Language               *string                 `json:"language,omitempty"`
+	Lat                    *float64                `json:"lat,omitempty"`
+	Lon                    *float64                `json:"lon,omitempty"`
+	Avatar                 *string                 `json:"avatar,omitempty"`
+	ProfilePictureID       *int                    `json:"profilePictureId,omitempty"`
+	PrivacyAccepted        *bool                   `json:"privacyAccepted,omitempty"`
+	Gallery                *GalleryPayloadDto      `json:"gallery,omitempty"`
+	Answers                interface{}             `json:"answers,omitempty"`
+	AnswersCapital         interface{}             `json:"Answers,omitempty"`
+	Questions              interface{}             `json:"questions,omitempty"`
+	QuestionsCapital       interface{}             `json:"Questions,omitempty"`
+	QuestionAnswers        interface{}             `json:"questionAnswers,omitempty"`
+	LikedActivities        interface{}             `json:"likedActivities,omitempty"`
+	LikedActivitiesCapital interface{}             `json:"LikedActivities,omitempty"`
+	Interests              interface{}             `json:"interests,omitempty"`
+	InterestsCapital       interface{}             `json:"Interests,omitempty"`
+	Interest               interface{}             `json:"interest,omitempty"`
+	Favorites              interface{}             `json:"favorites,omitempty"`
+	FavoritesCapital       interface{}             `json:"Favorites,omitempty"`
+	Profile                *UpdateProfileNestedDto `json:"Profile,omitempty"`
+	ProfileLower           *UpdateProfileNestedDto `json:"profile,omitempty"`
 }

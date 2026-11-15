@@ -32,14 +32,7 @@ func NewService(cfg *config.Config, pool *pgxpool.Pool, dispatcher *fcm.Dispatch
 }
 
 func (s *Service) resolveAssetURL(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
-		return raw
-	}
-	clean := strings.TrimPrefix(raw, "/")
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.AssetBaseURL, "/"), clean)
+	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
 func (s *Service) AddFriend(ctx context.Context, currentUserID, targetUserID int64) (*FriendItemDto, string, error) {
@@ -90,6 +83,24 @@ func (s *Service) AddFriend(ctx context.Context, currentUserID, targetUserID int
 			if err != nil {
 				return nil, "", err
 			}
+			if s.dispatcher != nil {
+				senderID := int64(existing.SenderID)
+				receiverProfile, _ := s.queries.GetProfileByUserID(ctx, int32(currentUserID))
+				name := receiverProfile.FirstName
+				body := "Your friend request was accepted!"
+				if name != "" {
+					body = fmt.Sprintf("%s accepted your friend request!", name)
+				}
+				s.dispatcher.Enqueue(fcm.NotificationJob{
+					UserID: &senderID,
+					Title:  "Friend Request Accepted",
+					Body:   body,
+					Data: map[string]interface{}{
+						"friendId": fmt.Sprintf("%d", currentUserID),
+						"type":     "FRIEND_REQUEST_ACCEPTED",
+					},
+				})
+			}
 			item := s.toFriendItem(ctx, updated, currentUserID)
 			return item, "Friend request accepted successfully", nil
 		}
@@ -106,10 +117,17 @@ func (s *Service) AddFriend(ctx context.Context, currentUserID, targetUserID int
 
 	// Dispatch notification
 	if s.dispatcher != nil {
+		senderProfile, _ := s.queries.GetProfileByUserID(ctx, int32(currentUserID))
+		name := senderProfile.FirstName
+		body := "Someone sent you a friend request!"
+		if name != "" {
+			body = fmt.Sprintf("%s sent you a friend request!", name)
+		}
+		tID := targetUserID
 		s.dispatcher.Enqueue(fcm.NotificationJob{
-			UserID: &targetUserID,
+			UserID: &tID,
 			Title:  "New Friend Request",
-			Body:   "Someone sent you a friend request!",
+			Body:   body,
 			Data: map[string]interface{}{
 				"senderId":  fmt.Sprintf("%d", currentUserID),
 				"requestId": fmt.Sprintf("%d", created.ID),
@@ -138,6 +156,25 @@ func (s *Service) AcceptFriendRequest(ctx context.Context, currentUserID, reques
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if s.dispatcher != nil {
+		senderID := int64(req.SenderID)
+		receiverProfile, _ := s.queries.GetProfileByUserID(ctx, int32(currentUserID))
+		name := receiverProfile.FirstName
+		body := "Your friend request was accepted!"
+		if name != "" {
+			body = fmt.Sprintf("%s accepted your friend request!", name)
+		}
+		s.dispatcher.Enqueue(fcm.NotificationJob{
+			UserID: &senderID,
+			Title:  "Friend Request Accepted",
+			Body:   body,
+			Data: map[string]interface{}{
+				"friendId": fmt.Sprintf("%d", currentUserID),
+				"type":     "FRIEND_REQUEST_ACCEPTED",
+			},
+		})
 	}
 
 	return s.toFriendItem(ctx, updated, currentUserID), nil

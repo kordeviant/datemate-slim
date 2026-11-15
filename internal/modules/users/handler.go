@@ -1,6 +1,7 @@
 package users
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -46,6 +47,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 				pr.Delete("/devices/{deviceId}", h.TerminateDevice)
 				pr.Delete("/devices", h.TerminateAllDevices)
 				pr.Put("/device-token", h.UpdateDeviceToken)
+				pr.Post("/privacy", h.AcceptPrivacy)
 				pr.Get("/me", h.GetMe)
 				pr.Get("/profile", h.CheckProfileStatus)
 				pr.Put("/profile", h.UpdateProfile)
@@ -64,6 +66,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			ur.Delete("/devices/{deviceId}", h.TerminateDevice)
 			ur.Delete("/devices", h.TerminateAllDevices)
 			ur.Put("/device-token", h.UpdateDeviceToken)
+			ur.Post("/privacy", h.AcceptPrivacy)
 			ur.Get("/me", h.GetMe)
 			ur.Get("/profile", h.CheckProfileStatus)
 			ur.Put("/profile", h.UpdateProfile)
@@ -182,6 +185,16 @@ func (h *Handler) UpdateDeviceToken(w http.ResponseWriter, r *http.Request) {
 	common.RespondSuccess(w, http.StatusOK, "Device token updated successfully", req)
 }
 
+func (h *Handler) AcceptPrivacy(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	res, err := h.svc.AcceptPrivacy(r.Context(), u.ID)
+	if err != nil {
+		common.RespondError(w, http.StatusInternalServerError, err.Error(), common.ErrUnknownError)
+		return
+	}
+	common.RespondSuccess(w, http.StatusOK, "Privacy policy accepted successfully", res)
+}
+
 func (h *Handler) GetDeviceTokenByUserId(w http.ResponseWriter, r *http.Request) {
 	userIDStr := chi.URLParam(r, "userId")
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
@@ -243,31 +256,116 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var payload UpdateProfilePayload
 	var avatarBytes, selfieBytes, galleryBytes []byte
 
+	bodyBytes, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	trimmed := bytes.TrimSpace(bodyBytes)
+
+	// If body looks like a JSON object, try parsing it directly
+	if len(trimmed) > 0 && trimmed[0] == '{' {
+		_ = json.Unmarshal(trimmed, &payload)
+	}
+
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		// Parse multipart form up to 50MB
 		if err := r.ParseMultipartForm(50 * 1024 * 1024); err == nil {
 			if dataStr := r.FormValue("data"); dataStr != "" {
 				_ = json.Unmarshal([]byte(dataStr), &payload)
-			} else {
-				// Form values mapped
-				payload = UpdateProfilePayload{}
-				if lang := r.FormValue("language"); lang != "" {
-					payload.Language = &lang
+			}
+			if pStr := r.FormValue("Profile"); pStr != "" && payload.Profile == nil {
+				_ = json.Unmarshal([]byte(pStr), &payload.Profile)
+			} else if pStr := r.FormValue("profile"); pStr != "" && payload.Profile == nil {
+				_ = json.Unmarshal([]byte(pStr), &payload.Profile)
+			}
+
+			if lang := r.FormValue("language"); lang != "" && payload.Language == nil {
+				payload.Language = &lang
+			}
+			if latStr := r.FormValue("lat"); latStr != "" && payload.Lat == nil {
+				if f, err := strconv.ParseFloat(latStr, 64); err == nil {
+					payload.Lat = &f
 				}
-				if latStr := r.FormValue("lat"); latStr != "" {
-					if f, err := strconv.ParseFloat(latStr, 64); err == nil {
-						payload.Lat = &f
+			}
+			if lonStr := r.FormValue("lon"); lonStr != "" && payload.Lon == nil {
+				if f, err := strconv.ParseFloat(lonStr, 64); err == nil {
+					payload.Lon = &f
+				}
+			}
+			if pPicIDStr := r.FormValue("profilePictureId"); pPicIDStr != "" && payload.ProfilePictureID == nil {
+				if id, err := strconv.Atoi(pPicIDStr); err == nil {
+					payload.ProfilePictureID = &id
+				}
+			}
+			if avStr := r.FormValue("avatar"); avStr != "" && payload.Avatar == nil {
+				payload.Avatar = &avStr
+			}
+
+			// Extract interests / favorites from multipart fields if not already populated
+			if payload.Interests == nil && payload.Favorites == nil && payload.LikedActivities == nil {
+				for _, key := range []string{"interests", "Interests", "favorites", "Favorites", "likedActivities", "LikedActivities", "interest"} {
+					if val := r.FormValue(key); val != "" {
+						trimmedVal := strings.TrimSpace(val)
+						if strings.HasPrefix(trimmedVal, "[") || strings.HasPrefix(trimmedVal, "{") {
+							var parsed interface{}
+							if err := json.Unmarshal([]byte(trimmedVal), &parsed); err == nil {
+								payload.Interests = parsed
+								break
+							}
+						}
+						payload.Interests = val
+						break
 					}
 				}
-				if lonStr := r.FormValue("lon"); lonStr != "" {
-					if f, err := strconv.ParseFloat(lonStr, 64); err == nil {
-						payload.Lon = &f
+			}
+
+			// Extract questions / answers from multipart fields if not already populated
+			if payload.Answers == nil && payload.Questions == nil && payload.QuestionAnswers == nil {
+				for _, key := range []string{"answers", "Answers", "questions", "Questions", "questionAnswers"} {
+					if val := r.FormValue(key); val != "" {
+						trimmedVal := strings.TrimSpace(val)
+						if strings.HasPrefix(trimmedVal, "[") || strings.HasPrefix(trimmedVal, "{") {
+							var parsed interface{}
+							if err := json.Unmarshal([]byte(trimmedVal), &parsed); err == nil {
+								payload.Answers = parsed
+								break
+							}
+						}
+						payload.Answers = val
+						break
 					}
 				}
-				if pPicIDStr := r.FormValue("profilePictureId"); pPicIDStr != "" {
-					if id, err := strconv.Atoi(pPicIDStr); err == nil {
-						payload.ProfilePictureID = &id
-					}
+			}
+
+			// Extract profile text fields from multipart form values
+			if bio := r.FormValue("bio"); bio != "" {
+				if payload.Profile == nil {
+					payload.Profile = &UpdateProfileNestedDto{}
+				}
+				if payload.Profile.Bio == nil {
+					payload.Profile.Bio = &bio
+				}
+			}
+			if un := r.FormValue("username"); un != "" {
+				if payload.Profile == nil {
+					payload.Profile = &UpdateProfileNestedDto{}
+				}
+				if payload.Profile.Username == nil {
+					payload.Profile.Username = &un
+				}
+			}
+			if fn := r.FormValue("fullName"); fn != "" {
+				if payload.Profile == nil {
+					payload.Profile = &UpdateProfileNestedDto{}
+				}
+				if payload.Profile.FullName == nil {
+					payload.Profile.FullName = &fn
+				}
+			}
+			if pn := r.FormValue("phoneNumber"); pn != "" {
+				if payload.Profile == nil {
+					payload.Profile = &UpdateProfileNestedDto{}
+				}
+				if payload.Profile.PhoneNumber == nil {
+					payload.Profile.PhoneNumber = &pn
 				}
 			}
 
@@ -295,11 +393,26 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 						f.Close()
 					}
 				}
+				if files := r.MultipartForm.File["file"]; len(files) > 0 {
+					f, err := files[0].Open()
+					if err == nil {
+						b, _ := io.ReadAll(f)
+						f.Close()
+						if payload.Gallery != nil && len(galleryBytes) == 0 {
+							galleryBytes = b
+						} else if len(avatarBytes) == 0 && len(galleryBytes) == 0 {
+							avatarBytes = b
+						}
+					}
+				}
 			}
 		}
-	} else {
-		// Pure JSON request
-		_ = json.NewDecoder(r.Body).Decode(&payload)
+	} else if len(trimmed) > 0 && payload.Profile == nil && payload.Language == nil {
+		_ = json.Unmarshal(trimmed, &payload)
+	}
+
+	if payload.Profile == nil && payload.ProfileLower != nil {
+		payload.Profile = payload.ProfileLower
 	}
 
 	res, err := h.svc.UpdateProfile(r.Context(), u.ID, &payload, avatarBytes, selfieBytes, galleryBytes)

@@ -74,12 +74,24 @@ func (h *Handler) SendPush(w http.ResponseWriter, r *http.Request) {
 		tokens = append(tokens, payload.Tokens...)
 	}
 
+	hasTarget := len(tokens) > 0 || payload.UserID != nil || (payload.Topic != nil && *payload.Topic != "")
+	if !hasTarget {
+		common.RespondError(w, http.StatusBadRequest, "At least one target recipient must be provided: device_token, tokens, topic, or userId", common.ErrBadRequest)
+		return
+	}
+
 	jobID := uuid.NewString()
+	var topicStr string
+	if payload.Topic != nil {
+		topicStr = *payload.Topic
+	}
+
 	if h.dispatcher != nil {
 		h.dispatcher.Enqueue(fcm.NotificationJob{
 			ID:       jobID,
 			Tokens:   tokens,
 			UserID:   payload.UserID,
+			Topic:    topicStr,
 			Title:    payload.Title,
 			Body:     payload.Body,
 			Data:     payload.Data,

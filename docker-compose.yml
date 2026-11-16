@@ -41,6 +41,10 @@ services:
       - "${PORT:-3000}:${PORT:-3000}"
     env_file:
       - .env
+    environment:
+      - FIREBASE_SERVICE_ACCOUNT=${FIREBASE_SERVICE_ACCOUNT:-}
+      - FIREBASE_SERVICE_ACCOUNT_DEV=${FIREBASE_SERVICE_ACCOUNT_DEV:-}
+      - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH:-/app/firebase-service-account.json}
     volumes:
       - ./uploads:/app/uploads
       - ./data:/app/data:ro

@@ -190,8 +190,8 @@ func Load() *Config {
 		ChatWSPingTimeoutMS:          getEnvInt("CHAT_WS_PING_TIMEOUT_MS", 25000),
 
 		FCMMockMode:                getEnvBool("FCM_MOCK_MODE", true),
-		FirebaseCredentialsPath:    getEnv("FIREBASE_CREDENTIALS_PATH", ""),
-		FirebaseServiceAccountJSON: getEnv("FIREBASE_SERVICE_ACCOUNT", ""),
+		FirebaseCredentialsPath:    getEnvAny([]string{"FIREBASE_CREDENTIALS_PATH", "GOOGLE_APPLICATION_CREDENTIALS"}, ""),
+		FirebaseServiceAccountJSON: getEnvAny([]string{"FIREBASE_SERVICE_ACCOUNT", "FIREBASE_SERVICE_ACCOUNT_DEV", "FIREBASE_SERVICE_ACCOUNT_JSON", "FIREBASE_CONFIG", "FIREBASE_CREDENTIALS"}, ""),
 		PushDefaultPriority:        getEnv("PUSH_DEFAULT_PRIORITY", "normal"),
 		PushNotificationTimeoutMS:  getEnvInt("PUSH_NOTIFICATION_TIMEOUT_MS", 5000),
 		PushMaxBatchSize:           getEnvInt("PUSH_MAX_BATCH_SIZE", 500),
@@ -205,6 +205,15 @@ func Load() *Config {
 func getEnv(key, def string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
+	}
+	return def
+}
+
+func getEnvAny(keys []string, def string) string {
+	for _, k := range keys {
+		if val := strings.TrimSpace(os.Getenv(k)); val != "" {
+			return val
+		}
 	}
 	return def
 }

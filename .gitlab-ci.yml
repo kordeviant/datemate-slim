@@ -1,4 +1,4 @@
-image: golang:1.24-alpine
+image: golang:alpine
 
 stages:
   - test
@@ -18,14 +18,23 @@ test:
     - |
       if [ "$CI_COMMIT_REF_NAME" = "develop" ]; then
         ENV_CONTENT="${ENV_FILE_CONTENT_DEV:-$ENV_FILE_CONTENT}"
+        FIREBASE_JSON="${FIREBASE_SERVICE_ACCOUNT_DEV:-$FIREBASE_SERVICE_ACCOUNT}"
       else
         ENV_CONTENT="${ENV_FILE_CONTENT}"
+        FIREBASE_JSON="${FIREBASE_SERVICE_ACCOUNT_PROD:-${FIREBASE_SERVICE_ACCOUNT:-$FIREBASE_SERVICE_ACCOUNT_DEV}}"
       fi
       if [ -n "$ENV_CONTENT" ]; then
         if [ -f "$ENV_CONTENT" ]; then
           cat "$ENV_CONTENT" > .env
         else
           printf '%s\n' "$ENV_CONTENT" > .env
+        fi
+      fi
+      if [ -n "$FIREBASE_JSON" ]; then
+        if [ -f "$FIREBASE_JSON" ]; then
+          cat "$FIREBASE_JSON" > firebase-service-account.json
+        else
+          printf '%s\n' "$FIREBASE_JSON" > firebase-service-account.json
         fi
       fi
     - export CGO_ENABLED=1
@@ -51,6 +60,7 @@ test:
         export DEPLOY_DIR="${DEPLOY_DIR_DEV:-${DEPLOY_DIR:-~/backend-dev}}"
         SSH_KEY="${SSH_PRIVATE_KEY_DEV:-$SSH_PRIVATE_KEY}"
         ENV_CONTENT="${ENV_FILE_CONTENT_DEV:-$ENV_FILE_CONTENT}"
+        FIREBASE_JSON="${FIREBASE_SERVICE_ACCOUNT_DEV:-$FIREBASE_SERVICE_ACCOUNT}"
       else
         echo "===> Configuring deployment for $CI_COMMIT_REF_NAME branch..."
         export SERVER_USER="${SERVER_USER_PROD:-${SERVER_USER}}"
@@ -59,6 +69,7 @@ test:
         export DEPLOY_DIR="${DEPLOY_DIR_PROD:-${DEPLOY_DIR:-~/backend}}"
         SSH_KEY="${SSH_PRIVATE_KEY_PROD:-${SSH_PRIVATE_KEY}}"
         ENV_CONTENT="${ENV_FILE_CONTENT_PROD:-${ENV_FILE_CONTENT}}"
+        FIREBASE_JSON="${FIREBASE_SERVICE_ACCOUNT_PROD:-${FIREBASE_SERVICE_ACCOUNT:-$FIREBASE_SERVICE_ACCOUNT_DEV}}"
       fi
 
       test -n "$SERVER_USER" || (echo "SERVER_USER is not set (for develop: check SERVER_USER_DEV)" && exit 1)
@@ -91,6 +102,14 @@ test:
         fi
       fi
 
+      if [ -n "$FIREBASE_JSON" ]; then
+        if [ -f "$FIREBASE_JSON" ]; then
+          cat "$FIREBASE_JSON" > /tmp/firebase_service_account.json
+        else
+          printf '%s\n' "$FIREBASE_JSON" > /tmp/firebase_service_account.json
+        fi
+      fi
+
 .deploy_script_dev: &deploy_script_dev
   - |
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend-dev}" | sed "s|^~|/home/$SERVER_USER|")
@@ -106,9 +125,35 @@ test:
       echo 'Warning: Neither ENV_FILE_CONTENT_DEV nor ENV_FILE_CONTENT is set in GitLab CI variables'
     fi
 
+    if [ -s /tmp/firebase_service_account.json ]; then
+      echo '===> Deploying firebase-service-account.json to target server...'
+      ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} -i /tmp/deploy_key $SERVER_USER@$SERVER_IP "
+        if [ -d $TARGET_DIR/firebase-service-account.json ]; then
+          rm -rf $TARGET_DIR/firebase-service-account.json
+        fi
+      "
+      scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} -i /tmp/deploy_key /tmp/firebase_service_account.json $SERVER_USER@$SERVER_IP:$TARGET_DIR/firebase-service-account.json
+    fi
+
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
       set -e
       cd $TARGET_DIR
+
+      # Ensure firebase-service-account.json is not an empty directory
+      if [ -d firebase-service-account.json ]; then
+        rm -rf firebase-service-account.json
+      fi
+
+      # If missing or empty, extract from FIREBASE_SERVICE_ACCOUNT in .env
+      if [ ! -s firebase-service-account.json ] && grep -q '^FIREBASE_SERVICE_ACCOUNT=' .env 2>/dev/null; then
+        echo '===> Extracting firebase-service-account.json from .env...'
+        grep '^FIREBASE_SERVICE_ACCOUNT=' .env | cut -d '=' -f2- | sed -e 's/^[\"'\'' ]*//' -e 's/[\"'\'' ]*$//' > firebase-service-account.json
+      fi
+
+      # Ensure placeholder file exists so docker volume mount won'\''t auto-create a directory
+      if [ ! -e firebase-service-account.json ]; then
+        touch firebase-service-account.json
+      fi
 
       # Stop legacy host PM2 process if running
       if command -v pm2 >/dev/null 2>&1; then
@@ -181,9 +226,35 @@ test:
       echo 'Warning: Neither ENV_FILE_CONTENT nor ENV_FILE_CONTENT_PROD is set in GitLab CI variables'
     fi
 
+    if [ -s /tmp/firebase_service_account.json ]; then
+      echo '===> Deploying firebase-service-account.json to target server...'
+      ssh -o ConnectTimeout=30 -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} -i /tmp/deploy_key $SERVER_USER@$SERVER_IP "
+        if [ -d $TARGET_DIR/firebase-service-account.json ]; then
+          rm -rf $TARGET_DIR/firebase-service-account.json
+        fi
+      "
+      scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no -P ${SSH_PORT:-22} -i /tmp/deploy_key /tmp/firebase_service_account.json $SERVER_USER@$SERVER_IP:$TARGET_DIR/firebase-service-account.json
+    fi
+
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
       set -e
       cd $TARGET_DIR
+
+      # Ensure firebase-service-account.json is not an empty directory
+      if [ -d firebase-service-account.json ]; then
+        rm -rf firebase-service-account.json
+      fi
+
+      # If missing or empty, extract from FIREBASE_SERVICE_ACCOUNT in .env
+      if [ ! -s firebase-service-account.json ] && grep -q '^FIREBASE_SERVICE_ACCOUNT=' .env 2>/dev/null; then
+        echo '===> Extracting firebase-service-account.json from .env...'
+        grep '^FIREBASE_SERVICE_ACCOUNT=' .env | cut -d '=' -f2- | sed -e 's/^[\"'\'' ]*//' -e 's/[\"'\'' ]*$//' > firebase-service-account.json
+      fi
+
+      # Ensure placeholder file exists so docker volume mount won'\''t auto-create a directory
+      if [ ! -e firebase-service-account.json ]; then
+        touch firebase-service-account.json
+      fi
 
       # Stop legacy host PM2 process if running
       if command -v pm2 >/dev/null 2>&1; then

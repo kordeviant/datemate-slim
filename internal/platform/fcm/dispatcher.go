@@ -2,6 +2,7 @@ package fcm
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -76,12 +77,25 @@ func NewDispatcher(pool *pgxpool.Pool, mockMode bool, workerCount, queueBuffer i
 	}
 
 	if credPath == "" {
-		credPath = os.Getenv("FIREBASE_CREDENTIALS_PATH")
+		for _, k := range []string{"FIREBASE_CREDENTIALS_PATH", "GOOGLE_APPLICATION_CREDENTIALS"} {
+			if val := strings.TrimSpace(os.Getenv(k)); val != "" {
+				credPath = val
+				break
+			}
+		}
 	}
 	if credJSON == "" {
-		credJSON = os.Getenv("FIREBASE_SERVICE_ACCOUNT")
-		if credJSON == "" {
-			credJSON = os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+		for _, k := range []string{
+			"FIREBASE_SERVICE_ACCOUNT",
+			"FIREBASE_SERVICE_ACCOUNT_DEV",
+			"FIREBASE_SERVICE_ACCOUNT_JSON",
+			"FIREBASE_CONFIG",
+			"FIREBASE_CREDENTIALS",
+		} {
+			if val := strings.TrimSpace(os.Getenv(k)); val != "" {
+				credJSON = val
+				break
+			}
 		}
 	}
 
@@ -108,10 +122,38 @@ func (d *Dispatcher) initFirebase(credPath, credJSON string) {
 	source := ""
 
 	trimmedJSON := strings.TrimSpace(credJSON)
+	// Strip wrapping quotes if passed as a quoted string in env
+	trimmedJSON = strings.Trim(trimmedJSON, "\"'")
+
+	// If not raw JSON, check if it's base64 encoded JSON
+	if !strings.HasPrefix(trimmedJSON, "{") && len(trimmedJSON) > 0 {
+		if decoded, err := base64.StdEncoding.DecodeString(trimmedJSON); err == nil && len(decoded) > 0 {
+			decTrimmed := strings.TrimSpace(string(decoded))
+			if strings.HasPrefix(decTrimmed, "{") {
+				trimmedJSON = decTrimmed
+			}
+		}
+	}
+
 	if strings.HasPrefix(trimmedJSON, "{") && strings.Contains(trimmedJSON, "project_id") {
 		opt = option.WithCredentialsJSON([]byte(trimmedJSON))
 		source = "environment JSON string"
-	} else {
+
+		// Ensure local/container firebase-service-account.json is populated on disk if missing or empty
+		const defaultPath = "firebase-service-account.json"
+		if stat, err := os.Stat(defaultPath); os.IsNotExist(err) || (err == nil && !stat.IsDir() && stat.Size() == 0) {
+			_ = os.WriteFile(defaultPath, []byte(trimmedJSON), 0600)
+		}
+	} else if opt == nil && (strings.HasSuffix(trimmedJSON, ".json") || strings.Contains(trimmedJSON, "/")) {
+		// If credJSON is a path to a json file
+		clean := filepath.Clean(trimmedJSON)
+		if stat, err := os.Stat(clean); err == nil && !stat.IsDir() && stat.Size() > 0 {
+			opt = option.WithCredentialsFile(clean)
+			source = clean
+		}
+	}
+
+	if opt == nil {
 		// Look up file paths
 		candidates := []string{
 			credPath,
@@ -126,7 +168,7 @@ func (d *Dispatcher) initFirebase(credPath, credJSON string) {
 				continue
 			}
 			clean := filepath.Clean(candidate)
-			if stat, err := os.Stat(clean); err == nil && !stat.IsDir() {
+			if stat, err := os.Stat(clean); err == nil && !stat.IsDir() && stat.Size() > 0 {
 				opt = option.WithCredentialsFile(clean)
 				source = clean
 				break
@@ -135,7 +177,7 @@ func (d *Dispatcher) initFirebase(credPath, credJSON string) {
 	}
 
 	if opt == nil {
-		log.Println("[FCM] [ERROR] No valid Firebase credentials found! Set FIREBASE_CREDENTIALS_PATH or place firebase-service-account.json in the working directory. Falling back to MOCK SIMULATION MODE.")
+		log.Println("[FCM] [ERROR] No valid Firebase credentials found! Set FIREBASE_CREDENTIALS_PATH, FIREBASE_SERVICE_ACCOUNT in env, or place firebase-service-account.json in the working directory. Falling back to MOCK SIMULATION MODE.")
 		d.mockMode = true
 		return
 	}

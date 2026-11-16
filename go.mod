@@ -1,6 +1,6 @@
 module datemate
 
-go 1.24.1
+go 1.25.0
 
 require (
 	github.com/chai2010/webp v1.1.1

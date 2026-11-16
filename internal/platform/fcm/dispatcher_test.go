@@ -2,6 +2,7 @@ package fcm
 
 import (
 	"context"
+	"encoding/base64"
 	"os"
 	"strings"
 	"testing"
@@ -78,4 +79,34 @@ func TestFCMDispatcher_RealFirebaseConnection(t *testing.T) {
 		t.Errorf("unexpected message ID format: %s", msgID)
 	}
 	t.Logf("Successfully dispatched to Google Firebase Cloud Messaging! Message ID: %s", msgID)
+}
+
+func TestFCMDispatcher_CredentialsFromEnv(t *testing.T) {
+	data, err := os.ReadFile("firebase-service-account.json")
+	if err != nil {
+		t.Skip("firebase-service-account.json not found for env test")
+	}
+
+	// Test 1: Raw JSON string via FIREBASE_SERVICE_ACCOUNT env var
+	t.Setenv("FIREBASE_SERVICE_ACCOUNT", string(data))
+	t.Setenv("FIREBASE_CREDENTIALS_PATH", "non-existent-path.json")
+
+	d1 := NewDispatcher(nil, false, 1, 10)
+	defer d1.Close()
+
+	if d1.mockMode || d1.client == nil {
+		t.Errorf("expected real Firebase client initialized via FIREBASE_SERVICE_ACCOUNT env var")
+	}
+
+	// Test 2: Base64 encoded JSON string via FIREBASE_SERVICE_ACCOUNT_DEV env var
+	b64 := base64.StdEncoding.EncodeToString(data)
+	t.Setenv("FIREBASE_SERVICE_ACCOUNT", "")
+	t.Setenv("FIREBASE_SERVICE_ACCOUNT_DEV", b64)
+
+	d2 := NewDispatcher(nil, false, 1, 10)
+	defer d2.Close()
+
+	if d2.mockMode || d2.client == nil {
+		t.Errorf("expected real Firebase client initialized via base64 FIREBASE_SERVICE_ACCOUNT_DEV env var")
+	}
 }

@@ -136,6 +136,15 @@ func Load() *Config {
 		}
 	}
 
+	redisHost := getEnv("REDIS_HOST", "localhost")
+	redisPort := getEnv("REDIS_PORT", "6379")
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		if redisHost == "localhost" || redisHost == "127.0.0.1" {
+			redisHost = "redis"
+			redisPort = "6379"
+		}
+	}
+
 	cfg := &Config{
 		Host:         getEnv("HOST", "0.0.0.0"),
 		Port:         port,
@@ -154,8 +163,8 @@ func Load() *Config {
 
 		DatabaseURL: dbURL,
 
-		RedisHost:            getEnv("REDIS_HOST", "localhost"),
-		RedisPort:            getEnv("REDIS_PORT", "6379"),
+		RedisHost:            redisHost,
+		RedisPort:            redisPort,
 		RedisPassword:        getEnv("REDIS_PASSWORD", ""),
 		RecommendedCacheTTL:  getEnvInt("RECOMMENDED_CACHE_TTL", 86400),
 

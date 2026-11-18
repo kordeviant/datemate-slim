@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 )
@@ -22,6 +23,11 @@ func NewAssetHandler(engine Engine, nginxAccelRedirect bool) *AssetHandler {
 func (h *AssetHandler) ServeAsset(w http.ResponseWriter, r *http.Request, assetType, filename string) {
 	cleanType := strings.ToLower(strings.TrimSpace(assetType))
 	cleanFile := filepath.Base(filename)
+	if unescaped, err := url.PathUnescape(cleanFile); err == nil && unescaped != "" {
+		cleanFile = unescaped
+	} else if unescaped, err := url.QueryUnescape(cleanFile); err == nil && unescaped != "" {
+		cleanFile = unescaped
+	}
 
 	// If Nginx Accel-Redirect is enabled and local storage is used, offload to Nginx
 	if h.nginxAccelRedirect {

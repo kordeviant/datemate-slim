@@ -1,9 +1,12 @@
 package chat
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type CreateConversationDto struct {
-	Type           string  `json:"type"`                     // "DIRECT" | "GROUP"
+	Type           string  `json:"type"`                     // "direct" | "group" / "DIRECT" | "GROUP"
 	TargetUserId   *int64  `json:"targetUserId,omitempty"`   // for DIRECT
 	RecipientId    *int64  `json:"recipientId,omitempty"`    // alias for targetUserId
 	Title          *string `json:"title,omitempty"`          // for GROUP
@@ -40,8 +43,8 @@ type RecentMessageDto struct {
 
 type ConversationDto struct {
 	ConversationID      string             `json:"conversationId"`
-	Type                string             `json:"type"`             // "direct" | "group" (canonical)
-	ConversationType    string             `json:"conversationType"` // "DIRECT" | "GROUP" (alias)
+	Type                string             `json:"type"`                       // "direct" | "group" (canonical)
+	ConversationType    string             `json:"conversationType,omitempty"` // "DIRECT" | "GROUP" (alias)
 	CreatedBy           int64              `json:"createdBy"`
 	CreatedAt           time.Time          `json:"createdAt"`
 	Title               *string            `json:"title,omitempty"`
@@ -49,8 +52,8 @@ type ConversationDto struct {
 	LastMessagePreview  *string            `json:"lastMessagePreview,omitempty"`
 	LastMessageSenderID *int64             `json:"lastMessageSenderId,omitempty"`
 	LastMessage         *LastMessageDto    `json:"lastMessage,omitempty"`
-	MemberIDs           []int64            `json:"memberIds"`
-	RecentMessages      []RecentMessageDto `json:"recentMessages"`
+	MemberIDs           []int64            `json:"memberIds,omitempty"`
+	RecentMessages      []RecentMessageDto `json:"recentMessages,omitempty"`
 	PeerActivity        *UserActivityDto   `json:"peerActivity,omitempty"`
 	Created             *bool              `json:"created,omitempty"`
 	MembersCount        *int               `json:"membersCount,omitempty"`
@@ -70,6 +73,21 @@ type PaginatedResult[T any] struct {
 	Items      []T     `json:"items"`
 	NextCursor *string `json:"nextCursor"`
 	HasMore    bool    `json:"hasMore"`
+}
+
+func (p PaginatedResult[T]) MarshalJSON() ([]byte, error) {
+	items := p.Items
+	if items == nil {
+		items = make([]T, 0)
+	}
+	type Alias PaginatedResult[T]
+	return json.Marshal(&struct {
+		Items []T `json:"items"`
+		Alias
+	}{
+		Items: items,
+		Alias: (Alias)(p),
+	})
 }
 
 type MessageAttachmentDto struct {

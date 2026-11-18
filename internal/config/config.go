@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -120,6 +122,20 @@ func Load() *Config {
 		assetBaseURL = baseURL
 	}
 
+	dbURL := getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/datemate_verify_db?sslmode=disable")
+	if dbHost := getEnv("DATABASE_HOST", ""); dbHost != "" {
+		if parsedURL, err := url.Parse(dbURL); err == nil {
+			port := parsedURL.Port()
+			if dbPort := getEnv("DATABASE_PORT", ""); dbPort != "" {
+				port = dbPort
+			} else if port == "" || port == "5433" {
+				port = "5432"
+			}
+			parsedURL.Host = net.JoinHostPort(dbHost, port)
+			dbURL = parsedURL.String()
+		}
+	}
+
 	cfg := &Config{
 		Host:         getEnv("HOST", "0.0.0.0"),
 		Port:         port,
@@ -136,7 +152,7 @@ func Load() *Config {
 		ThrottleLimit:     getEnvInt("THROTTLE_LIMIT", 120),
 		ThrottleAuthLimit: getEnvInt("THROTTLE_AUTH_LIMIT", 15),
 
-		DatabaseURL: getEnv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/datemate_verify_db?sslmode=disable"),
+		DatabaseURL: dbURL,
 
 		RedisHost:            getEnv("REDIS_HOST", "localhost"),
 		RedisPort:            getEnv("REDIS_PORT", "6379"),

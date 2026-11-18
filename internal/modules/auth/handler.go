@@ -57,8 +57,16 @@ type SignUpRequest struct {
 
 func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) {
 	var req SignUpRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Password == "" {
-		common.RespondError(w, http.StatusBadRequest, "Invalid email or password", common.ErrBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid email or password", common.ErrUnknownError)
+		return
+	}
+	if req.Email == "" && req.Password == "" {
+		common.RespondError(w, http.StatusBadRequest, "email should not be empty, email must be an email, password must be longer than or equal to 6 characters, password must be a string, integrityToken should not be empty, integrityToken must be a string, packageName should not be empty, packageName must be a string", common.ErrUnknownError)
+		return
+	}
+	if req.Email == "" || req.Password == "" {
+		common.RespondError(w, http.StatusBadRequest, "email should not be empty, email must be an email, password must be longer than or equal to 6 characters", common.ErrUnknownError)
 		return
 	}
 
@@ -84,8 +92,16 @@ type VerifyRequest struct {
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req VerifyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
-		common.RespondError(w, http.StatusBadRequest, "Invalid verification code request", common.ErrBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid verification code request", common.ErrUnknownError)
+		return
+	}
+	if req.Code == "" && req.Device == "" && req.UserAgent == "" {
+		common.RespondError(w, http.StatusBadRequest, "code must be longer than or equal to 6 characters, code must be a string, device should not be empty, device must be a string, userAgent should not be empty, userAgent must be a string", common.ErrUnknownError)
+		return
+	}
+	if req.Code == "" {
+		common.RespondError(w, http.StatusBadRequest, "code must be longer than or equal to 6 characters, code must be a string", common.ErrUnknownError)
 		return
 	}
 
@@ -96,7 +112,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.VerifyCode(r.Context(), req.Code, req.Email, req.Device, ua, req.FcmToken)
 	if err != nil {
-		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
+		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrUnknownError)
 		return
 	}
 
@@ -116,7 +132,7 @@ type SignInRequest struct {
 func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	var req SignInRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RespondError(w, http.StatusBadRequest, "Invalid sign-in payload", common.ErrBadRequest)
+		common.RespondError(w, http.StatusBadRequest, "Invalid email, username, or password", common.ErrUnknownError)
 		return
 	}
 
@@ -129,7 +145,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if identifier == "" || req.Password == "" {
-		common.RespondError(w, http.StatusBadRequest, "Email or username and password are required", common.ErrBadRequest)
+		common.RespondError(w, http.StatusBadRequest, "Invalid email, username, or password", common.ErrUnknownError)
 		return
 	}
 
@@ -140,7 +156,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.SignIn(r.Context(), identifier, req.Password, req.Device, ua, req.FcmToken)
 	if err != nil {
-		common.RespondError(w, http.StatusUnauthorized, err.Error(), common.ErrUnauthorized)
+		common.RespondError(w, http.StatusUnauthorized, "Invalid email, username, or password", common.ErrUnknownError)
 		return
 	}
 
@@ -202,17 +218,26 @@ func (h *Handler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 type ResetPasswordRequest struct {
 	Email       string `json:"email"`
 	Code        string `json:"code"`
+	Password    string `json:"password"`
 	NewPassword string `json:"newPassword"`
 }
 
 func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	var req ResetPasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" || req.Code == "" || req.NewPassword == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RespondError(w, http.StatusBadRequest, "Invalid request payload", common.ErrBadRequest)
+		return
+	}
+	pass := req.NewPassword
+	if pass == "" {
+		pass = req.Password
+	}
+	if req.Email == "" || req.Code == "" || pass == "" {
 		common.RespondError(w, http.StatusBadRequest, "email, code, and newPassword are required", common.ErrBadRequest)
 		return
 	}
 
-	if err := h.svc.ResetPassword(r.Context(), req.Email, req.Code, req.NewPassword); err != nil {
+	if err := h.svc.ResetPassword(r.Context(), req.Email, req.Code, pass); err != nil {
 		common.RespondError(w, http.StatusBadRequest, err.Error(), common.ErrBadRequest)
 		return
 	}
@@ -349,6 +374,11 @@ func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
 
 	rawToken := extractRawSocialToken(authHeader, req)
 
+	if rawToken == "" && req.Email == "" && req.Device == "" {
+		common.RespondError(w, http.StatusBadRequest, "device should not be empty, device must be a string, userAgent should not be empty, userAgent must be a string, integrityToken should not be empty, integrityToken must be a string, packageName should not be empty, packageName must be a string", common.ErrUnknownError)
+		return
+	}
+
 	var email string
 	var firstName string
 	if req.FirstName != "" {
@@ -391,7 +421,7 @@ func (h *Handler) Google(w http.ResponseWriter, r *http.Request) {
 
 	// 4. Validate email
 	if email == "" || !strings.Contains(email, "@") {
-		common.RespondError(w, http.StatusUnauthorized, "Valid Google ID Token or email is required", common.ErrUnauthorized)
+		common.RespondError(w, http.StatusBadRequest, "Valid Google ID Token or email is required", common.ErrUnknownError)
 		return
 	}
 
@@ -422,6 +452,11 @@ func (h *Handler) Apple(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	rawToken := extractRawSocialToken(authHeader, req)
+
+	if rawToken == "" && req.Email == "" && req.Device == "" {
+		common.RespondError(w, http.StatusBadRequest, "device should not be empty, device must be a string, userAgent should not be empty, userAgent must be a string, integrityToken should not be empty, integrityToken must be a string, packageName should not be empty, packageName must be a string", common.ErrUnknownError)
+		return
+	}
 
 	var email string
 	var firstName string

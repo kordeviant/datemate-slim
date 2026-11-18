@@ -3,5 +3,6 @@ dist
 .git
 .gitignore
 uploads
+bin
 npm-debug.log
 .env

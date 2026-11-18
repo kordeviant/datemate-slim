@@ -50,10 +50,15 @@ func TransformEnvelope() func(http.Handler) http.Handler {
 				strings.Contains(path, "/assets/") ||
 				strings.Contains(path, "/uploads") ||
 				strings.Contains(path, "/chat/files") ||
-				strings.HasPrefix(path, "/socket.io") ||
-				strings.HasPrefix(path, "/chat") ||
+				strings.Contains(path, "/docs-yaml") ||
+				strings.Contains(path, "/docs/yaml") ||
+				strings.Contains(path, "/asyncapi") ||
+				strings.Contains(path, "/rules") ||
+				path == "/" ||
 				path == "/health" || path == "/v1/health" ||
 				path == "/time" || path == "/v1/time" ||
+				strings.HasPrefix(path, "/chat") ||
+				strings.HasPrefix(path, "/socket.io") ||
 				strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 				next.ServeHTTP(w, r)
 				return
@@ -67,10 +72,40 @@ func TransformEnvelope() func(http.Handler) http.Handler {
 
 			next.ServeHTTP(rec, r)
 
-			// If status code is already set to error (>= 400), don't wrap as success
-			if rec.statusCode >= 400 {
+			// If Content-Type is non-JSON (YAML, HTML, Markdown, binary), pass through directly
+			ct := strings.ToLower(rec.Header().Get("Content-Type"))
+			if strings.Contains(ct, "text/yaml") ||
+				strings.Contains(ct, "text/html") ||
+				strings.Contains(ct, "text/markdown") ||
+				strings.Contains(ct, "application/pdf") ||
+				strings.HasPrefix(ct, "image/") ||
+				strings.HasPrefix(ct, "video/") ||
+				strings.HasPrefix(ct, "audio/") {
+				for k, v := range rec.Header() {
+					w.Header()[k] = v
+				}
 				w.WriteHeader(rec.statusCode)
 				_, _ = w.Write(rec.body.Bytes())
+				return
+			}
+
+			// If status code is already set to error (>= 400), don't wrap as success
+			if rec.statusCode >= 400 {
+				capturedBytes := rec.body.Bytes()
+				var probe map[string]interface{}
+				if err := json.Unmarshal(capturedBytes, &probe); err == nil {
+					if _, hasStatus := probe["status"]; hasStatus {
+						if _, hasSuccess := probe["success"]; !hasSuccess {
+							probe["success"] = false
+							if marshaled, mErr := json.Marshal(probe); mErr == nil {
+								capturedBytes = marshaled
+							}
+						}
+					}
+				}
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(rec.statusCode)
+				_, _ = w.Write(capturedBytes)
 				return
 			}
 
@@ -81,6 +116,12 @@ func TransformEnvelope() func(http.Handler) http.Handler {
 			if err := json.Unmarshal(capturedBytes, &probe); err == nil {
 				if _, hasStatus := probe["status"]; hasStatus {
 					if _, hasMessage := probe["message"]; hasMessage {
+						if _, hasSuccess := probe["success"]; !hasSuccess {
+							probe["success"] = probe["status"] == common.StatusSuccess
+							if marshaled, mErr := json.Marshal(probe); mErr == nil {
+								capturedBytes = marshaled
+							}
+						}
 						w.Header().Set("Content-Type", "application/json; charset=utf-8")
 						w.WriteHeader(rec.statusCode)
 						_, _ = w.Write(capturedBytes)
@@ -98,6 +139,7 @@ func TransformEnvelope() func(http.Handler) http.Handler {
 			}
 
 			envelope := common.ResponseResult[interface{}]{
+				Success: true,
 				Status:  common.StatusSuccess,
 				Message: "Operation successful",
 				Data:    data,

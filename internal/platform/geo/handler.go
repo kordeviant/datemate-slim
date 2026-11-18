@@ -42,6 +42,7 @@ type DownloadPackage struct {
 	UpdatedAt             string   `json:"updatedAt"`
 	ScalableFilterSupport []string `json:"scalableFilterSupport,omitempty"`
 	Examples              []string `json:"examples,omitempty"`
+	RegisteredAt          string   `json:"registeredAt"`
 }
 
 type DownloadCatalog struct {
@@ -187,10 +188,6 @@ func (h *Handler) GetCountryCities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if limit <= 0 {
-		limit = 100
-	}
-
 	cities, total := h.svc.GetCities(0, country.ID, search, limit, offset)
 	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	w.Header().Set("X-Country-Id", strconv.Itoa(country.ID))
@@ -200,11 +197,15 @@ func (h *Handler) GetCountryCities(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if envelope == "true" {
+		effectiveLimit := limit
+		if effectiveLimit <= 0 {
+			effectiveLimit = total
+		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"country": map[string]interface{}{"id": country.ID, "name": country.Name},
 			"total":   total,
 			"offset":  offset,
-			"limit":   limit,
+			"limit":   effectiveLimit,
 			"cities":  cities,
 		})
 		return
@@ -228,11 +229,12 @@ func (h *Handler) GetCountryHierarchy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	country, _ := hierarchy["country"].(*Country)
-	if country != nil {
-		w.Header().Set("X-Country-Id", strconv.Itoa(country.ID))
-		w.Header().Set("X-Country-Name", country.Name)
-		handleDownloadHeaders(w, r, fmt.Sprintf("hierarchy_%s.json", sanitizeFilename(country.Name)))
+	countryName, _ := hierarchy["name"].(string)
+	countryID, _ := hierarchy["id"].(int)
+	if countryID > 0 {
+		w.Header().Set("X-Country-Id", strconv.Itoa(countryID))
+		w.Header().Set("X-Country-Name", countryName)
+		handleDownloadHeaders(w, r, fmt.Sprintf("hierarchy_%s.json", sanitizeFilename(countryName)))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -246,6 +248,9 @@ func (h *Handler) GetCountryHierarchy(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetStates(w http.ResponseWriter, r *http.Request) {
 	countryIDStr := r.URL.Query().Get("countryId")
+	if countryIDStr == "" {
+		countryIDStr = r.URL.Query().Get("country_id")
+	}
 	countryStr := r.URL.Query().Get("country")
 	search := r.URL.Query().Get("search")
 	envelope := r.URL.Query().Get("envelope")
@@ -336,10 +341,6 @@ func (h *Handler) GetStateCities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if limit <= 0 {
-		limit = 100
-	}
-
 	cities, total := h.svc.GetCities(state.ID, 0, search, limit, offset)
 	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	w.Header().Set("X-State-Id", strconv.Itoa(state.ID))
@@ -349,11 +350,15 @@ func (h *Handler) GetStateCities(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if envelope == "true" {
+		effectiveLimit := limit
+		if effectiveLimit <= 0 {
+			effectiveLimit = total
+		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"state":  map[string]interface{}{"id": state.ID, "name": state.Name, "countryId": state.CountryID},
 			"total":  total,
 			"offset": offset,
-			"limit":  limit,
+			"limit":  effectiveLimit,
 			"cities": cities,
 		})
 		return
@@ -398,7 +403,15 @@ func (h *Handler) GetCity(w http.ResponseWriter, r *http.Request) {
 		"id":        c.ID,
 		"name":      c.Name,
 		"stateId":   c.StateID,
-		"countryId": func() *int { if co != nil { return &co.ID }; return nil }(),
+		"countryId": func() *int {
+			if co != nil {
+				return &co.ID
+			}
+			if c.CountryID > 0 {
+				return &c.CountryID
+			}
+			return nil
+		}(),
 		"state":     stateObj,
 		"country":   countryObj,
 	})
@@ -444,7 +457,15 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 			"id":        c.ID,
 			"name":      c.Name,
 			"stateId":   c.StateID,
-			"countryId": func() *int { if co != nil { return &co.ID }; return nil }(),
+			"countryId": func() *int {
+				if co != nil {
+					return &co.ID
+				}
+				if c.CountryID > 0 {
+					return &c.CountryID
+				}
+				return nil
+			}(),
 			"state":     stateObj,
 			"country":   countryObj,
 		})
@@ -453,8 +474,14 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 
 	search := r.URL.Query().Get("search")
 	stateID, _ := strconv.Atoi(r.URL.Query().Get("stateId"))
+	if stateID == 0 {
+		stateID, _ = strconv.Atoi(r.URL.Query().Get("state_id"))
+	}
 	stateStr := r.URL.Query().Get("state")
 	countryID, _ := strconv.Atoi(r.URL.Query().Get("countryId"))
+	if countryID == 0 {
+		countryID, _ = strconv.Atoi(r.URL.Query().Get("country_id"))
+	}
 	countryStr := r.URL.Query().Get("country")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
@@ -469,10 +496,6 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 		if co := h.svc.ResolveCountry(countryStr); co != nil {
 			countryID = co.ID
 		}
-	}
-
-	if limit <= 0 {
-		limit = 100
 	}
 
 	cities, total := h.svc.GetCities(stateID, countryID, search, limit, offset)
@@ -494,10 +517,14 @@ func (h *Handler) GetCities(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if envelope == "true" {
+		effectiveLimit := limit
+		if effectiveLimit <= 0 {
+			effectiveLimit = total
+		}
 		resp := map[string]interface{}{
 			"total":  total,
 			"offset": offset,
-			"limit":  limit,
+			"limit":  effectiveLimit,
 			"cities": cities,
 		}
 		if stateID > 0 {
@@ -544,6 +571,7 @@ func (h *Handler) getPackages() []DownloadPackage {
 			SizeBytes:             cSize,
 			UpdatedAt:             cUp,
 			ScalableFilterSupport: []string{"search"},
+			RegisteredAt:          "2026-11-04T06:03:24.150Z",
 		},
 		{
 			ID:                    "states",
@@ -560,6 +588,7 @@ func (h *Handler) getPackages() []DownloadPackage {
 				"/v1/geo/countries/233/states?download=true",
 				"/v1/geo/states?country=United States&download=true",
 			},
+			RegisteredAt: "2026-11-04T06:03:24.150Z",
 		},
 		{
 			ID:                    "cities",
@@ -577,6 +606,7 @@ func (h *Handler) getPackages() []DownloadPackage {
 				"/v1/geo/cities?state=Alabama&download=true",
 				"/v1/geo/countries/233/cities?download=true",
 			},
+			RegisteredAt: "2026-11-04T06:03:24.150Z",
 		},
 		{
 			ID:                    "hierarchy",
@@ -593,6 +623,7 @@ func (h *Handler) getPackages() []DownloadPackage {
 				"/v1/geo/countries/233/hierarchy?download=true",
 				"/v1/geo/countries/United States/hierarchy?download=true",
 			},
+			RegisteredAt: "2026-11-04T06:03:24.150Z",
 		},
 	}
 }
@@ -738,10 +769,10 @@ func (h *Handler) DownloadHierarchy(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		co, _ := hierarchy["country"].(*Country)
+		countryName, _ := hierarchy["name"].(string)
 		filename := "hierarchy.json"
-		if co != nil {
-			filename = fmt.Sprintf("hierarchy_%s.json", sanitizeFilename(co.Name))
+		if countryName != "" {
+			filename = fmt.Sprintf("hierarchy_%s.json", sanitizeFilename(countryName))
 		}
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 		w.Header().Set("Content-Type", "application/json")

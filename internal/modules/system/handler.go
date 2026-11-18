@@ -22,22 +22,50 @@ func NewHandler(docsDir string) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Get("/", h.HealthCheck)
+	r.Get("/", h.Root)
 	r.Get("/health", h.HealthCheck)
+	r.Get("/v1/health", h.HealthCheck)
 	r.Get("/time", h.GetServerTime)
+	r.Get("/v1/time", h.GetServerTime)
 
 	r.Get("/rules", h.GetRules)
 	r.Get("/docs/rules", h.GetRules)
 
+	r.Get("/docs-yaml", h.GetDocsYAML)
+	r.Get("/docs/yaml", h.GetDocsYAML)
+	r.Get("/asyncapi.json", h.GetAsyncAPI)
 	r.Get("/docs/asyncapi-json", h.GetAsyncAPI)
 	r.Get("/asyncapi-json", h.GetAsyncAPI)
+	r.Get("/chat-docs", h.GetChatDocs)
+	r.Get("/asyncapi", h.GetAsyncAPI)
+	r.Get("/usage", h.GetUsage)
+}
+
+func (h *Handler) Root(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"status":  "success",
+		"message": "Operation successful",
+		"data": map[string]interface{}{
+			"status": "ok",
+		},
+		"error": nil,
+	})
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"status":  "ok",
+		"message": "Operation successful",
+		"data": map[string]interface{}{
+			"status": "ok",
+		},
+		"error": nil,
 	})
 }
 
@@ -119,4 +147,37 @@ func (h *Handler) GetAsyncAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(content)
+}
+
+func (h *Handler) GetDocsYAML(w http.ResponseWriter, r *http.Request) {
+	yamlPath := filepath.Join(h.docsDir, "api", "swagger.yaml")
+	content, err := os.ReadFile(yamlPath)
+	if err != nil {
+		yamlPath = filepath.Join(h.docsDir, "swagger.yaml")
+		content, err = os.ReadFile(yamlPath)
+	}
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "swagger.yaml not found"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
+}
+
+func (h *Handler) GetChatDocs(w http.ResponseWriter, r *http.Request) {
+	common.RespondSuccess(w, http.StatusOK, "DateMate Chat Service Documentation", map[string]interface{}{
+		"version": "1.0.0",
+		"title":   "DateMate Real-Time Chat API",
+	})
+}
+
+func (h *Handler) GetUsage(w http.ResponseWriter, r *http.Request) {
+	common.RespondSuccess(w, http.StatusOK, "DateMate API Usage Statistics", map[string]interface{}{
+		"uptime": time.Now().Unix(),
+		"status": "healthy",
+	})
 }

@@ -609,7 +609,11 @@ WHERE u.id != $1
   AND u.profile_validated = true
   AND (u.banned_until IS NULL OR u.banned_until < CURRENT_TIMESTAMP)
   AND d.gender = $2
-  AND (p.avatar_url != '' OR p.profile_picture_url IS NOT NULL OR EXISTS (SELECT 1 FROM user_galleries ug WHERE ug.user_id = u.id))
+  AND (
+      (p.profile_picture_url IS NOT NULL AND p.profile_picture_url != '' AND p.profile_picture_url NOT LIKE '%default%')
+      OR EXISTS (SELECT 1 FROM user_galleries ug WHERE ug.user_id = u.id AND ug.image_url != '' AND ug.image_url NOT LIKE '%default%')
+      OR (p.avatar_url != '' AND p.avatar_url NOT LIKE '%default%')
+  )
 ORDER BY p.is_online DESC, p.last_seen_at DESC, u.id ASC
 LIMIT $3
 `
@@ -684,7 +688,11 @@ WHERE u.id != $1
   AND u.profile_validated = true
   AND (u.banned_until IS NULL OR u.banned_until < CURRENT_TIMESTAMP)
   AND d.gender = $2
-  AND (p.avatar_url != '' OR p.profile_picture_url IS NOT NULL OR EXISTS (SELECT 1 FROM user_galleries ug WHERE ug.user_id = u.id))
+  AND (
+      (p.profile_picture_url IS NOT NULL AND p.profile_picture_url != '' AND p.profile_picture_url NOT LIKE '%default%')
+      OR EXISTS (SELECT 1 FROM user_galleries ug WHERE ug.user_id = u.id AND ug.image_url != '' AND ug.image_url NOT LIKE '%default%')
+      OR (p.avatar_url != '' AND p.avatar_url NOT LIKE '%default%')
+  )
   AND NOT EXISTS (
       SELECT 1 FROM swipes s WHERE s.from_user_id = $1 AND s.to_user_id = u.id
   )

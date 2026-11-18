@@ -1,6 +1,9 @@
 package friends
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type FriendItemDto struct {
 	ID        int        `json:"id"`
@@ -18,6 +21,21 @@ type PaginatedFriendsDataDto struct {
 	Page       int             `json:"page"`
 	Limit      int             `json:"limit"`
 	TotalPages int             `json:"totalPages"`
+}
+
+func (p PaginatedFriendsDataDto) MarshalJSON() ([]byte, error) {
+	items := p.Items
+	if items == nil {
+		items = make([]FriendItemDto, 0)
+	}
+	type Alias PaginatedFriendsDataDto
+	return json.Marshal(&struct {
+		Items []FriendItemDto `json:"items"`
+		Alias
+	}{
+		Items: items,
+		Alias: (Alias)(p),
+	})
 }
 
 type AddFriendPayload struct {

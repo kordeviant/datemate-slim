@@ -27,6 +27,7 @@ import (
 	"datemate/internal/platform/storage"
 
 	"github.com/go-chi/chi/v5"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -135,8 +136,12 @@ var allRouteEndpoints = []struct {
 	{"POST", "/conversations"},
 	{"GET", "/conversations/direct"},
 	{"GET", "/conversations/group"},
+	{"GET", "/conversations/groups"},
+	{"POST", "/conversations/group"},
+	{"POST", "/conversations/groups"},
 	{"GET", "/conversations/1"},
 	{"GET", "/conversations/1/messages"},
+	{"GET", "/groups"},
 	{"GET", "/groups/1"},
 	{"POST", "/groups"},
 	{"PATCH", "/groups/1"},
@@ -191,6 +196,8 @@ var allRouteEndpoints = []struct {
 
 func setupRealRouter() *chi.Mux {
 	r := chi.NewRouter()
+	r.Use(chiMiddleware.CleanPath)
+	r.Use(chiMiddleware.StripSlashes)
 
 	ctx := context.Background()
 	pool, _ := pgxpool.New(ctx, "postgres://postgres:postgres@localhost:5432/datemate_verify_db?sslmode=disable")
@@ -277,7 +284,18 @@ func setupRealRouter() *chi.Mux {
 
 	// Register /v1 prefixed routes
 	r.Route("/v1", func(v1 chi.Router) {
+		v1.Use(chiMiddleware.StripSlashes)
 		registerDomainRoutes(v1)
+	})
+
+	// Register /api and /api/v1 prefixed routes for client compatibility
+	r.Route("/api", func(api chi.Router) {
+		api.Use(chiMiddleware.StripSlashes)
+		registerDomainRoutes(api)
+		api.Route("/v1", func(apiV1 chi.Router) {
+			apiV1.Use(chiMiddleware.StripSlashes)
+			registerDomainRoutes(apiV1)
+		})
 	})
 
 	// Set custom NotFound and MethodNotAllowed handlers to verify router pattern matching
@@ -314,6 +332,26 @@ func TestRouteParity(t *testing.T) {
 		router.ServeHTTP(v1W, v1Req)
 		if v1W.Header().Get("X-Router-Matched") == "false" {
 			t.Errorf("v1 endpoint %s %s was not registered on router (status: %d)", ep.Method, v1Path, v1W.Code)
+		}
+
+		// 3. Test trailing slash on /v1/ prefixed route
+		if ep.Path != "/" {
+			v1SlashPath := v1Path + "/"
+			v1SlashReq := httptest.NewRequest(ep.Method, v1SlashPath, nil)
+			v1SlashW := httptest.NewRecorder()
+			router.ServeHTTP(v1SlashW, v1SlashReq)
+			if v1SlashW.Header().Get("X-Router-Matched") == "false" {
+				t.Errorf("v1 trailing slash endpoint %s %s was not matched on router (status: %d)", ep.Method, v1SlashPath, v1SlashW.Code)
+			}
+		}
+
+		// 4. Test /api/v1 prefixed route
+		apiV1Path := "/api/v1" + ep.Path
+		apiV1Req := httptest.NewRequest(ep.Method, apiV1Path, nil)
+		apiV1W := httptest.NewRecorder()
+		router.ServeHTTP(apiV1W, apiV1Req)
+		if apiV1W.Header().Get("X-Router-Matched") == "false" {
+			t.Errorf("api v1 endpoint %s %s was not registered on router (status: %d)", ep.Method, apiV1Path, apiV1W.Code)
 		}
 	}
 }

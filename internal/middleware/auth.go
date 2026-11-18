@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -42,9 +43,28 @@ func JwtAuthGuard(cfg *config.Config, pool *pgxpool.Pool) func(http.Handler) htt
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			respondAuthError := func(msg, errType string) {
+				if strings.Contains(r.URL.Path, "conversations") || strings.Contains(r.URL.Path, "groups") || strings.Contains(r.URL.Path, "chat") {
+					w.Header().Set("Content-Type", "application/json; charset=utf-8")
+					w.WriteHeader(http.StatusUnauthorized)
+					_ = json.NewEncoder(w).Encode(map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": msg,
+						"data":    nil,
+						"error": map[string]interface{}{
+							"type":    errType,
+							"message": msg,
+						},
+					})
+					return
+				}
+				common.RespondError(w, http.StatusUnauthorized, msg, errType)
+			}
+
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				common.RespondError(w, http.StatusUnauthorized, "Missing Authorization header", common.ErrUnauthorized)
+				respondAuthError("Missing Authorization header", common.ErrUnauthorized)
 				return
 			}
 
@@ -59,20 +79,20 @@ func JwtAuthGuard(cfg *config.Config, pool *pgxpool.Pool) func(http.Handler) htt
 			})
 
 			if err != nil || !token.Valid {
-				common.RespondError(w, http.StatusUnauthorized, "Invalid or expired access token", common.ErrUnauthorized)
+				respondAuthError("Invalid or expired access token", common.ErrUnauthorized)
 				return
 			}
 
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
-				common.RespondError(w, http.StatusUnauthorized, "Invalid token payload", common.ErrUnauthorized)
+				respondAuthError("Invalid token payload", common.ErrUnauthorized)
 				return
 			}
 
 			subStr := fmt.Sprintf("%v", claims["sub"])
 			userID, err := strconv.ParseInt(subStr, 10, 64)
 			if err != nil {
-				common.RespondError(w, http.StatusUnauthorized, "Invalid user identifier in token", common.ErrUnauthorized)
+				respondAuthError("Invalid user identifier in token", common.ErrUnauthorized)
 				return
 			}
 
@@ -93,7 +113,7 @@ func JwtAuthGuard(cfg *config.Config, pool *pgxpool.Pool) func(http.Handler) htt
 			if sessionID > 0 {
 				sess, err := queries.GetUserSessionByID(r.Context(), int32(sessionID))
 				if err != nil || int64(sess.UserID) != userID {
-					common.RespondError(w, http.StatusUnauthorized, "Session expired or terminated", common.ErrUnauthorized)
+					respondAuthError("Session expired or terminated", common.ErrUnauthorized)
 					return
 				}
 			}

@@ -41,8 +41,6 @@ test:
     - git config --global --add safe.directory "*" || true
     - go vet ./...
     - go test -v -p 4 ./...
-    - go build -buildvcs=false -ldflags="-s -w" -o bin/server ./cmd/server
-    - go build -buildvcs=false -ldflags="-s -w" -o bin/seed ./cmd/seed
 
 .deploy_template: &deploy_template
   stage: deploy
@@ -115,8 +113,13 @@ test:
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend-dev}" | sed "s|^~|/home/$SERVER_USER|")
     
     echo "===> Syncing codebase directly to $SERVER_USER@$SERVER_IP:$TARGET_DIR..."
-    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "mkdir -p $TARGET_DIR"
-    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar -xzf - -C $TARGET_DIR"
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      mkdir -p $TARGET_DIR
+      H_UID=\$(id -u)
+      H_GID=\$(id -g)
+      sudo -n chown -R \$H_UID:\$H_GID $TARGET_DIR 2>/dev/null || docker run --rm -v $TARGET_DIR:/target alpine sh -c \"chown -R \$H_UID:\$H_GID /target && chmod -R u+rwX /target\" 2>/dev/null || true
+    "
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' --exclude='bin' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --overwrite --no-same-owner --no-same-permissions -m -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'
@@ -138,6 +141,7 @@ test:
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
       set -e
       cd $TARGET_DIR
+      rm -rf bin
 
       # Ensure firebase-service-account.json is not an empty directory
       if [ -d firebase-service-account.json ]; then
@@ -175,14 +179,14 @@ test:
       export COMPOSE_PROJECT_NAME=\$(grep '^COMPOSE_PROJECT_NAME=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo 'datemate_dev')
       export COMPOSE_PROJECT_NAME=\${COMPOSE_PROJECT_NAME:-datemate_dev}
 
-      echo \"===> Starting isolated development database and cache (\$COMPOSE_PROJECT_NAME)...\"
+      echo \"===> Starting isolated develop database and cache services (\${COMPOSE_PROJECT_NAME})...\"
       \$DC up -d postgres redis
 
-      echo '===> Waiting for development database readiness...'
+      echo '===> Waiting for database readiness...'
       PG_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_postgres\"
       for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
         if docker exec \$PG_CONTAINER pg_isready -U postgres >/dev/null 2>&1; then
-          echo 'Development database is ready!'
+          echo 'Database is ready!'
           break
         fi
         echo 'Waiting for database...'
@@ -196,7 +200,7 @@ test:
       PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '2021')
       PORT=\${PORT:-2021}
       BACKEND_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_backend\"
-      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
         if docker exec \$BACKEND_CONTAINER wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
           echo \"Go develop backend is healthy on port \$PORT!\"
           break
@@ -216,8 +220,13 @@ test:
     TARGET_DIR=$(echo "${DEPLOY_DIR:-~/backend}" | sed "s|^~|/home/$SERVER_USER|")
     
     echo "===> Syncing codebase directly to $SERVER_USER@$SERVER_IP:$TARGET_DIR..."
-    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "mkdir -p $TARGET_DIR"
-    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar -xzf - -C $TARGET_DIR"
+    ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
+      mkdir -p $TARGET_DIR
+      H_UID=\$(id -u)
+      H_GID=\$(id -g)
+      sudo -n chown -R \$H_UID:\$H_GID $TARGET_DIR 2>/dev/null || docker run --rm -v $TARGET_DIR:/target alpine sh -c \"chown -R \$H_UID:\$H_GID /target && chmod -R u+rwX /target\" 2>/dev/null || true
+    "
+    tar --exclude='uploads' --exclude='node_modules' --exclude='.git' --exclude='bin' -czf - . | ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "tar --overwrite --no-same-owner --no-same-permissions -m -xzf - -C $TARGET_DIR"
 
     if [ -f /tmp/env_content ]; then
       echo '===> Deploying .env file to target server...'
@@ -239,6 +248,7 @@ test:
     ssh -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i /tmp/deploy_key -o StrictHostKeyChecking=no -p ${SSH_PORT:-22} $SERVER_USER@$SERVER_IP "
       set -e
       cd $TARGET_DIR
+      rm -rf bin
 
       # Ensure firebase-service-account.json is not an empty directory
       if [ -d firebase-service-account.json ]; then
@@ -296,7 +306,7 @@ test:
       PORT=\$(grep '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '\" \r' || echo '2020')
       PORT=\${PORT:-2020}
       BACKEND_CONTAINER=\"\${COMPOSE_PROJECT_NAME}_backend\"
-      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+      for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
         if docker exec \$BACKEND_CONTAINER wget -qO- http://127.0.0.1:\$PORT/health >/dev/null 2>&1 || curl -fs http://127.0.0.1:\$PORT/health >/dev/null 2>&1; then
           echo \"Go production backend is healthy on port \$PORT!\"
           break

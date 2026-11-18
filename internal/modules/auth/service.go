@@ -99,7 +99,7 @@ func (s *Service) GenerateTokens(ctx context.Context, userID int64, email, role,
 	}
 
 	claims := jwt.MapClaims{
-		"sub":       userID,
+		"sub":       fmt.Sprintf("%d", userID),
 		"email":     email,
 		"role":      role,
 		"sessionId": session.ID,
@@ -220,6 +220,17 @@ func (s *Service) VerifyCode(ctx context.Context, code, email, device, userAgent
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:code:%s", code)).Err()
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("signup:pending:%s", email)).Err()
 	_ = s.rdb.Raw().Del(ctx, fmt.Sprintf("otp:signup:%s", email)).Err()
+
+	// Initialize basic profile without placeholder demographic values
+	var zeroNumeric pgtype.Numeric
+	_ = zeroNumeric.Scan("0")
+	_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+		UserID:    user.ID,
+		FirstName: "",
+		AvatarUrl: "",
+		Latitude:  zeroNumeric,
+		Longitude: zeroNumeric,
+	})
 
 	deviceInfo := ""
 	if device != "" && userAgent != "" {
@@ -352,16 +363,24 @@ func (s *Service) Logout(ctx context.Context, rawRefreshToken string, currentSes
 
 func (s *Service) SocialAuth(ctx context.Context, email, provider, role, deviceInfo, fcmToken, firstName string) (*AuthResult, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return nil, errors.New("email is required for social authentication")
+	}
+
 	user, err := s.queries.GetUserByEmail(ctx, email)
 	isNew := false
 	if err != nil {
 		// Create new user
 		randomPwd := GenerateSecureRandomString(16)
 		pwdHash, _ := HashPassword(randomPwd)
+		userRole := db.RoleUSER
+		if strings.EqualFold(role, "ADMIN") {
+			userRole = db.RoleADMIN
+		}
 		user, err = s.queries.CreateUser(ctx, db.CreateUserParams{
 			Email:            email,
 			PasswordHash:     pwdHash,
-			Role:             db.RoleUSER,
+			Role:             userRole,
 			Language:         db.LanguageEN,
 			ProfileValidated: false,
 			IsPremium:        false,
@@ -370,21 +389,42 @@ func (s *Service) SocialAuth(ctx context.Context, email, provider, role, deviceI
 			return nil, err
 		}
 		isNew = true
-	}
 
-	if (isNew || user.ID > 0) && firstName != "" {
-		prof, pErr := s.queries.GetProfileByUserID(ctx, user.ID)
-		if pErr != nil || prof.FirstName == "" {
+		var zeroNumeric pgtype.Numeric
+		_ = zeroNumeric.Scan("0")
+		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
+			UserID:    user.ID,
+			FirstName: strings.TrimSpace(firstName),
+			AvatarUrl: "",
+			Latitude:  zeroNumeric,
+			Longitude: zeroNumeric,
+		})
+	} else if firstName != "" {
+		if existingProf, pErr := s.queries.GetProfileByUserID(ctx, user.ID); pErr == nil && existingProf.FirstName == "" {
+			var zeroNumeric pgtype.Numeric
+			_ = zeroNumeric.Scan("0")
+			lat := zeroNumeric
+			lon := zeroNumeric
+			if existingProf.Latitude.Valid {
+				lat = existingProf.Latitude
+			}
+			if existingProf.Longitude.Valid {
+				lon = existingProf.Longitude
+			}
 			_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
 				UserID:    user.ID,
 				FirstName: strings.TrimSpace(firstName),
+				AvatarUrl: existingProf.AvatarUrl,
+				Latitude:  lat,
+				Longitude: lon,
 			})
 		}
 	}
 
+	_ = isNew
 	return s.GenerateTokens(ctx, int64(user.ID), user.Email, string(user.Role), deviceInfo, fcmToken)
 }
 
-func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role string) (*AuthResult, error) {
-	return s.SocialAuth(ctx, email, provider, role, "", "", "")
+func (s *Service) SocialAuthMock(ctx context.Context, email, provider, role, fullName string) (*AuthResult, error) {
+	return s.SocialAuth(ctx, email, provider, role, "", "", fullName)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +31,27 @@ func NewLocalEngine(baseDir string) (*LocalEngine, error) {
 func (l *LocalEngine) resolvePath(assetType, filename string) string {
 	cleanType := strings.ToLower(strings.TrimSpace(assetType))
 	cleanFile := filepath.Base(filename)
-	return filepath.Join(l.baseDir, cleanType, cleanFile)
+
+	directPath := filepath.Join(l.baseDir, cleanType, cleanFile)
+	if _, err := os.Stat(directPath); err == nil {
+		return directPath
+	}
+
+	if unescaped, err := url.PathUnescape(cleanFile); err == nil && unescaped != cleanFile {
+		unPath := filepath.Join(l.baseDir, cleanType, unescaped)
+		if _, err := os.Stat(unPath); err == nil {
+			return unPath
+		}
+	}
+
+	if unescaped, err := url.QueryUnescape(cleanFile); err == nil && unescaped != cleanFile {
+		unPath := filepath.Join(l.baseDir, cleanType, unescaped)
+		if _, err := os.Stat(unPath); err == nil {
+			return unPath
+		}
+	}
+
+	return directPath
 }
 
 func (l *LocalEngine) Save(ctx context.Context, assetType, filename string, reader io.Reader, size int64, mimeType string) (string, error) {

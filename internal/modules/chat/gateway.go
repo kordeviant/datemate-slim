@@ -87,6 +87,14 @@ func (gw *Gateway) attachNamespaceHandlers(nsp socket.Namespace) {
 			}
 		}
 
+		if token == "" && hs.Query != nil {
+			if vals, ok := hs.Query["token"]; ok && len(vals) > 0 && vals[0] != "" {
+				token = vals[0]
+			} else if vals, ok := hs.Query["accessToken"]; ok && len(vals) > 0 && vals[0] != "" {
+				token = vals[0]
+			}
+		}
+
 		if token == "" && hs.Headers != nil {
 			for k, v := range hs.Headers {
 				if strings.EqualFold(k, "authorization") && len(v) > 0 {
@@ -129,23 +137,26 @@ func (gw *Gateway) attachNamespaceHandlers(nsp socket.Namespace) {
 		}
 
 		var uid int64
-		if subVal, hasSub := claims["sub"]; hasSub && subVal != nil {
-			switch v := subVal.(type) {
-			case float64:
-				uid = int64(v)
-			case int64:
-				uid = v
-			case int:
-				uid = int64(v)
-			case string:
-				_, _ = fmt.Sscanf(v, "%d", &uid)
-			default:
-				_, _ = fmt.Sscanf(fmt.Sprintf("%v", v), "%d", &uid)
+		if subVal, ok := claims["sub"]; ok && subVal != nil {
+			subStr := fmt.Sprintf("%v", subVal)
+			if parsedID, err := strconv.ParseInt(subStr, 10, 64); err == nil && parsedID > 0 {
+				uid = parsedID
+			}
+		}
+		if uid == 0 {
+			if idVal, ok := claims["userId"]; ok && idVal != nil {
+				if parsedID, err := strconv.ParseInt(fmt.Sprintf("%v", idVal), 10, 64); err == nil && parsedID > 0 {
+					uid = parsedID
+				}
+			} else if idVal, ok := claims["id"]; ok && idVal != nil {
+				if parsedID, err := strconv.ParseInt(fmt.Sprintf("%v", idVal), 10, 64); err == nil && parsedID > 0 {
+					uid = parsedID
+				}
 			}
 		}
 
 		if uid <= 0 {
-			next(socket.NewExtendedError("Unauthorized: invalid user ID in subject", nil))
+			next(socket.NewExtendedError("Unauthorized: missing subject claim", nil))
 			return
 		}
 

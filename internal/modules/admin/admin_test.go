@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestAdminUserItemDto_Serialization(t *testing.T) {
@@ -60,5 +62,21 @@ func TestAdminUserItemDto_Serialization(t *testing.T) {
 	}
 	if raw["hasPendingSelfie"] != false {
 		t.Errorf("expected hasPendingSelfie false, got %v", raw["hasPendingSelfie"])
+	}
+}
+
+func TestAdminUser_CredentialsHash(t *testing.T) {
+	adminPassword := "Password123!"
+	hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword(hash, []byte(adminPassword)); err != nil {
+		t.Errorf("password verification failed: %v", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword(hash, []byte("WrongPassword")); err == nil {
+		t.Errorf("expected comparison to fail with wrong password")
 	}
 }

@@ -129,7 +129,6 @@ func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.U
 			Attachment: attach,
 		})
 	}
-
 	// Reverse to chronological order (oldest to newest)
 	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
 		list[i], list[j] = list[j], list[i]
@@ -149,6 +148,17 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 	pairKey, err := common.CreatePairKey(currentUserID, targetUserID)
 	if err != nil {
 		return nil, common.NewAppError(400, common.ErrBadRequest, err.Error())
+	}
+
+	if s.pool == nil {
+		detUUID := common.GenerateDeterministicConversationID(pairKey)
+		return &ConversationDto{
+			ConversationID:   detUUID.String(),
+			Type:             "direct",
+			ConversationType: "DIRECT",
+			CreatedBy:        currentUserID,
+			MemberIDs:        []int64{currentUserID, targetUserID},
+		}, nil
 	}
 
 	// 1. Check existing direct conversation pair
@@ -223,7 +233,7 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 	peerAct, _ := s.GetUserActivity(ctx, targetUserID)
 	return &ConversationDto{
 		ConversationID:   convIDStr,
-		Type:             "direct",
+		Type:             strings.ToLower(conv.ConversationType),
 		ConversationType: conv.ConversationType,
 		CreatedBy:        conv.CreatedBy,
 		CreatedAt:        conv.CreatedAt.Time,
@@ -238,6 +248,18 @@ func (s *Service) CreateDirectConversation(ctx context.Context, currentUserID, t
 func (s *Service) CreateGroupConversation(ctx context.Context, currentUserID int64, dto CreateGroupDto) (*ConversationDto, error) {
 	groupUUID := uuid.New()
 	pgUUID := pgtype.UUID{Bytes: groupUUID, Valid: true}
+
+	if s.pool == nil {
+		members := append([]int64{currentUserID}, dto.ParticipantIds...)
+		return &ConversationDto{
+			ConversationID:   groupUUID.String(),
+			Type:             "group",
+			ConversationType: "GROUP",
+			CreatedBy:        currentUserID,
+			Title:            &dto.Title,
+			MemberIDs:        members,
+		}, nil
+	}
 
 	conv, err := s.queries.CreateConversation(ctx, db.CreateConversationParams{
 		ConversationID:   pgUUID,
@@ -334,7 +356,7 @@ func (s *Service) CreateGroupConversation(ctx context.Context, currentUserID int
 	isCreated := true
 	return &ConversationDto{
 		ConversationID:   groupUUID.String(),
-		Type:             "group",
+		Type:             strings.ToLower(conv.ConversationType),
 		ConversationType: conv.ConversationType,
 		CreatedBy:        conv.CreatedBy,
 		CreatedAt:        conv.CreatedAt.Time,
@@ -434,6 +456,18 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		}
 	}
 
+	isGroup := strings.EqualFold(conv.ConversationType, "GROUP")
+	var membersCount *int
+	var lastUsers []int64
+	if isGroup && len(members) > 0 {
+		mc := len(members)
+		membersCount = &mc
+		lastUsers = make([]int64, 0, 3)
+		for i := len(members) - 1; i >= 0 && len(lastUsers) < 3; i-- {
+			lastUsers = append(lastUsers, members[i].UserID)
+		}
+	}
+
 	return &ConversationDto{
 		ConversationID:      conversationID,
 		Type:                strings.ToLower(conv.ConversationType),
@@ -446,6 +480,8 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		LastMessageSenderID: lastSender,
 		LastMessage:         lastMsg,
 		MemberIDs:           memberIDs,
+		MembersCount:        membersCount,
+		LastUsers:           lastUsers,
 		RecentMessages:      recent,
 		PeerActivity:        peerActivity,
 	}, nil
@@ -489,20 +525,31 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			lastMsgAt = &r.LastMessageAt.Time
 		}
 
+		isGroup := strings.EqualFold(r.ConversationType, "GROUP")
+		var membersCount *int
+		var lastUsers []int64
+		var memberIDs []int64
+		var peerActivity *UserActivityDto
+
 		// Fetch members for this conversation
 		members, _ := s.queries.ListConversationMembers(ctx, r.ConversationID)
-		memberIDs := make([]int64, 0, len(members))
-		var peerID int64
-		for _, m := range members {
-			memberIDs = append(memberIDs, m.UserID)
-			if m.UserID != currentUserID && peerID == 0 {
-				peerID = m.UserID
+		if len(members) > 0 {
+			if isGroup {
+				mc := len(members)
+				membersCount = &mc
+				lastUsers = make([]int64, 0, 3)
+				for i := len(members) - 1; i >= 0 && len(lastUsers) < 3; i-- {
+					lastUsers = append(lastUsers, members[i].UserID)
+				}
+			} else {
+				for _, m := range members {
+					memberIDs = append(memberIDs, m.UserID)
+					if m.UserID != currentUserID {
+						act, _ := s.GetUserActivity(ctx, m.UserID)
+						peerActivity = act
+					}
+				}
 			}
-		}
-
-		var peerActivity *UserActivityDto
-		if strings.EqualFold(r.ConversationType, "DIRECT") && peerID > 0 {
-			peerActivity, _ = s.GetUserActivity(ctx, peerID)
 		}
 
 		recent := s.getRecentMessages(ctx, r.ConversationID)
@@ -547,6 +594,8 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			LastMessageSenderID: lastSender,
 			LastMessage:         lastMsg,
 			MemberIDs:           memberIDs,
+			MembersCount:        membersCount,
+			LastUsers:           lastUsers,
 			RecentMessages:      recent,
 			PeerActivity:        peerActivity,
 		})

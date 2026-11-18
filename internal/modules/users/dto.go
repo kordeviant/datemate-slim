@@ -153,6 +153,7 @@ type UpdateProfileNestedDto struct {
 	Bio                    *string                   `json:"bio,omitempty"`
 	Languages              *[]string                 `json:"languages,omitempty"`
 	Avatar                 *string                   `json:"avatar,omitempty"`
+	AvatarUrl              *string                   `json:"avatarUrl,omitempty"`
 	Demographic            *UpdateDemographicPayload `json:"Demographic,omitempty"`
 	DemographicLower       *UpdateDemographicPayload `json:"demographic,omitempty"`
 	Preferences            *UpdatePreferencesPayload `json:"Preferences,omitempty"`
@@ -177,6 +178,7 @@ type UpdateProfilePayload struct {
 	Lat                    *float64                `json:"lat,omitempty"`
 	Lon                    *float64                `json:"lon,omitempty"`
 	Avatar                 *string                 `json:"avatar,omitempty"`
+	AvatarUrl              *string                 `json:"avatarUrl,omitempty"`
 	ProfilePictureID       *int                    `json:"profilePictureId,omitempty"`
 	PrivacyAccepted        *bool                   `json:"privacyAccepted,omitempty"`
 	Gallery                *GalleryPayloadDto      `json:"gallery,omitempty"`

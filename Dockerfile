@@ -18,8 +18,8 @@ RUN go mod download
 COPY . .
 
 # Compile optimized server and seed binaries
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/server ./cmd/server
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/seed ./cmd/seed
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/server ./cmd/server && \
+    CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -trimpath -o /src/bin/seed ./cmd/seed
 
 # Stage 2: Final Minimal Runtime
 FROM alpine:3.20
@@ -32,10 +32,11 @@ WORKDIR /app
 COPY --from=builder /src/bin/server /usr/local/bin/server
 COPY --from=builder /src/bin/seed /usr/local/bin/seed
 
-# Copy migrations and documentation for automated startup
+# Copy migrations, reference datasets, icons, and documentation for automated startup
 COPY migrations ./migrations
 COPY docs ./docs
 COPY data ./data
+COPY seed-icons ./seed-icons
 
 # Ensure uploads directory exists
 RUN mkdir -p /app/uploads

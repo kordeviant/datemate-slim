@@ -1,5 +1,7 @@
 package matching
 
+import "encoding/json"
+
 type FeedGalleryItemDto struct {
 	ID               int    `json:"id"`
 	ImageUrl         string `json:"imageUrl"`
@@ -20,6 +22,21 @@ type FeedCandidateDto struct {
 type FeedDataDto struct {
 	Candidates []FeedCandidateDto `json:"candidates"`
 	Count      int                `json:"count"`
+}
+
+func (d FeedDataDto) MarshalJSON() ([]byte, error) {
+	cands := d.Candidates
+	if cands == nil {
+		cands = make([]FeedCandidateDto, 0)
+	}
+	type Alias FeedDataDto
+	return json.Marshal(&struct {
+		Candidates []FeedCandidateDto `json:"candidates"`
+		Alias
+	}{
+		Candidates: cands,
+		Alias:      (Alias)(d),
+	})
 }
 
 type SwipeRequestDto struct {

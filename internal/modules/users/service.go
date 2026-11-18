@@ -115,8 +115,11 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 
 	// Fallback for profile picture if not in gallery
 	if activeProfilePicURL == nil {
-		if p.ProfilePictureUrl.Valid && p.ProfilePictureUrl.String != "" {
+		if p.ProfilePictureUrl.Valid && common.HasValidPhoto(p.ProfilePictureUrl.String) {
 			resolved := s.resolveAssetURL(p.ProfilePictureUrl.String)
+			activeProfilePicURL = &resolved
+		} else if common.HasValidPhoto(p.AvatarUrl) {
+			resolved := s.resolveAssetURL(p.AvatarUrl)
 			activeProfilePicURL = &resolved
 		}
 	}
@@ -242,18 +245,19 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 		}
 	}
 
-	// LikedActivities map: map[string]interface{} where value is int or []int for multiple
-	interestsByCat := make(map[int32][]int)
+	// LikedActivities map: { [categoryId]: interestId | interestId[] }
+	catInterests := make(map[string][]int)
 	for _, in := range interests {
-		interestsByCat[in.CategoryID] = append(interestsByCat[in.CategoryID], int(in.InterestID))
+		catStr := strconv.Itoa(int(in.CategoryID))
+		catInterests[catStr] = append(catInterests[catStr], int(in.InterestID))
 	}
 	likedActivities := make(map[string]interface{})
-	for catID, ids := range interestsByCat {
+	for catStr, ids := range catInterests {
 		sort.Ints(ids)
-		if len(ids) == 1 {
-			likedActivities[strconv.Itoa(int(catID))] = ids[0]
-		} else if len(ids) > 1 {
-			likedActivities[strconv.Itoa(int(catID))] = ids
+		if len(ids) > 1 {
+			likedActivities[catStr] = ids
+		} else if len(ids) == 1 {
+			likedActivities[catStr] = ids[0]
 		}
 	}
 
@@ -303,7 +307,8 @@ func (s *Service) GetProfile(ctx context.Context, userID int64) (*ProfileRespons
 	}
 
 	hasPrivacy := u.PrivacyAcceptedAt.Valid && !u.PrivacyAcceptedAt.Time.IsZero()
-	profileCompleted := p.FirstName != "" && (p.AvatarUrl != "" || len(galleryDtos) > 0) && d.Gender != "" && hasPrivacy
+	hasPhoto := common.HasValidPhoto(p.AvatarUrl) || len(galleryDtos) > 0 || (p.ProfilePictureUrl.Valid && common.HasValidPhoto(p.ProfilePictureUrl.String))
+	profileCompleted := p.FirstName != "" && hasPhoto && d.Gender != "" && hasPrivacy
 
 	nested := ProfileNestedResponseDto{
 		FullName:         fullName,
@@ -365,13 +370,27 @@ func (s *Service) UpdateProfile(
 		}
 	}
 
+	existingProf, _ := s.queries.GetProfileByUserID(ctx, int32(userID))
+	var zeroNumeric pgtype.Numeric
+	_ = zeroNumeric.Scan("0")
+	currentLat := zeroNumeric
+	currentLon := zeroNumeric
+	if existingProf.Latitude.Valid {
+		currentLat = existingProf.Latitude
+	}
+	if existingProf.Longitude.Valid {
+		currentLon = existingProf.Longitude
+	}
+
 	// 1. Process Avatar upload if provided
+	var uploadedAvatarPath string
 	if len(avatarData) > 0 {
 		processed, mimeType, err := storage.ProcessImage(avatarData, storage.ProcessOptions{IsAvatarOrSelfie: true, Quality: 85})
 		if err == nil {
 			filename := fmt.Sprintf("avatar_%d_%s.webp", userID, uuid.NewString()[:8])
 			path, err := s.storage.Save(ctx, "avatars", filename, bytes.NewReader(processed), int64(len(processed)), mimeType)
 			if err == nil {
+				uploadedAvatarPath = path
 				_, _ = s.queries.UpdateProfileAvatar(ctx, db.UpdateProfileAvatarParams{
 					UserID:    int32(userID),
 					AvatarUrl: path,
@@ -529,13 +548,33 @@ func (s *Service) UpdateProfile(
 			}
 		}
 
-		var latNumeric pgtype.Numeric
+		latNumeric := currentLat
 		if payload.Lat != nil {
 			_ = latNumeric.Scan(strconv.FormatFloat(*payload.Lat, 'f', 8, 64))
 		}
-		var lonNumeric pgtype.Numeric
+		lonNumeric := currentLon
 		if payload.Lon != nil {
 			_ = lonNumeric.Scan(strconv.FormatFloat(*payload.Lon, 'f', 8, 64))
+		}
+
+		if firstName == "" && existingProf.FirstName != "" {
+			firstName = existingProf.FirstName
+		}
+
+		avatarToSave := uploadedAvatarPath
+		if avatarToSave == "" && payload != nil {
+			if payload.Profile != nil && payload.Profile.Avatar != nil && *payload.Profile.Avatar != "" {
+				avatarToSave = *payload.Profile.Avatar
+			} else if payload.Profile != nil && payload.Profile.AvatarUrl != nil && *payload.Profile.AvatarUrl != "" {
+				avatarToSave = *payload.Profile.AvatarUrl
+			} else if payload.Avatar != nil && *payload.Avatar != "" {
+				avatarToSave = *payload.Avatar
+			} else if payload.AvatarUrl != nil && *payload.AvatarUrl != "" {
+				avatarToSave = *payload.AvatarUrl
+			}
+		}
+		if avatarToSave == "" && existingProf.AvatarUrl != "" {
+			avatarToSave = existingProf.AvatarUrl
 		}
 
 		_, _ = s.queries.UpsertProfile(ctx, db.UpsertProfileParams{
@@ -546,6 +585,7 @@ func (s *Service) UpdateProfile(
 			Bio:          bio,
 			Languages:    languagesBytes,
 			RelationType: relationType,
+			AvatarUrl:    avatarToSave,
 			Latitude:     latNumeric,
 			Longitude:    lonNumeric,
 		})
@@ -568,13 +608,14 @@ func (s *Service) UpdateProfile(
 			if dem.Gender != nil {
 				if strings.EqualFold(*dem.Gender, "FEMALE") {
 					gender = db.GenderFEMALE
-				} else {
+				} else if strings.EqualFold(*dem.Gender, "MALE") {
 					gender = db.GenderMALE
 				}
 			} else if existingDem.Gender != "" {
 				gender = existingDem.Gender
 			}
 
+			// Upsert only if we have valid birthDate and gender (or an existing demographic row to satisfy NOT NULL)
 			if birthDate.Valid && gender != "" {
 				var height pgtype.Int2
 				if dem.Height != nil {
@@ -1170,7 +1211,7 @@ func (s *Service) GetDeviceToken(ctx context.Context, userID int64) (*DeviceToke
 }
 
 func (s *Service) GetBulkUsers(ctx context.Context, userIDs []int64) ([]BulkUserItemDto, error) {
-	var list []BulkUserItemDto
+	list := make([]BulkUserItemDto, 0)
 	for _, id := range userIDs {
 		p, err := s.queries.GetProfileByUserID(ctx, int32(id))
 		if err == nil {

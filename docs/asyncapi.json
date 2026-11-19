@@ -138,6 +138,46 @@
         }
       }
     },
+    "typing.start": {
+      "description": "Client emits typing state (typing, recording_voice, uploading_media) to the conversation room.",
+      "publish": {
+        "operationId": "typingStart",
+        "summary": "Notify conversation participants that user started typing",
+        "message": {
+          "$ref": "#/components/messages/TypingStartRequest"
+        }
+      }
+    },
+    "typing.stop": {
+      "description": "Client emits stopped typing state to the conversation room.",
+      "publish": {
+        "operationId": "typingStop",
+        "summary": "Notify conversation participants that user stopped typing",
+        "message": {
+          "$ref": "#/components/messages/TypingStopRequest"
+        }
+      }
+    },
+    "user.typing": {
+      "description": "Dispatched by the server to all other room participants when a user starts typing or recording.",
+      "subscribe": {
+        "operationId": "userTypingEvent",
+        "summary": "Broadcast user typing indicator",
+        "message": {
+          "$ref": "#/components/messages/UserTypingEvent"
+        }
+      }
+    },
+    "user.stop_typing": {
+      "description": "Dispatched by the server to all other room participants when a user stops typing.",
+      "subscribe": {
+        "operationId": "userStopTypingEvent",
+        "summary": "Broadcast user stopped typing indicator",
+        "message": {
+          "$ref": "#/components/messages/UserStopTypingEvent"
+        }
+      }
+    },
     "error": {
       "description": "Dispatched by the server to the client socket when an exception or authorization failure occurs.",
       "subscribe": {
@@ -254,6 +294,34 @@
         "payload": {
           "$ref": "#/components/schemas/UserUnblockedDto"
         }
+      },
+      "TypingStartRequest": {
+        "name": "TypingStartRequest",
+        "title": "Typing Start Payload",
+        "payload": {
+          "$ref": "#/components/schemas/TypingStartPayload"
+        }
+      },
+      "TypingStopRequest": {
+        "name": "TypingStopRequest",
+        "title": "Typing Stop Payload",
+        "payload": {
+          "$ref": "#/components/schemas/TypingStopPayload"
+        }
+      },
+      "UserTypingEvent": {
+        "name": "UserTypingEvent",
+        "title": "User Typing Broadcast",
+        "payload": {
+          "$ref": "#/components/schemas/UserTypingBroadcast"
+        }
+      },
+      "UserStopTypingEvent": {
+        "name": "UserStopTypingEvent",
+        "title": "User Stop Typing Broadcast",
+        "payload": {
+          "$ref": "#/components/schemas/UserStopTypingBroadcast"
+        }
       }
     },
     "schemas": {
@@ -324,6 +392,13 @@
             "type": "number",
             "example": 15.5,
             "description": "Duration in seconds (for voice messages)"
+          },
+          "replyToMessageId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+            "description": "Optional UUID of a quoted message in the same conversation."
           },
           "attachment": {
             "$ref": "#/components/schemas/MessageAttachmentDto"
@@ -419,6 +494,41 @@
             "type": "string",
             "format": "date-time",
             "example": "2026-10-17T12:00:00.000Z"
+          },
+          "replyTo": {
+            "$ref": "#/components/schemas/ReplyToDto"
+          }
+        }
+      },
+      "ReplyToDto": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          },
+          "senderId": {
+            "type": "integer",
+            "example": 202
+          },
+          "type": {
+            "type": "string",
+            "example": "text"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "example": "Are you coming tonight?"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "example": false
           }
         }
       },
@@ -575,6 +685,75 @@
           "unblockedBy": {
             "type": "integer",
             "example": 101
+          }
+        }
+      },
+      "TypingStartPayload": {
+        "type": "object",
+        "required": ["conversationId"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["typing", "recording_voice", "uploading_media"],
+            "default": "typing"
+          }
+        }
+      },
+      "TypingStopPayload": {
+        "type": "object",
+        "required": ["conversationId"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          }
+        }
+      },
+      "UserTypingBroadcast": {
+        "type": "object",
+        "required": ["conversationId", "userId"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "userId": {
+            "type": "integer",
+            "example": 202
+          },
+          "username": {
+            "type": "string",
+            "example": "sarah_j"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "Sarah"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["typing", "recording_voice", "uploading_media"]
+          }
+        }
+      },
+      "UserStopTypingBroadcast": {
+        "type": "object",
+        "required": ["conversationId", "userId"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "userId": {
+            "type": "integer",
+            "example": 202
           }
         }
       }

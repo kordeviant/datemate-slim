@@ -30,6 +30,14 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 
 	r.Get("/rules", h.GetRules)
 	r.Get("/docs/rules", h.GetRules)
+	r.Get("/client-guide", h.GetClientGuide)
+	r.Head("/client-guide", h.GetClientGuide)
+	r.Get("/docs/client-guide", h.GetClientGuide)
+	r.Head("/docs/client-guide", h.GetClientGuide)
+	r.Get("/v1/client-guide", h.GetClientGuide)
+	r.Head("/v1/client-guide", h.GetClientGuide)
+	r.Get("/v1/docs/client-guide", h.GetClientGuide)
+	r.Head("/v1/docs/client-guide", h.GetClientGuide)
 
 	r.Get("/docs-yaml", h.GetDocsYAML)
 	r.Get("/docs/yaml", h.GetDocsYAML)
@@ -128,6 +136,68 @@ func (h *Handler) GetRules(w http.ResponseWriter, r *http.Request) {
 <body>
   <h1>DateMate Platform Rules Specification</h1>
   <p><a href="/docs/rules?download=1">📥 Download DateMate-RULES.md</a> | <a href="/docs/rules?format=raw">View Raw Markdown</a> | <a href="/docs/rules?format=json">JSON Format</a></p>
+  <pre>` + string(content) + `</pre>
+</body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(html))
+}
+
+func (h *Handler) GetClientGuide(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
+	download := r.URL.Query().Get("download")
+
+	guidePath := filepath.Join(h.docsDir, "CLIENT_DEV_GUIDE.md")
+	content, err := os.ReadFile(guidePath)
+	if err != nil {
+		content = []byte("# DateMate Client Developer Guide\nAuthoritative developer guide for mobile and web client engineers.")
+	}
+
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	if download == "1" || download == "true" {
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="CLIENT_DEV_GUIDE.md"`)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(content)
+		return
+	}
+
+	if format == "raw" || format == "md" || strings.Contains(r.Header.Get("Accept"), "text/markdown") {
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(content)
+		return
+	}
+
+	if format == "json" || (strings.Contains(r.Header.Get("Accept"), "application/json") && !strings.Contains(r.Header.Get("Accept"), "text/html")) {
+		common.RespondSuccess(w, http.StatusOK, "Operation successful", map[string]interface{}{
+			"raw": string(content),
+		})
+		return
+	}
+
+	// HTML View
+	html := `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>DateMate Client Developer Guide</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 2rem; color: #333; background: #fafafa; }
+    pre { background: #2d3748; color: #f7fafc; padding: 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+    h1, h2, h3 { color: #1a202c; }
+    a { color: #3182ce; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>DateMate Client Developer Guide</h1>
+  <p><a href="/client-guide?download=1">📥 Download CLIENT_DEV_GUIDE.md</a> | <a href="/client-guide?format=raw">View Raw Markdown</a> | <a href="/client-guide?format=json">JSON Format</a></p>
   <pre>` + string(content) + `</pre>
 </body>
 </html>`

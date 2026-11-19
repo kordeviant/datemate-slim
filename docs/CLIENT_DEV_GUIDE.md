@@ -337,13 +337,14 @@ socket.emit("conversation.leave", { conversationId: "4a71c84f..." });
 ```
 
 ### 6.4 Sending Messages (`message.send`)
-Send a message with client-side deduplication ID (`clientMessageId`):
+Send a message with client-side deduplication ID (`clientMessageId`) and optional quoted reply (`replyToMessageId`):
 ```typescript
 socket.emit("message.send", {
   conversationId: "4a71c84f-6f77-4b76-a0bf-9538466b0337",
   clientMessageId: "UUID-GENERATED-BY-CLIENT",
-  content: "Hello there!",
-  type: "text" // "text" | "image" | "voice" | "video" | "file"
+  content: "Sounds great, let's meet!",
+  type: "text", // "text" | "image" | "voice" | "video" | "file"
+  replyToMessageId: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" // Optional: Quoted message UUID in the same conversation
 }, (ack) => {
   if (ack.success) {
     console.log("Message delivered:", ack.data.message);
@@ -353,19 +354,118 @@ socket.emit("message.send", {
 });
 ```
 
-### 6.5 Full Socket Events Summary
+### 6.5 Replying to Messages (Card #106)
+When a message quotes an earlier message in the conversation, the server automatically projects the quoted snippet into `replyTo`:
+```json
+{
+  "messageId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+  "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+  "senderId": 15,
+  "content": "Sounds great, let's meet!",
+  "type": "text",
+  "createdAt": "2026-11-19T08:00:00Z",
+  "replyTo": {
+    "messageId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "senderId": 202,
+    "type": "text",
+    "content": "Are you coming tonight?",
+    "url": null,
+    "isDeleted": false
+  }
+}
+```
+
+- **Quoted message validation**: The target `replyToMessageId` must exist in the same conversation; otherwise `message.send` is rejected with an error ack (`BAD_REQUEST: "Quoted reply message not found in this conversation"`).
+- **Deleted quotes**: If the quoted message was deleted for everyone, `replyTo.isDeleted` is `true`, with `content: null` and `url: null`. Clients render `"Deleted message"`.
+- **Field presence**: `replyTo` appears in `message.created`, `message.sent`, the socket ack, `GET /v1/conversations/{id}/messages`, and `recentMessages` / `lastMessage` in conversation lists.
+
+---
+
+### 6.6 Typing Indicators & Media Recording States (Card #x1M0SVtS)
+Provide real-time typing and voice/media recording feedback in the chat view and conversation row list.
+
+#### 6.6.1 Starting a Typing/Action State
+Emit `typing.start` (or `conversation.typing`) when the user starts typing or recording:
+```typescript
+socket.emit("typing.start", {
+  conversationId: "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+  action: "typing" // "typing" (default) | "recording_voice" | "uploading_media"
+});
+```
+
+#### 6.6.2 Stopping a Typing/Action State
+Emit `typing.stop` (or `conversation.typing.stop`) when the user stops or clears the composer:
+```typescript
+socket.emit("typing.stop", {
+  conversationId: "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+});
+```
+> 💡 Sending a message via `message.send` automatically clears the user's active typing indicator on the server.
+
+#### 6.6.3 Receiving Typing Events in Real-Time
+Listen on the socket for typing events:
+- **`user.typing`**: Broadcast to all participants in `conversation:<id>` (excluding the typist):
+  ```json
+  {
+    "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+    "userId": 202,
+    "username": "sarah_j",
+    "firstName": "Sarah",
+    "action": "recording_voice"
+  }
+  ```
+- **`user.stop_typing`**: Broadcast when a user stops typing:
+  ```json
+  {
+    "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+    "userId": 202
+  }
+  ```
+- **Automatic Timeout**: If no stop event arrives within **6 seconds**, the server automatically expires the state.
+
+#### 6.6.4 Active Typers REST Polling
+When opening a conversation or refreshing the inbox, fetch currently active typers immediately:
+- **Method & Path**: `GET /v1/conversations/{conversationId}/typing`
+- **Headers**: `Authorization: Bearer <JWT>`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "status": "success",
+    "message": "Active typing users retrieved successfully",
+    "data": {
+      "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+      "typingUsers": [
+        {
+          "userId": 202,
+          "username": "sarah_j",
+          "firstName": "Sarah",
+          "action": "recording_voice"
+        }
+      ]
+    }
+  }
+  ```
+
+---
+
+### 6.7 Full Socket Events Summary
 
 | Event | Direction | Scope / Room | Purpose |
 |---|---|---|---|
 | `conversation.join` | Client -> Server | Socket | Subscribes socket to `conversation:<id>` |
 | `conversation.leave` | Client -> Server | Socket | Unsubscribes socket from `conversation:<id>` |
-| `message.send` | Client -> Server | Socket | Dispatches new message |
-| `message.created` | Server -> Client | `conversation:<id>` & `user:<recipientId>` | Broadcasts new message to participants |
+| `message.send` | Client -> Server | Socket | Dispatches new message (supports `replyToMessageId`) |
+| `message.created` | Server -> Client | `conversation:<id>` & `user:<recipientId>` | Broadcasts new message to participants (with `replyTo`) |
 | `message.sent` | Server -> Client | Sender Socket | Sender delivery confirmation |
 | `conversation.read` | Bidirectional | `user:<userId>` | Marks conversation read / syncs other devices |
 | `message.delete` | Client -> Server | Socket | Deletes a message (for me or everyone) |
 | `message.deleted` | Server -> Client | `conversation:<id>` or `user:<userId>` | Notifies UI to remove message from screen |
 | `conversation.updated` | Server -> Client | `conversation:<id>` & `user:<userId>` | Updates last message preview in chat list |
+| `typing.start` *(or `conversation.typing`)* | Client -> Server | Socket | Notifies room of typing / voice recording |
+| `typing.stop` *(or `conversation.typing.stop`)* | Client -> Server | Socket | Clears typing indicator |
+| `user.typing` | Server -> Client | `conversation:<id>` | Broadcasts `{ conversationId, userId, action }` to peers |
+| `user.stop_typing` | Server -> Client | `conversation:<id>` | Broadcasts `{ conversationId, userId }` when typing stops |
 | `user.block` | Client -> Server | Socket | Blocks a user |
 | `user.unblock` | Client -> Server | Socket | Unblocks a user |
 | `user.blocked` | Server -> Client | `user:<blockerId>` & `user:<blockedId>` | Notifies UI that block has taken effect |

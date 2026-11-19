@@ -1178,6 +1178,466 @@
         ]
       }
     },
+    "/users/{userId}/block": {
+      "post": {
+        "operationId": "UsersController_blockUser",
+        "summary": "Block a user",
+        "description": "Blocks the specified user. Blocked users cannot send messages or interact.",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "ID of the user to block",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User blocked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "blockedId": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_unblockUser",
+        "summary": "Unblock a user",
+        "description": "Unblocks a previously blocked user.",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "ID of the user to unblock",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unblocked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "unblockedId": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/users/blocked": {
+      "get": {
+        "operationId": "UsersController_getBlockedUsers",
+        "summary": "List blocked users",
+        "description": "Retrieves the list of users blocked by the authenticated caller.",
+        "responses": {
+          "200": {
+            "description": "Blocked users list retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "username": {
+                        "type": "string"
+                      },
+                      "firstName": {
+                        "type": "string"
+                      },
+                      "avatarUrl": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/conversations": {
+      "get": {
+        "operationId": "ChatController_listConversations",
+        "summary": "List user conversations",
+        "description": "Retrieves paginated active conversations with last message, unread counts, and recipient details.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 30
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversations retrieved successfully"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{conversationId}": {
+      "get": {
+        "operationId": "ChatController_getConversationDetails",
+        "summary": "Get conversation details",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation details retrieved"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{conversationId}/messages": {
+      "get": {
+        "operationId": "ChatController_getMessageHistory",
+        "summary": "Get conversation message history",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Messages retrieved"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "ChatController_sendMessage",
+        "summary": "Send message via HTTP REST",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "clientMessageId"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string"
+                  },
+                  "clientMessageId": {
+                    "type": "string"
+                  },
+                  "replyToMessageId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Message sent successfully"
+          },
+          "400": {
+            "description": "Invalid request or invalid reply target"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "delete": {
+        "operationId": "ChatController_deleteMessage",
+        "summary": "Soft-delete a chat message",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message deleted successfully"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "403": {
+            "description": "Not permitted to delete this message"
+          },
+          "404": {
+            "description": "Message not found"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{conversationId}/read": {
+      "post": {
+        "operationId": "ChatController_markConversationRead",
+        "summary": "Mark conversation messages as read",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation marked as read"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
+    "/conversations/{conversationId}/typing": {
+      "get": {
+        "operationId": "ChatController_getActiveTypingUsers",
+        "summary": "Get active typing users in conversation",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active typing users list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userId": {
+                            "type": "integer"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "firstName": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "tags": [
+          "Chat"
+        ],
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ]
+      }
+    },
     "/assets/icons/{filename}": {
       "get": {
         "operationId": "AssetsController_getIcon",
@@ -2496,7 +2956,7 @@
             "description": "Missing/invalid token or insufficient administrator privileges"
           },
           "404": {
-            "description": "User not found / کاربر مورد نظر یافت نشد"
+            "description": "User not found / \u06a9\u0627\u0631\u0628\u0631 \u0645\u0648\u0631\u062f \u0646\u0638\u0631 \u06cc\u0627\u0641\u062a \u0646\u0634\u062f"
           }
         },
         "tags": [
@@ -2645,7 +3105,7 @@
             "description": "Missing/invalid token or insufficient administrator privileges"
           },
           "404": {
-            "description": "User not found / کاربر مورد نظر یافت نشد"
+            "description": "User not found / \u06a9\u0627\u0631\u0628\u0631 \u0645\u0648\u0631\u062f \u0646\u0638\u0631 \u06cc\u0627\u0641\u062a \u0646\u0634\u062f"
           }
         },
         "tags": [
@@ -3597,46 +4057,6 @@
           }
         ]
       }
-    },
-    "/users/privacy": {
-      "post": {
-        "operationId": "UsersController_acceptPrivacy",
-        "summary": "Accept privacy policy",
-        "description": "Records user acceptance of the privacy policy. Required for profile completion.",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Privacy policy accepted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AcceptPrivacyResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid access token"
-          }
-        },
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "JWT-auth": []
-          }
-        ]
-      }
     }
   },
   "info": {
@@ -3664,27 +4084,23 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "description": "User email address for verification",
-            "default": "pmsa@gmail.com"
+            "example": "user@example.com",
+            "description": "User email address for verification"
           },
           "password": {
             "type": "string",
-            "example": "Password123!@#",
-            "description": "User password (minimum 6 characters)",
-            "default": "Password123!@#"
+            "example": "StrongPassword123!",
+            "description": "User password (minimum 6 characters)"
           },
           "integrityToken": {
             "type": "string",
-            "example": "dev-integrity-token",
-            "description": "Google Play Integrity token from Android device",
-            "default": "dev-integrity-token"
+            "example": "base64_google_play_integrity_token_here",
+            "description": "Google Play Integrity token from Android device"
           },
           "packageName": {
             "type": "string",
-            "example": "com.datemate.app",
-            "description": "Android application package name",
-            "default": "com.datemate.app"
+            "example": "com.dmate.datemate",
+            "description": "Android application package name"
           }
         },
         "required": [
@@ -3700,26 +4116,22 @@
           "code": {
             "type": "string",
             "example": "123456",
-            "description": "6-digit OTP verification code received via email",
-            "default": "123456"
+            "description": "6-digit OTP verification code received via email"
           },
           "device": {
             "type": "string",
-            "example": "Google Pixel 8",
-            "description": "Client device model",
-            "default": "Google Pixel 8"
+            "example": "Samsung Galaxy S23",
+            "description": "Client device model"
           },
           "userAgent": {
             "type": "string",
-            "example": "DateMate-Android/1.0",
-            "description": "Client user-agent string",
-            "default": "DateMate-Android/1.0"
+            "example": "DateMate/2.6 (Android 14)",
+            "description": "Client user-agent string"
           },
           "fcmToken": {
             "type": "string",
-            "example": "mock-fcm-device-token",
-            "description": "Firebase Cloud Messaging device token for push alerts",
-            "default": "mock-fcm-device-token"
+            "example": "eXamPLe-fCm-ToKen...",
+            "description": "Firebase Cloud Messaging device token for push alerts"
           }
         },
         "required": [
@@ -3763,57 +4175,48 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "description": "User registered email address or username handle",
-            "default": "pmsa@gmail.com"
+            "example": "admin@example.com or admin",
+            "description": "User registered email address or username handle"
           },
           "username": {
             "type": "string",
-            "example": "pmsa",
-            "description": "User handle or username (alias for identifier)",
-            "default": "pmsa"
+            "example": "admin",
+            "description": "User handle or username (alias for identifier)"
           },
           "usernameOrEmail": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "description": "Username or email login identifier alias",
-            "default": "pmsa@gmail.com"
+            "example": "admin",
+            "description": "Username or email login identifier alias"
           },
           "password": {
             "type": "string",
-            "example": "Password123!@#",
-            "description": "Account password",
-            "default": "Password123!@#"
+            "example": "StrongPassword123!",
+            "description": "Account password"
           },
           "device": {
             "type": "string",
-            "example": "Google Pixel 8",
-            "description": "Client device model",
-            "default": "Google Pixel 8"
+            "example": "Google Pixel 8 or Web Browser",
+            "description": "Client device model"
           },
           "userAgent": {
             "type": "string",
-            "example": "DateMate-Android/1.0",
-            "description": "Client user-agent string",
-            "default": "DateMate-Android/1.0"
+            "example": "DateMate/2.6 (Android 14) or Mozilla/5.0...",
+            "description": "Client user-agent string"
           },
           "fcmToken": {
             "type": "string",
-            "example": "mock-fcm-device-token",
-            "description": "FCM push token for notifications",
-            "default": "mock-fcm-device-token"
+            "example": "eXamPLe-fCm-ToKen...",
+            "description": "FCM push token for notifications"
           },
           "integrityToken": {
             "type": "string",
-            "example": "dev-integrity-token",
-            "description": "Google Play Integrity token (for Android clients)",
-            "default": "dev-integrity-token"
+            "example": "base64_integrity_token_string",
+            "description": "Google Play Integrity token (for Android clients)"
           },
           "packageName": {
             "type": "string",
-            "example": "com.datemate.app",
-            "description": "Application package name (for Android clients)",
-            "default": "com.datemate.app"
+            "example": "com.dmate.datemate",
+            "description": "Application package name (for Android clients)"
           }
         },
         "required": [
@@ -3825,9 +4228,8 @@
         "properties": {
           "token": {
             "type": "string",
-            "example": "{{refreshToken}}",
-            "description": "Long-lived refresh token string previously received",
-            "default": "{{refreshToken}}"
+            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
+            "description": "Long-lived refresh token string previously received"
           }
         },
         "required": [
@@ -3839,9 +4241,8 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "description": "Email address of the account to reset password for",
-            "default": "pmsa@gmail.com"
+            "example": "user@example.com",
+            "description": "Email address of the account to reset password for"
           }
         },
         "required": [
@@ -3853,21 +4254,18 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "description": "Email address of the account",
-            "default": "pmsa@gmail.com"
+            "example": "user@example.com",
+            "description": "Email address of the account"
           },
           "code": {
             "type": "string",
-            "example": "123456",
-            "description": "6-digit password reset OTP received via email",
-            "default": "123456"
+            "example": "654321",
+            "description": "6-digit password reset OTP received via email"
           },
           "password": {
             "type": "string",
-            "example": "Password123!@#",
-            "description": "New password (minimum 6 characters)",
-            "default": "Password123!@#"
+            "example": "NewStrongPassword456!",
+            "description": "New password (minimum 6 characters)"
           }
         },
         "required": [
@@ -3891,9 +4289,8 @@
           },
           "integrityToken": {
             "type": "string",
-            "example": "dev-integrity-token",
-            "description": "Google Play Integrity token",
-            "default": "dev-integrity-token"
+            "example": "base64_play_integrity_token",
+            "description": "Google Play Integrity token"
           },
           "packageName": {
             "type": "string",
@@ -3952,9 +4349,8 @@
         "properties": {
           "refreshToken": {
             "type": "string",
-            "example": "{{refreshToken}}",
-            "description": "Refresh token of the current session to terminate",
-            "default": "{{refreshToken}}"
+            "example": "d9b7f5e1a3c54d8e9f2b1a0c4e7d8f9a2b1c3d5e7f8a9b0c1d2e3f4a5b6c7d8e",
+            "description": "Refresh token of the current session to terminate"
           }
         },
         "required": [
@@ -4099,9 +4495,8 @@
           },
           "fcmToken": {
             "type": "string",
-            "example": "mock-fcm-device-token",
-            "nullable": true,
-            "default": "mock-fcm-device-token"
+            "example": "fcm_token_xyz",
+            "nullable": true
           },
           "isActive": {
             "type": "boolean",
@@ -4111,7 +4506,7 @@
           "isCurrent": {
             "type": "boolean",
             "example": true,
-            "description": "True if this session corresponds to the caller’s current refresh token"
+            "description": "True if this session corresponds to the caller\u2019s current refresh token"
           },
           "createdAt": {
             "type": "string",
@@ -4249,8 +4644,7 @@
           "refreshToken": {
             "type": "string",
             "description": "Refresh token of the current session to exclude when excludeCurrent=true (optional if authenticated via Bearer token with session).",
-            "example": "{{refreshToken}}",
-            "default": "{{refreshToken}}"
+            "example": "d9b7f5e1..."
           }
         }
       },
@@ -4553,10 +4947,9 @@
           },
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
+            "example": "user@example.com",
             "description": "User email",
-            "nullable": true,
-            "default": "pmsa@gmail.com"
+            "nullable": true
           },
           "language": {
             "type": "string",
@@ -4599,13 +4992,6 @@
             "items": {
               "$ref": "#/components/schemas/GalleryItemResponseDto"
             }
-          },
-          "privacyAcceptedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-11-11T13:19:58.889Z",
-            "description": "Timestamp when the user accepted the privacy policy, or null if pending",
-            "nullable": true
           }
         },
         "required": [
@@ -4663,7 +5049,7 @@
           "birthDate": {
             "type": "string",
             "example": "1998-11-25",
-            "description": "Date of birth (YYYY-MM-DD or ISO, must be 18–80 years old)"
+            "description": "Date of birth (YYYY-MM-DD or ISO, must be 18\u201380 years old)"
           },
           "date": {
             "type": "string",
@@ -4752,12 +5138,12 @@
           "fullName": {
             "type": "string",
             "example": "Parsa",
-            "description": "User full name (2–100 chars, cannot be only numbers)"
+            "description": "User full name (2\u2013100 chars, cannot be only numbers)"
           },
           "username": {
             "type": "string",
             "example": "parsa",
-            "description": "Unique username (3–30 chars, alphanumeric, dots/hyphens/underscores)"
+            "description": "Unique username (3\u201330 chars, alphanumeric, dots/hyphens/underscores)"
           },
           "phoneNumber": {
             "type": "string",
@@ -5068,12 +5454,12 @@
           "avatar": {
             "type": "string",
             "format": "binary",
-            "description": "Public profile picture avatar image file (50KB–5MB, JPEG/PNG/WebP, min 300x300)"
+            "description": "Public profile picture avatar image file (50KB\u20135MB, JPEG/PNG/WebP, min 300x300)"
           },
           "selfie": {
             "type": "string",
             "format": "binary",
-            "description": "Private selfie photo for admin verification (50KB–5MB, JPEG/PNG/WebP, min 300x300)"
+            "description": "Private selfie photo for admin verification (50KB\u20135MB, JPEG/PNG/WebP, min 300x300)"
           },
           "data": {
             "type": "object",
@@ -5142,11 +5528,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "privacyAccepted": {
-            "type": "boolean",
-            "example": true,
-            "description": "Set to true to accept privacy policy during profile update"
           }
         }
       },
@@ -5267,7 +5648,7 @@
           },
           "faAnswer": {
             "type": "string",
-            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "example": "\u0645\u0631\u0627\u0642\u0628\u0647 \u0648 \u062a\u0645\u0631\u06cc\u0646\u200c\u0647\u0627\u06cc \u0630\u0647\u0646\u200c\u0622\u06af\u0627\u0647\u06cc.",
             "description": "Farsi answer text"
           },
           "answerEn": {
@@ -5277,7 +5658,7 @@
           },
           "answerFa": {
             "type": "string",
-            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "example": "\u0645\u0631\u0627\u0642\u0628\u0647 \u0648 \u062a\u0645\u0631\u06cc\u0646\u200c\u0647\u0627\u06cc \u0630\u0647\u0646\u200c\u0622\u06af\u0627\u0647\u06cc.",
             "description": "Farsi answer text (legacy alias)"
           }
         },
@@ -5320,7 +5701,7 @@
           },
           "faName": {
             "type": "string",
-            "example": "چگونه از خود مراقبت می‌کنید؟",
+            "example": "\u0686\u06af\u0648\u0646\u0647 \u0627\u0632 \u062e\u0648\u062f \u0645\u0631\u0627\u0642\u0628\u062a \u0645\u06cc\u200c\u06a9\u0646\u06cc\u062f\u061f",
             "description": "Farsi question text"
           },
           "icon": {
@@ -5402,7 +5783,7 @@
           },
           "faAnswer": {
             "type": "string",
-            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "example": "\u0645\u0631\u0627\u0642\u0628\u0647 \u0648 \u062a\u0645\u0631\u06cc\u0646\u200c\u0647\u0627\u06cc \u0630\u0647\u0646\u200c\u0622\u06af\u0627\u0647\u06cc.",
             "description": "Answer text in Farsi"
           },
           "answerEn": {
@@ -5412,7 +5793,7 @@
           },
           "answerFa": {
             "type": "string",
-            "example": "مراقبه و تمرین‌های ذهن‌آگاهی.",
+            "example": "\u0645\u0631\u0627\u0642\u0628\u0647 \u0648 \u062a\u0645\u0631\u06cc\u0646\u200c\u0647\u0627\u06cc \u0630\u0647\u0646\u200c\u0622\u06af\u0627\u0647\u06cc.",
             "description": "Legacy alias"
           }
         }
@@ -5449,7 +5830,7 @@
           },
           "faName": {
             "type": "string",
-            "example": "چگونه از خود مراقبت می‌کنید؟",
+            "example": "\u0686\u06af\u0648\u0646\u0647 \u0627\u0632 \u062e\u0648\u062f \u0645\u0631\u0627\u0642\u0628\u062a \u0645\u06cc\u200c\u06a9\u0646\u06cc\u062f\u061f",
             "description": "Question text in Farsi"
           },
           "icon": {
@@ -5522,7 +5903,7 @@
           },
           "fa": {
             "type": "string",
-            "example": "بازی",
+            "example": "\u0628\u0627\u0632\u06cc",
             "description": "Farsi name of interest"
           },
           "categoryId": {
@@ -5542,7 +5923,7 @@
           },
           "faName": {
             "type": "string",
-            "example": "بازی",
+            "example": "\u0628\u0627\u0632\u06cc",
             "description": "Farsi interest name (alias)"
           }
         },
@@ -5567,7 +5948,7 @@
           },
           "fa": {
             "type": "string",
-            "example": "غذا",
+            "example": "\u063a\u0630\u0627",
             "description": "Farsi category name"
           },
           "icon": {
@@ -5605,7 +5986,7 @@
           },
           "faName": {
             "type": "string",
-            "example": "غذا",
+            "example": "\u063a\u0630\u0627",
             "description": "Farsi category name (alias)"
           }
         },
@@ -5626,7 +6007,7 @@
           },
           "fa": {
             "type": "string",
-            "example": "بازی",
+            "example": "\u0628\u0627\u0632\u06cc",
             "description": "Interest name in Farsi"
           },
           "enName": {
@@ -5636,7 +6017,7 @@
           },
           "faName": {
             "type": "string",
-            "example": "بازی",
+            "example": "\u0628\u0627\u0632\u06cc",
             "description": "Interest name in Farsi (alias)"
           },
           "icon": {
@@ -5666,7 +6047,7 @@
           },
           "fa": {
             "type": "string",
-            "example": "غذا",
+            "example": "\u063a\u0630\u0627",
             "description": "Category name in Farsi"
           },
           "enName": {
@@ -5676,7 +6057,7 @@
           },
           "faName": {
             "type": "string",
-            "example": "غذا",
+            "example": "\u063a\u0630\u0627",
             "description": "Category name in Farsi (alias)"
           },
           "icon": {
@@ -5767,8 +6148,8 @@
         "properties": {
           "dayName": {
             "type": "string",
-            "description": "Day abbreviation (e.g. ش, ی, د, س, چ, پ, ج)",
-            "example": "ش"
+            "description": "Day abbreviation (e.g. \u0634, \u06cc, \u062f, \u0633, \u0686, \u067e, \u062c)",
+            "example": "\u0634"
           },
           "hours": {
             "type": "number",
@@ -5777,8 +6158,8 @@
           },
           "dateStr": {
             "type": "string",
-            "description": "Persian solar date string (e.g. ۱۰ اسفند)",
-            "example": "۱۰ اسفند"
+            "description": "Persian solar date string (e.g. \u06f1\u06f0 \u0627\u0633\u0641\u0646\u062f)",
+            "example": "\u06f1\u06f0 \u0627\u0633\u0641\u0646\u062f"
           },
           "isPeak": {
             "type": "boolean",
@@ -5835,12 +6216,12 @@
           "code": {
             "type": "string",
             "description": "Ticket tracking code",
-            "example": "۲۳۴۶"
+            "example": "\u06f2\u06f3\u06f4\u06f6"
           },
           "userName": {
             "type": "string",
             "description": "User full name",
-            "example": "سکینه عالیخانی"
+            "example": "\u0633\u06a9\u06cc\u0646\u0647 \u0639\u0627\u0644\u06cc\u062e\u0627\u0646\u06cc"
           },
           "avatar": {
             "type": "string",
@@ -5850,12 +6231,12 @@
           "dateTime": {
             "type": "string",
             "description": "Date and time of ticket creation",
-            "example": "۱۴۰۳/۰۹/۱۲ - ۱۳:۲۳"
+            "example": "\u06f1\u06f4\u06f0\u06f3/\u06f0\u06f9/\u06f1\u06f2 - \u06f1\u06f3:\u06f2\u06f3"
           },
           "time": {
             "type": "string",
             "description": "Time of last activity",
-            "example": "۱۴:۲۰"
+            "example": "\u06f1\u06f4:\u06f2\u06f0"
           },
           "unreadCount": {
             "type": "number",
@@ -5895,13 +6276,12 @@
           "fullName": {
             "type": "string",
             "description": "User full name",
-            "example": "چی چانگ"
+            "example": "\u0686\u06cc \u0686\u0627\u0646\u06af"
           },
           "email": {
             "type": "string",
             "description": "User email address",
-            "example": "pmsa@gmail.com",
-            "default": "pmsa@gmail.com"
+            "example": "chichang@gmail.com"
           },
           "avatar": {
             "type": "string",
@@ -6013,12 +6393,11 @@
           },
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "default": "pmsa@gmail.com"
+            "example": "user@example.com"
           },
           "fullName": {
             "type": "string",
-            "example": "علی رضایی"
+            "example": "\u0639\u0644\u06cc \u0631\u0636\u0627\u06cc\u06cc"
           },
           "avatarUrl": {
             "type": "string",
@@ -6064,7 +6443,7 @@
           },
           "city": {
             "type": "string",
-            "example": "تهران",
+            "example": "\u062a\u0647\u0631\u0627\u0646",
             "nullable": true
           }
         },
@@ -6187,17 +6566,17 @@
           },
           "cityName": {
             "type": "string",
-            "example": "تهران",
+            "example": "\u062a\u0647\u0631\u0627\u0646",
             "nullable": true
           },
           "job": {
             "type": "string",
-            "example": "طراح محصول",
+            "example": "\u0637\u0631\u0627\u062d \u0645\u062d\u0635\u0648\u0644",
             "nullable": true
           },
           "degree": {
             "type": "string",
-            "example": "کارشناسی ارشد",
+            "example": "\u06a9\u0627\u0631\u0634\u0646\u0627\u0633\u06cc \u0627\u0631\u0634\u062f",
             "nullable": true
           },
           "height": {
@@ -6217,7 +6596,7 @@
           },
           "relationStatus": {
             "type": "string",
-            "example": "مجرد",
+            "example": "\u0645\u062c\u0631\u062f",
             "nullable": true
           }
         }
@@ -6258,7 +6637,7 @@
           },
           "title": {
             "type": "string",
-            "example": "خرید اشتراک طلایی دیتمیت ۳ ماهه"
+            "example": "\u062e\u0631\u06cc\u062f \u0627\u0634\u062a\u0631\u0627\u06a9 \u0637\u0644\u0627\u06cc\u06cc \u062f\u06cc\u062a\u0645\u06cc\u062a \u06f3 \u0645\u0627\u0647\u0647"
           },
           "amount": {
             "type": "number",
@@ -6266,19 +6645,19 @@
           },
           "planName": {
             "type": "string",
-            "example": "اشتراک ویژه طلایی"
+            "example": "\u0627\u0634\u062a\u0631\u0627\u06a9 \u0648\u06cc\u0698\u0647 \u0637\u0644\u0627\u06cc\u06cc"
           },
           "date": {
             "type": "string",
-            "example": "۱۴۰۳/۱۱/۲۰"
+            "example": "\u06f1\u06f4\u06f0\u06f3/\u06f1\u06f1/\u06f2\u06f0"
           },
           "bank": {
             "type": "string",
-            "example": "بانک ملت"
+            "example": "\u0628\u0627\u0646\u06a9 \u0645\u0644\u062a"
           },
           "cardNumber": {
             "type": "string",
-            "example": "****۶۰۳۷"
+            "example": "****\u06f6\u06f0\u06f3\u06f7"
           },
           "status": {
             "type": "string",
@@ -6305,7 +6684,7 @@
           },
           "title": {
             "type": "string",
-            "example": "کافهگردی و هنر"
+            "example": "\u06a9\u0627\u0641\u0647\u06af\u0631\u062f\u06cc \u0648 \u0647\u0646\u0631"
           },
           "memberCount": {
             "type": "number",
@@ -6336,9 +6715,8 @@
           },
           "fcmToken": {
             "type": "string",
-            "example": "mock-fcm-device-token",
-            "nullable": true,
-            "default": "mock-fcm-device-token"
+            "example": "fcm-device-token...",
+            "nullable": true
           },
           "isActive": {
             "type": "boolean",
@@ -6421,8 +6799,7 @@
           },
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "default": "pmsa@gmail.com"
+            "example": "sarah.smith@example.com"
           },
           "role": {
             "type": "string",
@@ -6434,7 +6811,7 @@
           },
           "fullName": {
             "type": "string",
-            "example": "سارا محمدی"
+            "example": "\u0633\u0627\u0631\u0627 \u0645\u062d\u0645\u062f\u06cc"
           },
           "username": {
             "type": "string",
@@ -6448,7 +6825,7 @@
           },
           "bio": {
             "type": "string",
-            "example": "علاقهمند به سفر، کوهنوردی و مطالعه کتابهای روانشناسی.",
+            "example": "\u0639\u0644\u0627\u0642\u0647\u0645\u0646\u062f \u0628\u0647 \u0633\u0641\u0631\u060c \u06a9\u0648\u0647\u0646\u0648\u0631\u062f\u06cc \u0648 \u0645\u0637\u0627\u0644\u0639\u0647 \u06a9\u062a\u0627\u0628\u0647\u0627\u06cc \u0631\u0648\u0627\u0646\u0634\u0646\u0627\u0633\u06cc.",
             "nullable": true
           },
           "gender": {
@@ -6640,8 +7017,7 @@
           },
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "default": "pmsa@gmail.com"
+            "example": "user@example.com"
           },
           "isBanned": {
             "type": "boolean",
@@ -6707,12 +7083,12 @@
           },
           "bio": {
             "type": "string",
-            "example": "علاقه‌مند به طبیعت، موسیقی و مطالعه",
+            "example": "\u0639\u0644\u0627\u0642\u0647\u200c\u0645\u0646\u062f \u0628\u0647 \u0637\u0628\u06cc\u0639\u062a\u060c \u0645\u0648\u0633\u06cc\u0642\u06cc \u0648 \u0645\u0637\u0627\u0644\u0639\u0647",
             "description": "User biography description"
           },
           "fullName": {
             "type": "string",
-            "example": "علی رضایی",
+            "example": "\u0639\u0644\u06cc \u0631\u0636\u0627\u06cc\u06cc",
             "description": "User full display name"
           },
           "isPremium": {
@@ -6767,7 +7143,7 @@
           },
           "job": {
             "type": "string",
-            "example": "مهندس نرم‌افزار"
+            "example": "\u0645\u0647\u0646\u062f\u0633 \u0646\u0631\u0645\u200c\u0627\u0641\u0632\u0627\u0631"
           },
           "relationStatus": {
             "type": "string",
@@ -6779,7 +7155,7 @@
           },
           "city": {
             "type": "string",
-            "example": "تهران"
+            "example": "\u062a\u0647\u0631\u0627\u0646"
           },
           "profile": {
             "type": "object"
@@ -7041,8 +7417,7 @@
           },
           "email": {
             "type": "string",
-            "example": "pmsa@gmail.com",
-            "default": "pmsa@gmail.com"
+            "example": "sara@example.com"
           },
           "avatarUrl": {
             "type": "string",
@@ -7531,26 +7906,6 @@
           "status",
           "message",
           "data"
-        ]
-      },
-      "AcceptPrivacyResponseDto": {
-        "type": "object",
-        "properties": {
-          "privacyAcceptedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-11-11T13:19:58.889Z",
-            "description": "Timestamp when privacy policy was accepted"
-          },
-          "profileCompleted": {
-            "type": "boolean",
-            "example": true,
-            "description": "Updated profile completion status"
-          }
-        },
-        "required": [
-          "privacyAcceptedAt",
-          "profileCompleted"
         ]
       }
     }

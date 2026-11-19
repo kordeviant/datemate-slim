@@ -791,6 +791,288 @@ paths:
       - Users
       security:
       - JWT-auth: []
+  /users/{userId}/block:
+    post:
+      operationId: UsersController_blockUser
+      summary: Block a user
+      description: Blocks the specified user. Blocked users cannot send messages or interact.
+      parameters:
+      - name: userId
+        required: true
+        in: path
+        description: ID of the user to block
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: User blocked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blockedId:
+                    type: integer
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Users
+      security:
+      - JWT-auth: []
+    delete:
+      operationId: UsersController_unblockUser
+      summary: Unblock a user
+      description: Unblocks a previously blocked user.
+      parameters:
+      - name: userId
+        required: true
+        in: path
+        description: ID of the user to unblock
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: User unblocked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unblockedId:
+                    type: integer
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Users
+      security:
+      - JWT-auth: []
+  /users/blocked:
+    get:
+      operationId: UsersController_getBlockedUsers
+      summary: List blocked users
+      description: Retrieves the list of users blocked by the authenticated caller.
+      responses:
+        '200':
+          description: Blocked users list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    username:
+                      type: string
+                    firstName:
+                      type: string
+                    avatarUrl:
+                      type: string
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Users
+      security:
+      - JWT-auth: []
+  /conversations:
+    get:
+      operationId: ChatController_listConversations
+      summary: List user conversations
+      description: Retrieves paginated active conversations with last message, unread counts, and recipient details.
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 30
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Conversations retrieved successfully
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
+  /conversations/{conversationId}:
+    get:
+      operationId: ChatController_getConversationDetails
+      summary: Get conversation details
+      parameters:
+      - name: conversationId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Conversation details retrieved
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
+  /conversations/{conversationId}/messages:
+    get:
+      operationId: ChatController_getMessageHistory
+      summary: Get conversation message history
+      parameters:
+      - name: conversationId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 50
+      - name: before
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Messages retrieved
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
+    post:
+      operationId: ChatController_sendMessage
+      summary: Send message via HTTP REST
+      parameters:
+      - name: conversationId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - clientMessageId
+              properties:
+                content:
+                  type: string
+                clientMessageId:
+                  type: string
+                replyToMessageId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Message sent successfully
+        '400':
+          description: Invalid request or invalid reply target
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
+  /conversations/{conversationId}/messages/{messageId}:
+    delete:
+      operationId: ChatController_deleteMessage
+      summary: Soft-delete a chat message
+      parameters:
+      - name: conversationId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      - name: messageId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Message deleted successfully
+        '401':
+          description: Missing or invalid access token
+        '403':
+          description: Not permitted to delete this message
+        '404':
+          description: Message not found
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
+  /conversations/{conversationId}/read:
+    post:
+      operationId: ChatController_markConversationRead
+      summary: Mark conversation messages as read
+      parameters:
+      - name: conversationId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Conversation marked as read
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
+  /conversations/{conversationId}/typing:
+    get:
+      operationId: ChatController_getActiveTypingUsers
+      summary: Get active typing users in conversation
+      parameters:
+      - name: conversationId
+        required: true
+        in: path
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Active typing users list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId:
+                          type: integer
+                        username:
+                          type: string
+                        firstName:
+                          type: string
+                        action:
+                          type: string
+        '401':
+          description: Missing or invalid access token
+      tags:
+      - Chat
+      security:
+      - JWT-auth: []
   /assets/icons/{filename}:
     get:
       operationId: AssetsController_getIcon

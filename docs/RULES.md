@@ -497,3 +497,40 @@ Clients can submit selected interests in `PUT /users/me` or `POST /users/profile
 - Backward-compatible formats: array of IDs (`[1, 2, 72]`) or category objects (`[ { "id": 1, "Interest": [ { "id": 1 } ] } ]`)
 - In `GET /users/me`, only `Profile.LikedActivities` is returned as `{ [categoryId]: interestId | interestId[] }` (duplicate `interest` and `interests` arrays are omitted).
 
+---
+
+## 14. User Blocking & Chat Lifecycle Rules
+
+### 14.1 User Block / Unblock (`/v1/users/{userId}/block`)
+- **Block Target**: `POST /v1/users/{userId}/block` blocks the specified user.
+  - Returns `200 OK` with `{ "blockedId": <int> }`.
+  - Blocked users cannot send messages or initiate friend requests to the blocker.
+- **Unblock Target**: `DELETE /v1/users/{userId}/block` unblocks the specified user.
+  - Returns `200 OK` with `{ "unblockedId": <int> }`.
+- **List Blocked Users**: `GET /v1/users/blocked` returns all currently blocked users with their `id`, `username`, `firstName`, and `avatarUrl`.
+- **WebSocket Broadcast**: Emits `user.blocked` and `user.unblocked` events to notify connected clients.
+
+### 14.2 Message Deletion (`DELETE /v1/conversations/{conversationId}/messages/{messageId}`)
+- Soft-deletes a message owned by the calling user.
+- Sets `is_deleted = true` in PostgreSQL and blanks out message content.
+- Broadcasts `message.deleted` with `{ "messageId": <string>, "conversationId": <string>, "deletedBy": <int> }` over WebSockets.
+- For historical replies referencing a deleted message, `replyTo.isDeleted` is set to `true` and `replyTo.content` is returned as `null`.
+
+### 14.3 Read Receipts & Mark-as-Read (`POST /v1/conversations/{conversationId}/read`)
+- Marks all unread messages up to the current timestamp as read for the calling user.
+- Emits `conversation.read` over WebSockets with `{ "conversationId": <string>, "userId": <int>, "readAt": <iso-timestamp> }`.
+- Automatically resets the caller's `unreadCount` to `0` in conversation listings.
+
+### 14.4 Reply to Message in Chat (`replyToMessageId`)
+- When sending a message (`message.send` or `POST /v1/conversations/{conversationId}/messages`), clients can include `replyToMessageId` (UUID string).
+- Invariant: Quoted message must belong to the exact same conversation. Otherwise, server returns `400 Bad Request`.
+- Returns nested `replyTo` DTO: `{ "id": string, "senderId": int, "content": string | null, "createdAt": string, "isDeleted": bool }`.
+
+### 14.5 Real-Time Typing Indicator States
+- **Actions**: `"typing"`, `"recording_voice"`, `"uploading_media"`.
+- **WebSocket Start**: Emit `typing.start` (or `conversation.typing` with `isTyping: true`) with `{ "conversationId": string, "action": string }`.
+- **WebSocket Stop**: Emit `typing.stop` (or `conversation.typing` with `isTyping: false`) with `{ "conversationId": string }`.
+- **Auto-Expiration**: Active typing keys are stored in Redis with a 6-second TTL to avoid stuck typing indicators on disconnect.
+- **REST Snapshot**: `GET /v1/conversations/{conversationId}/typing` returns active typing users `{ "users": [{ "userId": int, "username": string, "firstName": string, "action": string }] }`.
+
+

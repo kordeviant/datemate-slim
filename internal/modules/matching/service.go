@@ -85,6 +85,20 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 
 	var results []FeedCandidateDto
 
+	// Batch-fetch galleries for all candidate rows in a single query (eliminates N+1 queries)
+	candidateIDs := make([]int32, 0, len(rows))
+	for _, r := range rows {
+		candidateIDs = append(candidateIDs, r.ID)
+	}
+	galleriesByUserID := make(map[int32][]db.UserGalleries)
+	if len(candidateIDs) > 0 {
+		if allGalleries, err := s.queries.ListGalleriesByUserIDs(ctx, candidateIDs); err == nil {
+			for _, g := range allGalleries {
+				galleriesByUserID[g.UserID] = append(galleriesByUserID[g.UserID], g)
+			}
+		}
+	}
+
 	processRow := func(
 		id int32,
 		firstName string,
@@ -95,7 +109,7 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 		cityID pgtype.Int4,
 		cityName pgtype.Text,
 	) *FeedCandidateDto {
-		galleries, _ := s.queries.ListUserGalleries(ctx, id)
+		galleries := galleriesByUserID[id]
 
 		// Rule 4: Active photo resolution
 		var primaryPhoto string
@@ -188,6 +202,20 @@ func (s *Service) GetFeed(ctx context.Context, currentUserID int64, limit int) (
 			Limit:  int32(limit * 2),
 		})
 		if err == nil {
+			var fallbackIDs []int32
+			for _, r := range fallbackRows {
+				if _, ok := galleriesByUserID[r.ID]; !ok {
+					fallbackIDs = append(fallbackIDs, r.ID)
+				}
+			}
+			if len(fallbackIDs) > 0 {
+				if fbGalleries, err := s.queries.ListGalleriesByUserIDs(ctx, fallbackIDs); err == nil {
+					for _, g := range fbGalleries {
+						galleriesByUserID[g.UserID] = append(galleriesByUserID[g.UserID], g)
+					}
+				}
+			}
+
 			for _, r := range fallbackRows {
 				if len(results) >= limit {
 					break

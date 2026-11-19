@@ -185,6 +185,11 @@ RETURNING *;
 -- name: ListUserGalleries :many
 SELECT * FROM user_galleries WHERE user_id = $1 ORDER BY id ASC;
 
+-- name: ListGalleriesByUserIDs :many
+SELECT * FROM user_galleries
+WHERE user_id = ANY($1::int[])
+ORDER BY user_id ASC, id ASC;
+
 -- name: GetUserGalleryByID :one
 SELECT * FROM user_galleries WHERE id = $1 LIMIT 1;
 
@@ -457,6 +462,18 @@ LEFT JOIN user_interests ui ON u.id = ui.user_id
 WHERE u.id = $1
 GROUP BY u.id, d.birth_date, d.city_id, pr.relation;
 
+-- name: GetCandidateRecommendationProfilesByIDs :many
+SELECT u.id, d.birth_date, d.city_id, pr.relation as relation_preference,
+       COALESCE(array_agg(DISTINCT uqa.question_answer_id) FILTER (WHERE uqa.question_answer_id IS NOT NULL), '{}')::int[] as answer_ids,
+       COALESCE(array_agg(DISTINCT ui.interest_id) FILTER (WHERE ui.interest_id IS NOT NULL), '{}')::int[] as interest_ids
+FROM users u
+LEFT JOIN demographics d ON u.id = d.user_id
+LEFT JOIN preferences pr ON u.id = pr.user_id
+LEFT JOIN user_question_answers uqa ON u.id = uqa.user_id
+LEFT JOIN user_interests ui ON u.id = ui.user_id
+WHERE u.id = ANY($1::int[])
+GROUP BY u.id, d.birth_date, d.city_id, pr.relation;
+
 -- Friends queries
 -- name: CreateFriendRequest :one
 INSERT INTO friend_requests (sender_id, receiver_id, status, created_at, updated_at)
@@ -576,19 +593,35 @@ SELECT * FROM message_idempotency WHERE conversation_id = $1 AND sender_id = $2 
 INSERT INTO messages_by_conversation (
     conversation_id, bucket, created_at, message_id, sender_id, content,
     client_message_id, message_type, media_url, duration, attachment_name,
-    attachment_size, mime_type
+    attachment_size, mime_type, reply_to_message_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
-    $12, $13
+    $12, $13, $14
 )
 RETURNING *;
+
+-- name: GetMessageInConversation :one
+SELECT * FROM messages_by_conversation
+WHERE conversation_id = $1 AND message_id = $2
+LIMIT 1;
+
+-- name: GetMessagesByIDsInConversation :many
+SELECT * FROM messages_by_conversation
+WHERE conversation_id = $1 AND message_id = ANY($2::uuid[]);
 
 -- name: ListMessagesByConversationBucket :many
 SELECT * FROM messages_by_conversation
 WHERE conversation_id = $1 AND bucket = $2
 ORDER BY created_at DESC, message_id ASC
 LIMIT $3 OFFSET $4;
+
+-- name: ListMessagesByConversationCursor :many
+SELECT * FROM messages_by_conversation
+WHERE conversation_id = $1
+  AND (sqlc.narg('before')::timestamptz IS NULL OR created_at < sqlc.narg('before')::timestamptz)
+ORDER BY created_at DESC
+LIMIT $2;
 
 -- name: UpsertConversationByUser :exec
 INSERT INTO conversations_by_user (

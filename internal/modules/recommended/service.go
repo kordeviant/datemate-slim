@@ -227,11 +227,25 @@ func (s *Service) GetRankedCandidatePool(ctx context.Context, currentUserID int6
 		swipedMap[id] = true
 	}
 
+	candidateIDs := make([]int32, len(candidates))
+	for i, c := range candidates {
+		candidateIDs[i] = c.ID
+	}
+
+	profilesByUserID := make(map[int32]db.GetCandidateRecommendationProfilesByIDsRow, len(candidateIDs))
+	if len(candidateIDs) > 0 {
+		if batchProfiles, err := s.queries.GetCandidateRecommendationProfilesByIDs(ctx, candidateIDs); err == nil {
+			for _, p := range batchProfiles {
+				profilesByUserID[p.ID] = p
+			}
+		}
+	}
+
 	var scoredList []RankedCandidateItem
 
 	for _, c := range candidates {
-		candProfile, err := s.queries.GetCandidateRecommendationProfile(ctx, c.ID)
-		if err != nil {
+		candProfile, ok := profilesByUserID[c.ID]
+		if !ok {
 			continue
 		}
 

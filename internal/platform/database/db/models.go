@@ -1047,21 +1047,22 @@ type MessageIdempotency struct {
 }
 
 type MessagesByConversation struct {
-	ConversationID  pgtype.UUID        `json:"conversation_id"`
-	Bucket          string             `json:"bucket"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	MessageID       pgtype.UUID        `json:"message_id"`
-	SenderID        int64              `json:"sender_id"`
-	Content         pgtype.Text        `json:"content"`
-	ClientMessageID pgtype.Text        `json:"client_message_id"`
-	MessageType     string             `json:"message_type"`
-	MediaUrl        pgtype.Text        `json:"media_url"`
-	Duration        pgtype.Float8      `json:"duration"`
-	AttachmentName  pgtype.Text        `json:"attachment_name"`
-	AttachmentSize  pgtype.Int8        `json:"attachment_size"`
-	MimeType        pgtype.Text        `json:"mime_type"`
-	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
-	DeletedBy       pgtype.Int8        `json:"deleted_by"`
+	ConversationID   pgtype.UUID        `json:"conversation_id"`
+	Bucket           string             `json:"bucket"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	MessageID        pgtype.UUID        `json:"message_id"`
+	SenderID         int64              `json:"sender_id"`
+	Content          pgtype.Text        `json:"content"`
+	ClientMessageID  pgtype.Text        `json:"client_message_id"`
+	MessageType      string             `json:"message_type"`
+	MediaUrl         pgtype.Text        `json:"media_url"`
+	Duration         pgtype.Float8      `json:"duration"`
+	AttachmentName   pgtype.Text        `json:"attachment_name"`
+	AttachmentSize   pgtype.Int8        `json:"attachment_size"`
+	MimeType         pgtype.Text        `json:"mime_type"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	DeletedBy        pgtype.Int8        `json:"deleted_by"`
+	ReplyToMessageID pgtype.UUID        `json:"reply_to_message_id"`
 }
 
 type Notifications struct {

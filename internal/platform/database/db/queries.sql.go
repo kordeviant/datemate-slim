@@ -869,6 +869,55 @@ func (q *Queries) GetCandidateRecommendationProfile(ctx context.Context, id int3
 	return i, err
 }
 
+const getCandidateRecommendationProfilesByIDs = `-- name: GetCandidateRecommendationProfilesByIDs :many
+SELECT u.id, d.birth_date, d.city_id, pr.relation as relation_preference,
+       COALESCE(array_agg(DISTINCT uqa.question_answer_id) FILTER (WHERE uqa.question_answer_id IS NOT NULL), '{}')::int[] as answer_ids,
+       COALESCE(array_agg(DISTINCT ui.interest_id) FILTER (WHERE ui.interest_id IS NOT NULL), '{}')::int[] as interest_ids
+FROM users u
+LEFT JOIN demographics d ON u.id = d.user_id
+LEFT JOIN preferences pr ON u.id = pr.user_id
+LEFT JOIN user_question_answers uqa ON u.id = uqa.user_id
+LEFT JOIN user_interests ui ON u.id = ui.user_id
+WHERE u.id = ANY($1::int[])
+GROUP BY u.id, d.birth_date, d.city_id, pr.relation
+`
+
+type GetCandidateRecommendationProfilesByIDsRow struct {
+	ID                 int32            `json:"id"`
+	BirthDate          pgtype.Date      `json:"birth_date"`
+	CityID             pgtype.Int4      `json:"city_id"`
+	RelationPreference NullRelationType `json:"relation_preference"`
+	AnswerIds          []int32          `json:"answer_ids"`
+	InterestIds        []int32          `json:"interest_ids"`
+}
+
+func (q *Queries) GetCandidateRecommendationProfilesByIDs(ctx context.Context, dollar_1 []int32) ([]GetCandidateRecommendationProfilesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getCandidateRecommendationProfilesByIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCandidateRecommendationProfilesByIDsRow
+	for rows.Next() {
+		var i GetCandidateRecommendationProfilesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BirthDate,
+			&i.CityID,
+			&i.RelationPreference,
+			&i.AnswerIds,
+			&i.InterestIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCityByID = `-- name: GetCityByID :one
 SELECT id, state_id, name FROM cities WHERE id = $1 LIMIT 1
 `
@@ -1136,7 +1185,7 @@ func (q *Queries) GetInterestCategoryByID(ctx context.Context, id int32) (Intere
 }
 
 const getLatestMessageInConversation = `-- name: GetLatestMessageInConversation :one
-SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by FROM messages_by_conversation
+SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by, reply_to_message_id FROM messages_by_conversation
 WHERE conversation_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC, message_id ASC
 LIMIT 1
@@ -1161,6 +1210,7 @@ func (q *Queries) GetLatestMessageInConversation(ctx context.Context, conversati
 		&i.MimeType,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.ReplyToMessageID,
 	)
 	return i, err
 }
@@ -1208,6 +1258,88 @@ func (q *Queries) GetMessageIdempotency(ctx context.Context, arg GetMessageIdemp
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getMessageInConversation = `-- name: GetMessageInConversation :one
+SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by, reply_to_message_id FROM messages_by_conversation
+WHERE conversation_id = $1 AND message_id = $2
+LIMIT 1
+`
+
+type GetMessageInConversationParams struct {
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	MessageID      pgtype.UUID `json:"message_id"`
+}
+
+func (q *Queries) GetMessageInConversation(ctx context.Context, arg GetMessageInConversationParams) (MessagesByConversation, error) {
+	row := q.db.QueryRow(ctx, getMessageInConversation, arg.ConversationID, arg.MessageID)
+	var i MessagesByConversation
+	err := row.Scan(
+		&i.ConversationID,
+		&i.Bucket,
+		&i.CreatedAt,
+		&i.MessageID,
+		&i.SenderID,
+		&i.Content,
+		&i.ClientMessageID,
+		&i.MessageType,
+		&i.MediaUrl,
+		&i.Duration,
+		&i.AttachmentName,
+		&i.AttachmentSize,
+		&i.MimeType,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.ReplyToMessageID,
+	)
+	return i, err
+}
+
+const getMessagesByIDsInConversation = `-- name: GetMessagesByIDsInConversation :many
+SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by, reply_to_message_id FROM messages_by_conversation
+WHERE conversation_id = $1 AND message_id = ANY($2::uuid[])
+`
+
+type GetMessagesByIDsInConversationParams struct {
+	ConversationID pgtype.UUID   `json:"conversation_id"`
+	Column2        []pgtype.UUID `json:"column_2"`
+}
+
+func (q *Queries) GetMessagesByIDsInConversation(ctx context.Context, arg GetMessagesByIDsInConversationParams) ([]MessagesByConversation, error) {
+	rows, err := q.db.Query(ctx, getMessagesByIDsInConversation, arg.ConversationID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MessagesByConversation
+	for rows.Next() {
+		var i MessagesByConversation
+		if err := rows.Scan(
+			&i.ConversationID,
+			&i.Bucket,
+			&i.CreatedAt,
+			&i.MessageID,
+			&i.SenderID,
+			&i.Content,
+			&i.ClientMessageID,
+			&i.MessageType,
+			&i.MediaUrl,
+			&i.Duration,
+			&i.AttachmentName,
+			&i.AttachmentSize,
+			&i.MimeType,
+			&i.DeletedAt,
+			&i.DeletedBy,
+			&i.ReplyToMessageID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getPersonalityByUserID = `-- name: GetPersonalityByUserID :one
@@ -1541,29 +1673,30 @@ const insertMessage = `-- name: InsertMessage :one
 INSERT INTO messages_by_conversation (
     conversation_id, bucket, created_at, message_id, sender_id, content,
     client_message_id, message_type, media_url, duration, attachment_name,
-    attachment_size, mime_type
+    attachment_size, mime_type, reply_to_message_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
-    $12, $13
+    $12, $13, $14
 )
-RETURNING conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by
+RETURNING conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by, reply_to_message_id
 `
 
 type InsertMessageParams struct {
-	ConversationID  pgtype.UUID        `json:"conversation_id"`
-	Bucket          string             `json:"bucket"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	MessageID       pgtype.UUID        `json:"message_id"`
-	SenderID        int64              `json:"sender_id"`
-	Content         pgtype.Text        `json:"content"`
-	ClientMessageID pgtype.Text        `json:"client_message_id"`
-	MessageType     string             `json:"message_type"`
-	MediaUrl        pgtype.Text        `json:"media_url"`
-	Duration        pgtype.Float8      `json:"duration"`
-	AttachmentName  pgtype.Text        `json:"attachment_name"`
-	AttachmentSize  pgtype.Int8        `json:"attachment_size"`
-	MimeType        pgtype.Text        `json:"mime_type"`
+	ConversationID   pgtype.UUID        `json:"conversation_id"`
+	Bucket           string             `json:"bucket"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	MessageID        pgtype.UUID        `json:"message_id"`
+	SenderID         int64              `json:"sender_id"`
+	Content          pgtype.Text        `json:"content"`
+	ClientMessageID  pgtype.Text        `json:"client_message_id"`
+	MessageType      string             `json:"message_type"`
+	MediaUrl         pgtype.Text        `json:"media_url"`
+	Duration         pgtype.Float8      `json:"duration"`
+	AttachmentName   pgtype.Text        `json:"attachment_name"`
+	AttachmentSize   pgtype.Int8        `json:"attachment_size"`
+	MimeType         pgtype.Text        `json:"mime_type"`
+	ReplyToMessageID pgtype.UUID        `json:"reply_to_message_id"`
 }
 
 func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (MessagesByConversation, error) {
@@ -1581,6 +1714,7 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (M
 		arg.AttachmentName,
 		arg.AttachmentSize,
 		arg.MimeType,
+		arg.ReplyToMessageID,
 	)
 	var i MessagesByConversation
 	err := row.Scan(
@@ -1599,6 +1733,7 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) (M
 		&i.MimeType,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.ReplyToMessageID,
 	)
 	return i, err
 }
@@ -2037,6 +2172,40 @@ func (q *Queries) ListFriendsByUserID(ctx context.Context, senderID int32) ([]Li
 	return items, nil
 }
 
+const listGalleriesByUserIDs = `-- name: ListGalleriesByUserIDs :many
+SELECT id, user_id, image_url, description, likes_count, created_at, is_profile_picture FROM user_galleries
+WHERE user_id = ANY($1::int[])
+ORDER BY user_id ASC, id ASC
+`
+
+func (q *Queries) ListGalleriesByUserIDs(ctx context.Context, dollar_1 []int32) ([]UserGalleries, error) {
+	rows, err := q.db.Query(ctx, listGalleriesByUserIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserGalleries
+	for rows.Next() {
+		var i UserGalleries
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ImageUrl,
+			&i.Description,
+			&i.LikesCount,
+			&i.CreatedAt,
+			&i.IsProfilePicture,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInterestCategories = `-- name: ListInterestCategories :many
 SELECT id, name_en, name_fa, media FROM interest_categories ORDER BY id ASC
 `
@@ -2256,7 +2425,7 @@ func (q *Queries) ListMatchesByUserID(ctx context.Context, userOneID int32) ([]L
 }
 
 const listMessagesByConversationBucket = `-- name: ListMessagesByConversationBucket :many
-SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by FROM messages_by_conversation
+SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by, reply_to_message_id FROM messages_by_conversation
 WHERE conversation_id = $1 AND bucket = $2
 ORDER BY created_at DESC, message_id ASC
 LIMIT $3 OFFSET $4
@@ -2299,6 +2468,58 @@ func (q *Queries) ListMessagesByConversationBucket(ctx context.Context, arg List
 			&i.MimeType,
 			&i.DeletedAt,
 			&i.DeletedBy,
+			&i.ReplyToMessageID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMessagesByConversationCursor = `-- name: ListMessagesByConversationCursor :many
+SELECT conversation_id, bucket, created_at, message_id, sender_id, content, client_message_id, message_type, media_url, duration, attachment_name, attachment_size, mime_type, deleted_at, deleted_by, reply_to_message_id FROM messages_by_conversation
+WHERE conversation_id = $1
+  AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListMessagesByConversationCursorParams struct {
+	ConversationID pgtype.UUID        `json:"conversation_id"`
+	Limit          int32              `json:"limit"`
+	Before         pgtype.Timestamptz `json:"before"`
+}
+
+func (q *Queries) ListMessagesByConversationCursor(ctx context.Context, arg ListMessagesByConversationCursorParams) ([]MessagesByConversation, error) {
+	rows, err := q.db.Query(ctx, listMessagesByConversationCursor, arg.ConversationID, arg.Limit, arg.Before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MessagesByConversation
+	for rows.Next() {
+		var i MessagesByConversation
+		if err := rows.Scan(
+			&i.ConversationID,
+			&i.Bucket,
+			&i.CreatedAt,
+			&i.MessageID,
+			&i.SenderID,
+			&i.Content,
+			&i.ClientMessageID,
+			&i.MessageType,
+			&i.MediaUrl,
+			&i.Duration,
+			&i.AttachmentName,
+			&i.AttachmentSize,
+			&i.MimeType,
+			&i.DeletedAt,
+			&i.DeletedBy,
+			&i.ReplyToMessageID,
 		); err != nil {
 			return nil, err
 		}

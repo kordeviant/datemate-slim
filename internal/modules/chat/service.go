@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -58,10 +59,86 @@ func (s *Service) resolveAssetURL(raw string) string {
 	return common.ResolveAssetURL(s.cfg.AssetBaseURL, raw)
 }
 
+func (s *Service) buildReplyToDto(orig db.MessagesByConversation) *ReplyToDto {
+	msgIDStr := uuid.UUID(orig.MessageID.Bytes).String()
+	isDeleted := orig.DeletedAt.Valid
+	if isDeleted {
+		return &ReplyToDto{
+			MessageID: msgIDStr,
+			SenderID:  orig.SenderID,
+			Type:      orig.MessageType,
+			Content:   nil,
+			Url:       nil,
+			IsDeleted: true,
+		}
+	}
+
+	var cnt *string
+	if orig.Content.Valid && orig.Content.String != "" {
+		c := orig.Content.String
+		if len(c) > 200 {
+			c = c[:200]
+		}
+		cnt = &c
+	}
+
+	var urlPtr *string
+	if orig.MediaUrl.Valid && orig.MediaUrl.String != "" {
+		u := s.resolveAssetURL(orig.MediaUrl.String)
+		urlPtr = &u
+	}
+
+	return &ReplyToDto{
+		MessageID: msgIDStr,
+		SenderID:  orig.SenderID,
+		Type:      orig.MessageType,
+		Content:   cnt,
+		Url:       urlPtr,
+		IsDeleted: false,
+	}
+}
+
+func (s *Service) resolveRepliesForMessages(ctx context.Context, convUUID pgtype.UUID, replyIDs []pgtype.UUID) map[string]*ReplyToDto {
+	result := make(map[string]*ReplyToDto)
+	if len(replyIDs) == 0 || s.pool == nil {
+		return result
+	}
+
+	seen := make(map[string]struct{})
+	uniqueIDs := make([]pgtype.UUID, 0, len(replyIDs))
+	for _, id := range replyIDs {
+		if !id.Valid {
+			continue
+		}
+		idStr := uuid.UUID(id.Bytes).String()
+		if _, exists := seen[idStr]; !exists {
+			seen[idStr] = struct{}{}
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+	if len(uniqueIDs) == 0 {
+		return result
+	}
+
+	quotedMsgs, err := s.queries.GetMessagesByIDsInConversation(ctx, db.GetMessagesByIDsInConversationParams{
+		ConversationID: convUUID,
+		Column2:        uniqueIDs,
+	})
+	if err != nil {
+		return result
+	}
+
+	for _, qm := range quotedMsgs {
+		msgIDStr := uuid.UUID(qm.MessageID.Bytes).String()
+		result[msgIDStr] = s.buildReplyToDto(qm)
+	}
+	return result
+}
+
 func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.UUID) []RecentMessageDto {
 	rows, err := s.pool.Query(ctx, `
 		SELECT message_id, sender_id, content, created_at, message_type, media_url, duration,
-		       attachment_name, attachment_size, mime_type
+		       attachment_name, attachment_size, mime_type, reply_to_message_id
 		FROM messages_by_conversation
 		WHERE conversation_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -72,7 +149,13 @@ func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.U
 	}
 	defer rows.Close()
 
-	var list []RecentMessageDto
+	type rawRecent struct {
+		dto      RecentMessageDto
+		replyUID pgtype.UUID
+	}
+	var rawList []rawRecent
+	var replyIDs []pgtype.UUID
+
 	for rows.Next() {
 		var msgUUID pgtype.UUID
 		var senderID int64
@@ -83,8 +166,9 @@ func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.U
 		var dur pgtype.Float8
 		var attachName, mimeType pgtype.Text
 		var attachSize pgtype.Int8
+		var replyToUUID pgtype.UUID
 
-		if err := rows.Scan(&msgUUID, &senderID, &content, &createdAt, &msgType, &mediaUrl, &dur, &attachName, &attachSize, &mimeType); err != nil {
+		if err := rows.Scan(&msgUUID, &senderID, &content, &createdAt, &msgType, &mediaUrl, &dur, &attachName, &attachSize, &mimeType, &replyToUUID); err != nil {
 			continue
 		}
 
@@ -129,17 +213,37 @@ func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.U
 			cnt = content.String
 		}
 
-		list = append(list, RecentMessageDto{
-			MessageID:  uuid.UUID(msgUUID.Bytes).String(),
-			SenderID:   senderID,
-			Content:    cnt,
-			CreatedAt:  createdAt.UTC().Format(time.RFC3339Nano),
-			Type:       msgType,
-			Url:        urlPtr,
-			Duration:   durPtr,
-			Attachment: attach,
+		if replyToUUID.Valid {
+			replyIDs = append(replyIDs, replyToUUID)
+		}
+
+		rawList = append(rawList, rawRecent{
+			dto: RecentMessageDto{
+				MessageID:  uuid.UUID(msgUUID.Bytes).String(),
+				SenderID:   senderID,
+				Content:    cnt,
+				CreatedAt:  createdAt.UTC().Format(time.RFC3339Nano),
+				Type:       msgType,
+				Url:        urlPtr,
+				Duration:   durPtr,
+				Attachment: attach,
+			},
+			replyUID: replyToUUID,
 		})
 	}
+
+	repliesMap := s.resolveRepliesForMessages(ctx, conversationID, replyIDs)
+
+	var list []RecentMessageDto
+	for _, item := range rawList {
+		msg := item.dto
+		if item.replyUID.Valid {
+			rIDStr := uuid.UUID(item.replyUID.Bytes).String()
+			msg.ReplyTo = repliesMap[rIDStr]
+		}
+		list = append(list, msg)
+	}
+
 	// Reverse to chronological order (oldest to newest)
 	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 {
 		list[i], list[j] = list[j], list[i]
@@ -466,6 +570,9 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 			Type:      lastRecent.Type,
 		}
 	}
+	if lastMsg != nil && len(recent) > 0 {
+		lastMsg.ReplyTo = recent[len(recent)-1].ReplyTo
+	}
 
 	isGroup := strings.EqualFold(conv.ConversationType, "GROUP")
 	var membersCount *int
@@ -593,6 +700,9 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 				Type:      lastRecent.Type,
 			}
 		}
+		if lastMsg != nil && len(recent) > 0 {
+			lastMsg.ReplyTo = recent[len(recent)-1].ReplyTo
+		}
 
 		res = append(res, ConversationDto{
 			ConversationID:      convUUIDStr,
@@ -637,16 +747,28 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 		limit = 30
 	}
 
-	bucket := common.GetBucket(time.Now().UTC())
-	offset := 0
-
+	var beforeTimestamptz pgtype.Timestamptz
 	if cursorStr != "" {
 		cursorData, err := common.DecodeCursor(cursorStr)
 		if err == nil && cursorData != nil {
-			if cursorData.Bucket != "" {
-				bucket = cursorData.Bucket
+			if cursorData.T > 1e12 {
+				beforeTimestamptz = pgtype.Timestamptz{
+					Time:  time.UnixMicro(cursorData.T).UTC(),
+					Valid: true,
+				}
+			} else if cursorData.T > 0 {
+				beforeTimestamptz = pgtype.Timestamptz{
+					Time:  time.UnixMilli(cursorData.T).UTC(),
+					Valid: true,
+				}
+			} else if cursorData.Bucket != "" {
+				if t, err := time.Parse("20060102", cursorData.Bucket); err == nil {
+					beforeTimestamptz = pgtype.Timestamptz{
+						Time:  t.Add(24 * time.Hour).UTC(),
+						Valid: true,
+					}
+				}
 			}
-			offset = cursorData.Offset
 		}
 	}
 
@@ -660,121 +782,115 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 		}
 	}
 
-	items := make([]MessageItemDto, 0)
-	currentBucket := bucket
-	bucketOffset := offset
-	lookbackDays := 0
+	// Optimized cursor-based query across all date buckets in a single index scan
+	fetchLimit := int32(limit + 10)
+	rows, err := s.queries.ListMessagesByConversationCursor(ctx, db.ListMessagesByConversationCursorParams{
+		ConversationID: pgUUID,
+		Limit:          fetchLimit,
+		Before:         beforeTimestamptz,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list messages: %w", err)
+	}
+
+	var replyIDs []pgtype.UUID
+	for _, r := range rows {
+		if r.ReplyToMessageID.Valid {
+			replyIDs = append(replyIDs, r.ReplyToMessageID)
+		}
+	}
+	repliesMap := s.resolveRepliesForMessages(ctx, pgUUID, replyIDs)
+
+	items := make([]MessageItemDto, 0, limit)
 	hasMore := false
 	var nextCursor *string
+	var lastItemTime time.Time
 
-	for len(items) < limit && lookbackDays < 30 {
-		needed := limit - len(items)
-		rows, err := s.queries.ListMessagesByConversationBucket(ctx, db.ListMessagesByConversationBucketParams{
-			ConversationID: pgUUID,
-			Bucket:         currentBucket,
-			Limit:          int32(needed + 1),
-			Offset:         int32(bucketOffset),
-		})
-		if err != nil {
-			break
-		}
-
-		bucketHasMore := len(rows) > needed
-		takeRows := rows
-		if bucketHasMore {
-			takeRows = rows[:needed]
-		}
-
-		for _, r := range takeRows {
-			msgUUIDStr := uuid.UUID(r.MessageID.Bytes).String()
-			if r.DeletedAt.Valid {
-				continue
-			}
-			if _, ok := deletedForUserMap[msgUUIDStr]; ok {
-				continue
-			}
-			var clientMsgID *string
-			if r.ClientMessageID.Valid {
-				clientMsgID = &r.ClientMessageID.String
-			}
-			var urlPtr *string
-			if r.MediaUrl.Valid && r.MediaUrl.String != "" {
-				u := s.resolveAssetURL(r.MediaUrl.String)
-				urlPtr = &u
-			}
-			var durPtr *float64
-			if r.Duration.Valid {
-				durPtr = &r.Duration.Float64
-			}
-
-			var attachment *MessageAttachmentDto
-			normType := normalizeMessageType(r.MessageType)
-			if urlPtr != nil {
-				var fn *string
-				if r.AttachmentName.Valid {
-					fn = &r.AttachmentName.String
-				}
-				var fs *int64
-				if r.AttachmentSize.Valid {
-					fs = &r.AttachmentSize.Int64
-				}
-				var mt *string
-				if r.MimeType.Valid {
-					mt = &r.MimeType.String
-				}
-				attachment = &MessageAttachmentDto{
-					Url:      *urlPtr,
-					Type:     normType,
-					Duration: durPtr,
-					FileName: fn,
-					FileSize: fs,
-					MimeType: mt,
-				}
-			}
-
-			items = append(items, MessageItemDto{
-				MessageID:       msgUUIDStr,
-				ConversationID:  conversationID,
-				SenderID:        r.SenderID,
-				Content:         r.Content.String,
-				CreatedAt:       r.CreatedAt.Time.UTC().Format(time.RFC3339Nano),
-				ClientMessageID: clientMsgID,
-				Type:            normType,
-				Url:             urlPtr,
-				Duration:        durPtr,
-				Attachment:      attachment,
-			})
-		}
-
-		if bucketHasMore {
-			hasMore = true
-			cStr, err := common.EncodeCursor(common.PageCursorData{
-				Bucket: currentBucket,
-				Offset: bucketOffset + len(takeRows),
-				T:      time.Now().UnixMilli(),
-			})
-			if err == nil {
-				nextCursor = &cStr
-			}
-			break
-		}
-
-		// Current bucket exhausted; move to previous day bucket
-		currentBucket = common.GetPreviousBucket(currentBucket)
-		bucketOffset = 0
-		lookbackDays++
-
+	for _, r := range rows {
 		if len(items) >= limit {
 			hasMore = true
-			cStr, err := common.EncodeCursor(common.PageCursorData{
-				Bucket: currentBucket,
-				Offset: 0,
-				T:      time.Now().UnixMilli(),
-			})
-			if err == nil {
-				nextCursor = &cStr
-			}
 			break
+		}
+
+		msgUUIDStr := uuid.UUID(r.MessageID.Bytes).String()
+		if r.DeletedAt.Valid {
+			continue
+		}
+		if _, ok := deletedForUserMap[msgUUIDStr]; ok {
+			continue
+		}
+		var clientMsgID *string
+		if r.ClientMessageID.Valid {
+			clientMsgID = &r.ClientMessageID.String
+		}
+		var urlPtr *string
+		if r.MediaUrl.Valid && r.MediaUrl.String != "" {
+			u := s.resolveAssetURL(r.MediaUrl.String)
+			urlPtr = &u
+		}
+		var durPtr *float64
+		if r.Duration.Valid {
+			durPtr = &r.Duration.Float64
+		}
+
+		var attachment *MessageAttachmentDto
+		normType := normalizeMessageType(r.MessageType)
+		if urlPtr != nil {
+			var fn *string
+			if r.AttachmentName.Valid {
+				fn = &r.AttachmentName.String
+			}
+			var fs *int64
+			if r.AttachmentSize.Valid {
+				fs = &r.AttachmentSize.Int64
+			}
+			var mt *string
+			if r.MimeType.Valid {
+				mt = &r.MimeType.String
+			}
+			attachment = &MessageAttachmentDto{
+				Url:      *urlPtr,
+				Type:     normType,
+				Duration: durPtr,
+				FileName: fn,
+				FileSize: fs,
+				MimeType: mt,
+			}
+		}
+
+		var replyDto *ReplyToDto
+		if r.ReplyToMessageID.Valid {
+			rIDStr := uuid.UUID(r.ReplyToMessageID.Bytes).String()
+			replyDto = repliesMap[rIDStr]
+		}
+
+		lastItemTime = r.CreatedAt.Time.UTC()
+		items = append(items, MessageItemDto{
+			MessageID:       msgUUIDStr,
+			ConversationID:  conversationID,
+			SenderID:        r.SenderID,
+			Content:         r.Content.String,
+			CreatedAt:       r.CreatedAt.Time.UTC().Format(time.RFC3339Nano),
+			ClientMessageID: clientMsgID,
+			Type:            normType,
+			Url:             urlPtr,
+			Duration:        durPtr,
+			Attachment:      attachment,
+			ReplyTo:         replyDto,
+		})
+	}
+
+	if int(fetchLimit) > len(items) && len(rows) == int(fetchLimit) {
+		hasMore = true
+	}
+
+	if hasMore && !lastItemTime.IsZero() {
+		cStr, err := common.EncodeCursor(common.PageCursorData{
+			Bucket: common.GetBucket(lastItemTime),
+			T:      lastItemTime.UnixMicro(),
+		})
+		if err == nil {
+			nextCursor = &cStr
 		}
 	}
 
@@ -844,7 +960,7 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 		if strings.EqualFold(convRow.ConversationType, "direct") {
 			for _, rID := range recipients {
 				if rID != senderID && s.IsBlocked(ctx, senderID, rID) {
-					return nil, common.NewAppError(http.StatusForbidden, common.ErrForbidden, "You cannot send messages to this user because of block settings")
+					return nil, common.NewAppError(http.StatusForbidden, common.ErrBlocked, "You cannot send messages to this user because of block settings")
 				}
 			}
 		}
@@ -919,6 +1035,18 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 					dto.Attachment.Url = u
 				}
 			}
+			var exReplyDto *ReplyToDto
+			if exMsgRow, err := s.queries.GetMessageInConversation(ctx, db.GetMessageInConversationParams{
+				ConversationID: pgUUID,
+				MessageID:      existing.MessageID,
+			}); err == nil && exMsgRow.ReplyToMessageID.Valid {
+				if qm, err := s.queries.GetMessageInConversation(ctx, db.GetMessageInConversationParams{
+					ConversationID: pgUUID,
+					MessageID:      exMsgRow.ReplyToMessageID,
+				}); err == nil {
+					exReplyDto = s.buildReplyToDto(qm)
+				}
+			}
 			return &SendMessageResult{
 				Message: MessageItemDto{
 					MessageID:       exMsgUUID,
@@ -931,6 +1059,7 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 					Url:             exUrlPtr,
 					Duration:        dto.Duration,
 					Attachment:      dto.Attachment,
+					ReplyTo:         exReplyDto,
 				},
 				RecipientUserIDs: recipients,
 				IsDuplicate:      true,
@@ -938,7 +1067,29 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 		}
 	}
 
-	// 5. Insert message into messages_by_conversation
+	// 5. Resolve and validate optional replyToMessageId
+	var replyToMsgUUID pgtype.UUID
+	var replyToDto *ReplyToDto
+	if dto.ReplyToMessageID != nil && strings.TrimSpace(*dto.ReplyToMessageID) != "" {
+		parsedReplyUUID, err := uuid.Parse(strings.TrimSpace(*dto.ReplyToMessageID))
+		if err != nil {
+			return nil, common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid replyToMessageId format")
+		}
+		replyToMsgUUID = pgtype.UUID{Bytes: parsedReplyUUID, Valid: true}
+
+		// Verify target message exists in the same conversation
+		quotedRow, err := s.queries.GetMessageInConversation(ctx, db.GetMessageInConversationParams{
+			ConversationID: pgUUID,
+			MessageID:      replyToMsgUUID,
+		})
+		if err != nil {
+			return nil, common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Quoted reply message not found in this conversation")
+		}
+
+		replyToDto = s.buildReplyToDto(quotedRow)
+	}
+
+	// 6. Insert message into messages_by_conversation
 	var dur pgtype.Float8
 	if dto.Duration != nil {
 		dur = pgtype.Float8{Float64: *dto.Duration, Valid: true}
@@ -958,19 +1109,20 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 	}
 
 	inserted, err := s.queries.InsertMessage(ctx, db.InsertMessageParams{
-		ConversationID:  pgUUID,
-		Bucket:          bucket,
-		CreatedAt:       pgtype.Timestamptz{Time: now, Valid: true},
-		MessageID:       pgMsgUUID,
-		SenderID:        senderID,
-		Content:         pgtype.Text{String: dto.Content, Valid: true},
-		ClientMessageID: pgtype.Text{String: dto.ClientMessageID, Valid: true},
-		MessageType:     msgType,
-		MediaUrl:        pgtype.Text{String: mediaUrl, Valid: mediaUrl != ""},
-		Duration:        dur,
-		AttachmentName:  attachName,
-		AttachmentSize:  attachSize,
-		MimeType:        mimeType,
+		ConversationID:   pgUUID,
+		Bucket:           bucket,
+		CreatedAt:        pgtype.Timestamptz{Time: now, Valid: true},
+		MessageID:        pgMsgUUID,
+		SenderID:         senderID,
+		Content:          pgtype.Text{String: dto.Content, Valid: true},
+		ClientMessageID:  pgtype.Text{String: dto.ClientMessageID, Valid: true},
+		MessageType:      msgType,
+		MediaUrl:         pgtype.Text{String: mediaUrl, Valid: mediaUrl != ""},
+		Duration:         dur,
+		AttachmentName:   attachName,
+		AttachmentSize:   attachSize,
+		MimeType:         mimeType,
+		ReplyToMessageID: replyToMsgUUID,
 	})
 	if err != nil {
 		return nil, err
@@ -1088,6 +1240,7 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 			Url:             urlPtr,
 			Duration:        dto.Duration,
 			Attachment:      dto.Attachment,
+			ReplyTo:         replyToDto,
 		},
 		RecipientUserIDs: recipients,
 		IsDuplicate:      false,
@@ -1764,4 +1917,100 @@ func formatMediaPreview(msgType, fileName string) string {
 		}
 		return "[Attachment]"
 	}
+}
+
+func (s *Service) SetUserTyping(ctx context.Context, conversationID string, userID int64, action string) (*TypingUserDto, error) {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return nil, common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	if s.pool != nil {
+		_, err := s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+			ConversationID: pgtype.UUID{Bytes: convUUID, Valid: true},
+			UserID:         userID,
+		})
+		if err != nil {
+			return nil, common.NewAppError(http.StatusForbidden, common.ErrForbidden, "You are not a member of this conversation")
+		}
+	}
+
+	action = strings.ToLower(strings.TrimSpace(action))
+	switch action {
+	case "recording_voice", "uploading_media", "typing":
+		// valid
+	default:
+		action = "typing"
+	}
+
+	username := ""
+	firstName := ""
+	if s.pool != nil {
+		if prof, err := s.queries.GetProfileByUserID(ctx, int32(userID)); err == nil {
+			username = prof.Username.String
+			firstName = prof.FirstName
+		}
+	}
+
+	typingUser := &TypingUserDto{
+		UserID:    userID,
+		Username:  username,
+		FirstName: firstName,
+		Action:    action,
+	}
+
+	if s.rdb != nil {
+		key := fmt.Sprintf("typing:conv:%s:%d", conversationID, userID)
+		b, _ := json.Marshal(typingUser)
+		_ = s.rdb.Raw().Set(ctx, key, string(b), 6*time.Second).Err()
+	}
+
+	return typingUser, nil
+}
+
+func (s *Service) ClearUserTyping(ctx context.Context, conversationID string, userID int64) error {
+	if s.rdb != nil {
+		key := fmt.Sprintf("typing:conv:%s:%d", conversationID, userID)
+		_ = s.rdb.Raw().Del(ctx, key).Err()
+	}
+	return nil
+}
+
+func (s *Service) GetActiveTypingUsers(ctx context.Context, conversationID string, currentUserID int64) ([]TypingUserDto, error) {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return nil, common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	if s.pool != nil {
+		_, err := s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+			ConversationID: pgtype.UUID{Bytes: convUUID, Valid: true},
+			UserID:         currentUserID,
+		})
+		if err != nil {
+			return nil, common.NewAppError(http.StatusForbidden, common.ErrForbidden, "You are not a member of this conversation")
+		}
+	}
+
+	results := make([]TypingUserDto, 0)
+	if s.rdb == nil {
+		return results, nil
+	}
+
+	pattern := fmt.Sprintf("typing:conv:%s:*", conversationID)
+	keys, err := s.rdb.Raw().Keys(ctx, pattern).Result()
+	if err != nil || len(keys) == 0 {
+		return results, nil
+	}
+
+	for _, k := range keys {
+		val, err := s.rdb.Raw().Get(ctx, k).Result()
+		if err == nil && val != "" {
+			var tu TypingUserDto
+			if err := json.Unmarshal([]byte(val), &tu); err == nil {
+				if tu.UserID != currentUserID {
+					results = append(results, tu)
+				}
+			}
+		}
+	}
+	return results, nil
 }

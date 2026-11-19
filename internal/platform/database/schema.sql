@@ -539,6 +539,7 @@ CREATE TABLE IF NOT EXISTS "messages_by_conversation" (
     "mime_type" TEXT,
     "deleted_at" TIMESTAMPTZ,
     "deleted_by" BIGINT,
+    "reply_to_message_id" UUID,
     PRIMARY KEY ("conversation_id", "bucket", "created_at", "message_id")
 );
 
@@ -636,6 +637,8 @@ CREATE TABLE IF NOT EXISTS "user_presence" (
 );
 
 CREATE INDEX IF NOT EXISTS "idx_messages_timeline" ON "messages_by_conversation" ("conversation_id", "bucket", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_messages_conversation_created" ON "messages_by_conversation" ("conversation_id", "created_at" DESC);
+CREATE INDEX IF NOT EXISTS "idx_user_galleries_user_id" ON "user_galleries" ("user_id", "id" ASC);
 CREATE INDEX IF NOT EXISTS "idx_user_conv_timeline" ON "conversations_by_user" ("user_id", "last_message_at" DESC);
 CREATE INDEX IF NOT EXISTS "idx_conv_members_user" ON "conversation_members" ("user_id");
 CREATE INDEX IF NOT EXISTS "idx_group_rel_group_status" ON "group_relationships_by_group_and_status" ("conversation_id", "status");

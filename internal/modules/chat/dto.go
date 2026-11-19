@@ -19,6 +19,32 @@ type AddGroupMemberPayload struct {
 	UserIDs []int64 `json:"userIds,omitempty"`
 }
 
+type ReplyToDto struct {
+	MessageID string  `json:"messageId"`
+	SenderID  int64   `json:"senderId"`
+	Type      string  `json:"type"`
+	Content   *string `json:"content"`
+	Url       *string `json:"url"`
+	IsDeleted bool    `json:"isDeleted"`
+}
+
+type TypingPayload struct {
+	ConversationID string `json:"conversationId"`
+	Action         string `json:"action,omitempty"` // "typing" | "recording_voice" | "uploading_media"
+}
+
+type TypingUserDto struct {
+	UserID    int64  `json:"userId"`
+	Username  string `json:"username"`
+	FirstName string `json:"firstName"`
+	Action    string `json:"action"` // "typing" | "recording_voice" | "uploading_media"
+}
+
+type ActiveTypingResponseDto struct {
+	ConversationID string          `json:"conversationId"`
+	TypingUsers    []TypingUserDto `json:"typingUsers"`
+}
+
 type LastMessageDto struct {
 	MessageID  string                `json:"messageId,omitempty"`
 	SenderID   int64                 `json:"senderId"`
@@ -28,6 +54,7 @@ type LastMessageDto struct {
 	Url        *string               `json:"url,omitempty"`
 	Duration   *float64              `json:"duration,omitempty"`
 	Attachment *MessageAttachmentDto `json:"attachment,omitempty"`
+	ReplyTo    *ReplyToDto           `json:"replyTo,omitempty"`
 }
 
 type RecentMessageDto struct {
@@ -39,6 +66,7 @@ type RecentMessageDto struct {
 	Url        *string               `json:"url,omitempty"`
 	Duration   *float64              `json:"duration,omitempty"`
 	Attachment *MessageAttachmentDto `json:"attachment,omitempty"`
+	ReplyTo    *ReplyToDto           `json:"replyTo"`
 }
 
 type ConversationDto struct {
@@ -119,17 +147,19 @@ type MessageItemDto struct {
 	Url             *string               `json:"url,omitempty"`
 	Duration        *float64              `json:"duration,omitempty"`
 	Attachment      *MessageAttachmentDto `json:"attachment,omitempty"`
+	ReplyTo         *ReplyToDto           `json:"replyTo"`
 }
 
 type SendMessageWsDto struct {
-	ConversationID  string                `json:"conversationId"`
-	ClientMessageID string                `json:"clientMessageId"`
-	Content         string                `json:"content"`
-	Type            string                `json:"type,omitempty"`
-	Url             string                `json:"url,omitempty"`
-	Duration        *float64              `json:"duration,omitempty"`
-	Attachment      *MessageAttachmentDto `json:"attachment,omitempty"`
-	SenderName      string                `json:"senderName,omitempty"`
+	ConversationID   string                `json:"conversationId"`
+	ClientMessageID  string                `json:"clientMessageId"`
+	Content          string                `json:"content"`
+	Type             string                `json:"type,omitempty"`
+	Url              string                `json:"url,omitempty"`
+	Duration         *float64              `json:"duration,omitempty"`
+	Attachment       *MessageAttachmentDto `json:"attachment,omitempty"`
+	SenderName       string                `json:"senderName,omitempty"`
+	ReplyToMessageID *string               `json:"replyToMessageId,omitempty"`
 }
 
 type JoinConversationWsDto struct {

@@ -76,6 +76,7 @@ func (h *Handler) registerProtected(pr chi.Router) {
 	pr.Get("/conversations/{conversationId}", h.GetConversationDetails)
 	pr.Get("/conversations/{conversationId}/messages", h.GetMessageHistory)
 	pr.Post("/conversations/{conversationId}/read", h.MarkConversationRead)
+	pr.Get("/conversations/{conversationId}/typing", h.GetActiveTypingUsers)
 	pr.Delete("/conversations/{conversationId}/messages/{messageId}", h.DeleteMessage)
 
 	// Groups
@@ -803,5 +804,25 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		"conversationId": convID,
 		"messageId":      msgID,
 		"forEveryone":    forEveryone,
+	})
+}
+
+func (h *Handler) GetActiveTypingUsers(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	convID := chi.URLParam(r, "conversationId")
+	if convID == "" {
+		common.RespondError(w, http.StatusBadRequest, "conversationId is required", common.ErrBadRequest)
+		return
+	}
+
+	typings, err := h.svc.GetActiveTypingUsers(r.Context(), convID, u.ID)
+	if err != nil {
+		h.respondAppError(w, err)
+		return
+	}
+
+	h.respondSuccess(w, http.StatusOK, "Active typing users retrieved successfully", ActiveTypingResponseDto{
+		ConversationID: convID,
+		TypingUsers:    typings,
 	})
 }

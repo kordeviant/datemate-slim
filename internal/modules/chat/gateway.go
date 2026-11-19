@@ -564,7 +564,9 @@ func (gw *Gateway) attachNamespaceHandlers(nsp socket.Namespace) {
 					"url":             res.Message.Url,
 					"duration":        res.Message.Duration,
 					"attachment":      res.Message.Attachment,
+					"replyTo":         res.Message.ReplyTo,
 				}
+				_ = gw.svc.ClearUserTyping(ctx, dto.ConversationID, userData.UserID)
 				// 1. Broadcast to conversation room members
 				nsp.To(socket.Room(roomName)).Emit("message.created", msgPayload)
 
@@ -866,5 +868,137 @@ func (gw *Gateway) attachNamespaceHandlers(nsp socket.Namespace) {
 		}
 		s.On("user.unblock", handleUnblock)
 		s.On("user:unblock", handleUnblock)
+
+		// Typing indicator events (Card #106 / Card Chat List)
+		handleTypingStart := func(eArgs ...any) {
+			var ack socket.Ack
+			var payload TypingPayload
+
+			for _, a := range eArgs {
+				if fn, ok := a.(socket.Ack); ok {
+					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					if cid, ok := m["conversationId"].(string); ok {
+						payload.ConversationID = cid
+					} else if cid, ok := m["conversation_id"].(string); ok {
+						payload.ConversationID = cid
+					} else if cid, ok := m["id"].(string); ok {
+						payload.ConversationID = cid
+					}
+					if act, ok := m["action"].(string); ok {
+						payload.Action = act
+					}
+				}
+			}
+
+			if payload.ConversationID == "" {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": "conversationId is required",
+					}}, nil)
+				}
+				return
+			}
+
+			ctx := context.Background()
+			typingUser, err := gw.svc.SetUserTyping(ctx, payload.ConversationID, userData.UserID, payload.Action)
+			if err != nil {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": err.Error(),
+					}}, nil)
+				}
+				return
+			}
+
+			// Broadcast to conversation room members (excluding sender)
+			roomName := "conversation:" + payload.ConversationID
+			eventData := map[string]interface{}{
+				"conversationId": payload.ConversationID,
+				"userId":         typingUser.UserID,
+				"username":       typingUser.Username,
+				"firstName":      typingUser.FirstName,
+				"action":         typingUser.Action,
+			}
+			s.Broadcast().To(socket.Room(roomName)).Emit("user.typing", eventData)
+			s.Broadcast().To(socket.Room(roomName)).Emit("typing.start", eventData)
+
+			if ack != nil {
+				ack([]any{map[string]interface{}{
+					"success": true,
+					"status":  "success",
+					"data":    eventData,
+				}}, nil)
+			}
+		}
+
+		handleTypingStop := func(eArgs ...any) {
+			var ack socket.Ack
+			var convID string
+
+			for _, a := range eArgs {
+				if fn, ok := a.(socket.Ack); ok {
+					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					if cid, ok := m["conversationId"].(string); ok {
+						convID = cid
+					} else if cid, ok := m["conversation_id"].(string); ok {
+						convID = cid
+					} else if cid, ok := m["id"].(string); ok {
+						convID = cid
+					}
+				} else if sID, ok := a.(string); ok {
+					convID = sID
+				}
+			}
+
+			if convID == "" {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": "conversationId is required",
+					}}, nil)
+				}
+				return
+			}
+
+			ctx := context.Background()
+			_ = gw.svc.ClearUserTyping(ctx, convID, userData.UserID)
+
+			roomName := "conversation:" + convID
+			stopData := map[string]interface{}{
+				"conversationId": convID,
+				"userId":         userData.UserID,
+			}
+			s.Broadcast().To(socket.Room(roomName)).Emit("user.stop_typing", stopData)
+			s.Broadcast().To(socket.Room(roomName)).Emit("typing.stop", stopData)
+
+			if ack != nil {
+				ack([]any{map[string]interface{}{
+					"success": true,
+					"status":  "success",
+					"data":    stopData,
+				}}, nil)
+			}
+		}
+
+		s.On("typing.start", handleTypingStart)
+		s.On("typing:start", handleTypingStart)
+		s.On("conversation.typing", handleTypingStart)
+		s.On("conversation:typing", handleTypingStart)
+
+		s.On("typing.stop", handleTypingStop)
+		s.On("typing:stop", handleTypingStop)
+		s.On("conversation.typing.stop", handleTypingStop)
+		s.On("conversation:typing:stop", handleTypingStop)
 	})
 }

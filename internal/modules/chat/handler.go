@@ -75,6 +75,8 @@ func (h *Handler) registerProtected(pr chi.Router) {
 	pr.Post("/conversations/groups", h.CreateGroupConversation)
 	pr.Get("/conversations/{conversationId}", h.GetConversationDetails)
 	pr.Get("/conversations/{conversationId}/messages", h.GetMessageHistory)
+	pr.Post("/conversations/{conversationId}/read", h.MarkConversationRead)
+	pr.Delete("/conversations/{conversationId}/messages/{messageId}", h.DeleteMessage)
 
 	// Groups
 	pr.Post("/groups", h.CreateGroup)
@@ -747,4 +749,59 @@ func (h *Handler) ApproveJoinRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.respondSuccess(w, http.StatusOK, "Group join request approved", map[string]interface{}{"success": true})
+}
+
+func (h *Handler) MarkConversationRead(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	convID := chi.URLParam(r, "conversationId")
+	if convID == "" {
+		h.respondError(w, http.StatusBadRequest, "conversationId is required", common.ErrBadRequest)
+		return
+	}
+
+	var payload MarkConversationReadPayload
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+	}
+
+	if err := h.svc.MarkConversationAsRead(r.Context(), convID, u.ID, payload.MessageID); err != nil {
+		h.respondAppError(w, err)
+		return
+	}
+
+	h.respondSuccess(w, http.StatusOK, "Conversation marked as read", map[string]interface{}{
+		"conversationId": convID,
+		"unreadCount":    0,
+	})
+}
+
+func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	convID := chi.URLParam(r, "conversationId")
+	msgID := chi.URLParam(r, "messageId")
+	if convID == "" || msgID == "" {
+		h.respondError(w, http.StatusBadRequest, "conversationId and messageId are required", common.ErrBadRequest)
+		return
+	}
+
+	forEveryone := false
+	if q := r.URL.Query().Get("forEveryone"); q != "" {
+		forEveryone = strings.EqualFold(q, "true") || q == "1"
+	} else if r.Body != nil {
+		var payload DeleteMessagePayload
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil && payload.ForEveryone != nil {
+			forEveryone = *payload.ForEveryone
+		}
+	}
+
+	if err := h.svc.DeleteMessage(r.Context(), convID, msgID, u.ID, forEveryone); err != nil {
+		h.respondAppError(w, err)
+		return
+	}
+
+	h.respondSuccess(w, http.StatusOK, "Message deleted successfully", map[string]interface{}{
+		"conversationId": convID,
+		"messageId":      msgID,
+		"forEveryone":    forEveryone,
+	})
 }

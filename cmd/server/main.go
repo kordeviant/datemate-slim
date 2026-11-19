@@ -109,7 +109,7 @@ func main() {
 	geoService := geo.NewService(cfg.GeoDataDir)
 
 	// 7. Initialize Mailer Service
-	mailer := mail.NewService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFrom)
+	mailer := mail.NewService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPPass, cfg.SMTPFrom, cfg.SMTPSecure)
 
 	// 8. Initialize FCM Push Dispatcher
 	fcmDispatcher := fcm.NewDispatcher(pool, cfg.FCMMockMode, 4, 1000, cfg.FirebaseCredentialsPath, cfg.FirebaseServiceAccountJSON)
@@ -134,6 +134,7 @@ func main() {
 	friendsHandler := friends.NewHandler(friendsSvc, cfg, pool)
 	chatHandler := chat.NewHandler(chatSvc, cfg, pool)
 	chatGateway := chat.NewGateway(chatSvc, cfg, pool, rdb)
+	userSvc.SetBroadcaster(chatGateway)
 	mediaHandler := media.NewHandler(cfg, storageEngine)
 	notificationsHandler := notifications.NewHandler(cfg, fcmDispatcher)
 	questionsHandler := questions.NewHandler(questionsSvc, cfg, pool)

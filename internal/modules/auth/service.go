@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 	"time"
@@ -146,7 +147,11 @@ func (s *Service) SignUp(ctx context.Context, email, password string) error {
 	_ = s.rdb.Raw().Set(ctx, fmt.Sprintf("signup:pending:%s", email), string(pendingPayload), 10*time.Minute).Err()
 	_ = s.rdb.Raw().Set(ctx, fmt.Sprintf("signup:code:%s", code), email, 10*time.Minute).Err()
 
-	_ = s.mailer.SendEmail(ctx, email, "DateMate Verification Code", fmt.Sprintf("Your DateMate verification code is: %s", code))
+	log.Printf("[AUTH] Verification OTP code generated for %s: %s", email, code)
+	emailBody := mail.FormatVerificationEmail(code)
+	if err := s.mailer.SendEmail(ctx, email, "DateMate Verification Code", emailBody); err != nil {
+		log.Printf("[ERROR auth SignUp] Failed to deliver verification email to %s: %v", email, err)
+	}
 	return nil
 }
 
@@ -318,7 +323,11 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 	code := GenerateOTP(6)
 	key := fmt.Sprintf("otp:reset:%s", email)
 	_ = s.rdb.Raw().Set(ctx, key, code, 10*time.Minute).Err()
-	_ = s.mailer.SendEmail(ctx, user.Email, "DateMate Password Reset", fmt.Sprintf("Your reset code is: %s", code))
+	log.Printf("[AUTH] Password reset OTP code generated for %s: %s", email, code)
+	emailBody := mail.FormatPasswordResetEmail(code)
+	if err := s.mailer.SendEmail(ctx, user.Email, "DateMate Password Reset", emailBody); err != nil {
+		log.Printf("[ERROR auth ForgotPassword] Failed to deliver password reset email to %s: %v", user.Email, err)
+	}
 	return nil
 }
 

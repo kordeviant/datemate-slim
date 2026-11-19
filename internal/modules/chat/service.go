@@ -2,6 +2,8 @@ package chat
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,13 +19,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type Broadcaster interface {
+	BroadcastToRoom(room string, event string, data interface{})
+}
+
 type Service struct {
-	cfg        *config.Config
-	pool       *pgxpool.Pool
-	queries    *db.Queries
-	rdb        *platformRedis.Client
-	dispatcher *fcm.Dispatcher
-	storage    storage.Engine
+	cfg         *config.Config
+	pool        *pgxpool.Pool
+	queries     *db.Queries
+	rdb         *platformRedis.Client
+	dispatcher  *fcm.Dispatcher
+	storage     storage.Engine
+	broadcaster Broadcaster
+}
+
+func (s *Service) SetBroadcaster(b Broadcaster) {
+	s.broadcaster = b
 }
 
 func NewService(
@@ -52,7 +63,7 @@ func (s *Service) getRecentMessages(ctx context.Context, conversationID pgtype.U
 		SELECT message_id, sender_id, content, created_at, message_type, media_url, duration,
 		       attachment_name, attachment_size, mime_type
 		FROM messages_by_conversation
-		WHERE conversation_id = $1
+		WHERE conversation_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
 		LIMIT 20
 	`, conversationID)
@@ -484,6 +495,7 @@ func (s *Service) GetConversationDetails(ctx context.Context, conversationID str
 		LastUsers:           lastUsers,
 		RecentMessages:      recent,
 		PeerActivity:        peerActivity,
+		UnreadCount:         s.GetUnreadCount(ctx, conversationID, currentUserID),
 	}, nil
 }
 
@@ -598,6 +610,7 @@ func (s *Service) ListConversations(ctx context.Context, currentUserID int64, co
 			LastUsers:           lastUsers,
 			RecentMessages:      recent,
 			PeerActivity:        peerActivity,
+			UnreadCount:         s.GetUnreadCount(ctx, convUUIDStr, currentUserID),
 		})
 	}
 
@@ -637,6 +650,16 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 		}
 	}
 
+	deletedForUserMap := make(map[string]struct{})
+	if delRows, err := s.queries.ListDeletedMessageIDsForUser(ctx, db.ListDeletedMessageIDsForUserParams{
+		ConversationID: pgUUID,
+		UserID:         currentUserID,
+	}); err == nil {
+		for _, dm := range delRows {
+			deletedForUserMap[uuid.UUID(dm.Bytes).String()] = struct{}{}
+		}
+	}
+
 	items := make([]MessageItemDto, 0)
 	currentBucket := bucket
 	bucketOffset := offset
@@ -664,6 +687,12 @@ func (s *Service) GetMessageHistory(ctx context.Context, conversationID string, 
 
 		for _, r := range takeRows {
 			msgUUIDStr := uuid.UUID(r.MessageID.Bytes).String()
+			if r.DeletedAt.Valid {
+				continue
+			}
+			if _, ok := deletedForUserMap[msgUUIDStr]; ok {
+				continue
+			}
 			var clientMsgID *string
 			if r.ClientMessageID.Valid {
 				clientMsgID = &r.ClientMessageID.String
@@ -807,6 +836,18 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 	recipients := make([]int64, 0, len(members))
 	for _, m := range members {
 		recipients = append(recipients, m.UserID)
+	}
+
+	// Check if this is a direct conversation and whether sender is blocked
+	if s.queries != nil {
+		convRow, _ := s.queries.GetConversationByID(ctx, pgUUID)
+		if strings.EqualFold(convRow.ConversationType, "direct") {
+			for _, rID := range recipients {
+				if rID != senderID && s.IsBlocked(ctx, senderID, rID) {
+					return nil, common.NewAppError(http.StatusForbidden, common.ErrForbidden, "You cannot send messages to this user because of block settings")
+				}
+			}
+		}
 	}
 
 	// 3. Resolve media & type
@@ -969,7 +1010,7 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 		convTitle = conv.Title
 	}
 
-	// 7. Update conversations_by_user for all members
+	// 7. Update conversations_by_user and increment unread count for other members
 	for _, rID := range recipients {
 		_ = s.queries.UpsertConversationByUser(ctx, db.UpsertConversationByUserParams{
 			UserID:              rID,
@@ -980,9 +1021,16 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 			LastMessageSenderID: pgtype.Int8{Int64: senderID, Valid: true},
 			Title:               convTitle,
 		})
+
+		if rID != senderID {
+			_ = s.queries.IncrementConversationUnread(ctx, db.IncrementConversationUnreadParams{
+				ConversationID: pgUUID,
+				UserID:         rID,
+			})
+		}
 	}
 
-	// 8. Dispatch Push Notification to other members
+	// 8. Dispatch Push Notification to other members (unless blocked)
 	if s.dispatcher != nil {
 		senderTitle := dto.SenderName
 		if senderTitle == "" {
@@ -1000,6 +1048,9 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 
 		for _, rID := range recipients {
 			if rID != senderID {
+				if s.IsBlocked(ctx, senderID, rID) {
+					continue
+				}
 				recID := rID
 				s.dispatcher.Enqueue(fcm.NotificationJob{
 					UserID: &recID,
@@ -1009,6 +1060,7 @@ func (s *Service) SendMessage(ctx context.Context, senderID int64, dto SendMessa
 						"conversationId": dto.ConversationID,
 						"messageId":      generatedMsgUUID.String(),
 						"type":           "NEW_MESSAGE",
+						"thread-id":      dto.ConversationID,
 					},
 				})
 			}
@@ -1454,4 +1506,262 @@ func (s *Service) ApproveJoinRequest(ctx context.Context, conversationID string,
 	})
 
 	return nil
+}
+
+func (s *Service) IsBlocked(ctx context.Context, userA, userB int64) bool {
+	if s.pool == nil || userA == userB {
+		return false
+	}
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM blocked_users
+			WHERE (blocker_id = $1 AND blocked_id = $2)
+			   OR (blocker_id = $2 AND blocked_id = $1)
+		)
+	`, userA, userB).Scan(&exists)
+	if err != nil {
+		return false
+	}
+	return exists
+}
+
+func (s *Service) BlockUser(ctx context.Context, blockerID, blockedID int64, reason string) error {
+	if blockerID == blockedID {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "You cannot block yourself")
+	}
+	if s.pool == nil {
+		return nil
+	}
+	var reasonText pgtype.Text
+	if reason != "" {
+		reasonText = pgtype.Text{String: reason, Valid: true}
+	}
+	err := s.queries.BlockUser(ctx, db.BlockUserParams{
+		BlockerID: blockerID,
+		BlockedID: blockedID,
+		Reason:    reasonText,
+	})
+	if err == nil && s.broadcaster != nil {
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockerID), "user.blocked", map[string]interface{}{
+			"userId":    blockedID,
+			"blockedBy": blockerID,
+		})
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockedID), "user.blocked", map[string]interface{}{
+			"userId":    blockedID,
+			"blockedBy": blockerID,
+		})
+	}
+	return err
+}
+
+func (s *Service) UnblockUser(ctx context.Context, blockerID, blockedID int64) error {
+	if blockerID == blockedID {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid operation")
+	}
+	if s.pool == nil {
+		return nil
+	}
+	err := s.queries.UnblockUser(ctx, db.UnblockUserParams{
+		BlockerID: blockerID,
+		BlockedID: blockedID,
+	})
+	if err == nil && s.broadcaster != nil {
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockerID), "user.unblocked", map[string]interface{}{
+			"userId":      blockedID,
+			"unblockedBy": blockerID,
+		})
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockedID), "user.unblocked", map[string]interface{}{
+			"userId":      blockedID,
+			"unblockedBy": blockerID,
+		})
+	}
+	return err
+}
+
+func (s *Service) MarkConversationAsRead(ctx context.Context, conversationID string, userID int64, messageID *string) error {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	if s.pool == nil {
+		return nil
+	}
+	pgConvUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+
+	var pgMsgUUID pgtype.UUID
+	if messageID != nil && *messageID != "" {
+		if mUUID, err := uuid.Parse(*messageID); err == nil {
+			pgMsgUUID = pgtype.UUID{Bytes: mUUID, Valid: true}
+		}
+	}
+
+	err = s.queries.MarkConversationRead(ctx, db.MarkConversationReadParams{
+		ConversationID:    pgConvUUID,
+		UserID:            userID,
+		LastReadMessageID: pgMsgUUID,
+	})
+	if err == nil && s.broadcaster != nil {
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", userID), "conversation.read", map[string]interface{}{
+			"conversationId": conversationID,
+			"unreadCount":    0,
+		})
+	}
+	return err
+}
+
+func (s *Service) GetUnreadCount(ctx context.Context, conversationID string, userID int64) int {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil || s.pool == nil {
+		return 0
+	}
+	count, err := s.queries.GetConversationUnreadCount(ctx, db.GetConversationUnreadCountParams{
+		ConversationID: pgtype.UUID{Bytes: convUUID, Valid: true},
+		UserID:         userID,
+	})
+	if err != nil {
+		return 0
+	}
+	return int(count)
+}
+
+func (s *Service) DeleteMessage(ctx context.Context, conversationID, messageID string, userID int64, forEveryone bool) error {
+	convUUID, err := uuid.Parse(conversationID)
+	if err != nil {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid conversation UUID")
+	}
+	msgUUID, err := uuid.Parse(messageID)
+	if err != nil {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid message UUID")
+	}
+	if s.pool == nil {
+		return nil
+	}
+	pgConvUUID := pgtype.UUID{Bytes: convUUID, Valid: true}
+	pgMsgUUID := pgtype.UUID{Bytes: msgUUID, Valid: true}
+
+	// 1. Authorize member
+	member, err := s.queries.GetConversationMember(ctx, db.GetConversationMemberParams{
+		ConversationID: pgConvUUID,
+		UserID:         userID,
+	})
+	if err != nil {
+		return common.NewAppError(http.StatusForbidden, common.ErrForbidden, "You are not a member of this conversation")
+	}
+
+	if forEveryone {
+		// Verify requesting user is the sender of the message OR OWNER/ADMIN of group
+		var senderID int64
+		err := s.pool.QueryRow(ctx, `
+			SELECT sender_id FROM messages_by_conversation
+			WHERE conversation_id = $1 AND message_id = $2
+		`, pgConvUUID, pgMsgUUID).Scan(&senderID)
+		if err != nil {
+			return common.NewAppError(http.StatusNotFound, common.ErrNotFound, "Message not found")
+		}
+
+		isSender := (senderID == userID)
+		isAdmin := (member.Role == "OWNER" || member.Role == "ADMIN")
+		if !isSender && !isAdmin {
+			return common.NewAppError(http.StatusForbidden, common.ErrForbidden, "Only the message sender or group admin can delete for everyone")
+		}
+
+		// Delete for everyone
+		err = s.queries.DeleteMessageForEveryone(ctx, db.DeleteMessageForEveryoneParams{
+			ConversationID: pgConvUUID,
+			MessageID:      pgMsgUUID,
+			DeletedBy:      pgtype.Int8{Int64: userID, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+
+		s.recalculateConversationLastMessage(ctx, pgConvUUID)
+		if s.broadcaster != nil {
+			s.broadcaster.BroadcastToRoom("conversation:"+conversationID, "message.deleted", map[string]interface{}{
+				"conversationId": conversationID,
+				"messageId":      messageID,
+				"forEveryone":    true,
+			})
+			latest, errL := s.queries.GetLatestMessageInConversation(ctx, pgConvUUID)
+			var lastMsg map[string]interface{}
+			if errL == nil {
+				lastMsg = map[string]interface{}{
+					"messageId": uuid.UUID(latest.MessageID.Bytes).String(),
+					"content":   latest.Content.String,
+					"type":      latest.MessageType,
+				}
+			}
+			s.broadcaster.BroadcastToRoom("conversation:"+conversationID, "conversation.updated", map[string]interface{}{
+				"conversationId": conversationID,
+				"lastMessage":    lastMsg,
+			})
+		}
+		return nil
+	}
+
+	// Delete for me
+	err = s.queries.DeleteMessageForUser(ctx, db.DeleteMessageForUserParams{
+		ConversationID: pgConvUUID,
+		MessageID:      pgMsgUUID,
+		UserID:         userID,
+	})
+	if err == nil && s.broadcaster != nil {
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", userID), "message.deleted", map[string]interface{}{
+			"conversationId": conversationID,
+			"messageId":      messageID,
+			"forEveryone":    false,
+		})
+	}
+	return err
+}
+
+func (s *Service) recalculateConversationLastMessage(ctx context.Context, convUUID pgtype.UUID) {
+	latest, err := s.queries.GetLatestMessageInConversation(ctx, convUUID)
+	if err != nil {
+		_, _ = s.pool.Exec(ctx, `
+			UPDATE conversations
+			SET last_message_preview = NULL, last_message_id = NULL, last_message_sender_id = NULL
+			WHERE conversation_id = $1
+		`, convUUID)
+		_, _ = s.pool.Exec(ctx, `
+			UPDATE conversations_by_user
+			SET last_message_preview = NULL, last_message_sender_id = NULL
+			WHERE conversation_id = $1
+		`, convUUID)
+		return
+	}
+
+	preview := latest.Content.String
+	if preview == "" && latest.MediaUrl.Valid && latest.MediaUrl.String != "" {
+		preview = formatMediaPreview(latest.MessageType, latest.AttachmentName.String)
+	}
+
+	_, _ = s.pool.Exec(ctx, `
+		UPDATE conversations
+		SET last_message_at = $2, last_message_preview = $3, last_message_id = $4, last_message_sender_id = $5
+		WHERE conversation_id = $1
+	`, convUUID, latest.CreatedAt, preview, latest.MessageID, latest.SenderID)
+
+	_, _ = s.pool.Exec(ctx, `
+		UPDATE conversations_by_user
+		SET last_message_at = $2, last_message_preview = $3, last_message_sender_id = $4
+		WHERE conversation_id = $1
+	`, convUUID, latest.CreatedAt, preview, latest.SenderID)
+}
+
+func formatMediaPreview(msgType, fileName string) string {
+	switch msgType {
+	case "voice":
+		return "[Voice message]"
+	case "image", "photo":
+		return "[Photo]"
+	case "video":
+		return "[Video]"
+	default:
+		if fileName != "" {
+			return "[" + fileName + "]"
+		}
+		return "[Attachment]"
+	}
 }

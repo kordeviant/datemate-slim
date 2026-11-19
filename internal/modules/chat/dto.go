@@ -58,6 +58,15 @@ type ConversationDto struct {
 	Created             *bool              `json:"created,omitempty"`
 	MembersCount        *int               `json:"membersCount,omitempty"`
 	LastUsers           []int64            `json:"lastUsers,omitempty"`
+	UnreadCount         int                `json:"unreadCount"`
+}
+
+type MarkConversationReadPayload struct {
+	MessageID *string `json:"messageId,omitempty"`
+}
+
+type DeleteMessagePayload struct {
+	ForEveryone *bool `json:"forEveryone,omitempty"`
 }
 
 type CreateConversationResponseData struct {

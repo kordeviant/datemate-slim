@@ -61,6 +61,83 @@
         }
       }
     },
+    "conversation.read": {
+      "description": "Client marks conversation as read or server broadcasts reset unreadCount across user active devices.",
+      "publish": {
+        "operationId": "markConversationRead",
+        "summary": "Client marks conversation read",
+        "message": {
+          "$ref": "#/components/messages/ConversationReadRequest"
+        }
+      },
+      "subscribe": {
+        "operationId": "conversationReadSync",
+        "summary": "Server broadcasts unreadCount=0 sync to user personal room",
+        "message": {
+          "$ref": "#/components/messages/ConversationReadSyncEvent"
+        }
+      }
+    },
+    "message.delete": {
+      "description": "Client requests message deletion (for me or for everyone).",
+      "publish": {
+        "operationId": "deleteMessage",
+        "summary": "Delete a chat message",
+        "message": {
+          "$ref": "#/components/messages/DeleteMessageRequest"
+        }
+      }
+    },
+    "message.deleted": {
+      "description": "Dispatched by the server when a message is deleted.",
+      "subscribe": {
+        "operationId": "messageDeletedEvent",
+        "summary": "Broadcast message deletion to room or user",
+        "message": {
+          "$ref": "#/components/messages/MessageDeletedEvent"
+        }
+      }
+    },
+    "user.block": {
+      "description": "Client blocks another user.",
+      "publish": {
+        "operationId": "blockUser",
+        "summary": "Block user over WebSocket",
+        "message": {
+          "$ref": "#/components/messages/BlockUserRequest"
+        }
+      }
+    },
+    "user.unblock": {
+      "description": "Client unblocks another user.",
+      "publish": {
+        "operationId": "unblockUser",
+        "summary": "Unblock user over WebSocket",
+        "message": {
+          "$ref": "#/components/messages/UnblockUserRequest"
+        }
+      }
+    },
+    "user.blocked": {
+      "description": "Dispatched by server when a block is applied.",
+      "subscribe": {
+        "operationId": "userBlockedEvent",
+        "summary": "Notify UI of user block",
+        "message": {
+          "$ref": "#/components/messages/UserBlockedEvent"
+        }
+      }
+    },
+    "user.unblocked": {
+      "description": "Dispatched by server when a block is removed.",
+      "subscribe": {
+        "operationId": "userUnblockedEvent",
+        "summary": "Notify UI of user unblock",
+        "message": {
+          "$ref": "#/components/messages/UserUnblockedEvent"
+        }
+      }
+    },
     "error": {
       "description": "Dispatched by the server to the client socket when an exception or authorization failure occurs.",
       "subscribe": {
@@ -120,6 +197,62 @@
         "summary": "Error envelope emitted when a socket error occurs",
         "payload": {
           "$ref": "#/components/schemas/WsErrorEnvelope"
+        }
+      },
+      "ConversationReadRequest": {
+        "name": "ConversationReadRequest",
+        "title": "Mark Conversation Read Payload",
+        "payload": {
+          "$ref": "#/components/schemas/ConversationReadDto"
+        }
+      },
+      "ConversationReadSyncEvent": {
+        "name": "ConversationReadSyncEvent",
+        "title": "Conversation Read Broadcast",
+        "payload": {
+          "$ref": "#/components/schemas/ConversationReadSyncDto"
+        }
+      },
+      "DeleteMessageRequest": {
+        "name": "DeleteMessageRequest",
+        "title": "Delete Message Payload",
+        "payload": {
+          "$ref": "#/components/schemas/DeleteMessageDto"
+        }
+      },
+      "MessageDeletedEvent": {
+        "name": "MessageDeletedEvent",
+        "title": "Message Deleted Broadcast",
+        "payload": {
+          "$ref": "#/components/schemas/MessageDeletedDto"
+        }
+      },
+      "BlockUserRequest": {
+        "name": "BlockUserRequest",
+        "title": "Block User Payload",
+        "payload": {
+          "$ref": "#/components/schemas/BlockUserDto"
+        }
+      },
+      "UnblockUserRequest": {
+        "name": "UnblockUserRequest",
+        "title": "Unblock User Payload",
+        "payload": {
+          "$ref": "#/components/schemas/UnblockUserDto"
+        }
+      },
+      "UserBlockedEvent": {
+        "name": "UserBlockedEvent",
+        "title": "User Blocked Broadcast",
+        "payload": {
+          "$ref": "#/components/schemas/UserBlockedDto"
+        }
+      },
+      "UserUnblockedEvent": {
+        "name": "UserUnblockedEvent",
+        "title": "User Unblocked Broadcast",
+        "payload": {
+          "$ref": "#/components/schemas/UserUnblockedDto"
         }
       }
     },
@@ -319,6 +452,129 @@
                 "example": "You are not an authorized member of this conversation"
               }
             }
+          }
+        }
+      },
+      "ConversationReadDto": {
+        "type": "object",
+        "required": ["conversationId"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          }
+        }
+      },
+      "ConversationReadSyncDto": {
+        "type": "object",
+        "required": ["conversationId", "unreadCount"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "unreadCount": {
+            "type": "integer",
+            "example": 0
+          }
+        }
+      },
+      "DeleteMessageDto": {
+        "type": "object",
+        "required": ["conversationId", "messageId"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          },
+          "forEveryone": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "MessageDeletedDto": {
+        "type": "object",
+        "required": ["conversationId", "messageId", "forEveryone"],
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "4a71c84f-6f77-4b76-a0bf-9538466b0337"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          },
+          "forEveryone": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "BlockUserDto": {
+        "type": "object",
+        "required": ["userId"],
+        "properties": {
+          "userId": {
+            "type": "integer",
+            "example": 202
+          },
+          "reason": {
+            "type": "string",
+            "example": "Inappropriate messages"
+          }
+        }
+      },
+      "UnblockUserDto": {
+        "type": "object",
+        "required": ["userId"],
+        "properties": {
+          "userId": {
+            "type": "integer",
+            "example": 202
+          }
+        }
+      },
+      "UserBlockedDto": {
+        "type": "object",
+        "required": ["userId", "blockedBy"],
+        "properties": {
+          "userId": {
+            "type": "integer",
+            "example": 202
+          },
+          "blockedBy": {
+            "type": "integer",
+            "example": 101
+          }
+        }
+      },
+      "UserUnblockedDto": {
+        "type": "object",
+        "required": ["userId", "unblockedBy"],
+        "properties": {
+          "userId": {
+            "type": "integer",
+            "example": 202
+          },
+          "unblockedBy": {
+            "type": "integer",
+            "example": 101
           }
         }
       }

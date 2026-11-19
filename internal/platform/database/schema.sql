@@ -537,6 +537,8 @@ CREATE TABLE IF NOT EXISTS "messages_by_conversation" (
     "attachment_name" TEXT,
     "attachment_size" BIGINT,
     "mime_type" TEXT,
+    "deleted_at" TIMESTAMPTZ,
+    "deleted_by" BIGINT,
     PRIMARY KEY ("conversation_id", "bucket", "created_at", "message_id")
 );
 
@@ -637,3 +639,35 @@ CREATE INDEX IF NOT EXISTS "idx_messages_timeline" ON "messages_by_conversation"
 CREATE INDEX IF NOT EXISTS "idx_user_conv_timeline" ON "conversations_by_user" ("user_id", "last_message_at" DESC);
 CREATE INDEX IF NOT EXISTS "idx_conv_members_user" ON "conversation_members" ("user_id");
 CREATE INDEX IF NOT EXISTS "idx_group_rel_group_status" ON "group_relationships_by_group_and_status" ("conversation_id", "status");
+
+-- Blocked Users
+CREATE TABLE IF NOT EXISTS "blocked_users" (
+    "blocker_id" BIGINT NOT NULL,
+    "blocked_id" BIGINT NOT NULL,
+    "reason" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("blocker_id", "blocked_id")
+);
+CREATE INDEX IF NOT EXISTS "idx_blocked_users_blocked" ON "blocked_users" ("blocked_id");
+
+-- Server-side Conversation Unread State
+CREATE TABLE IF NOT EXISTS "conversation_reads" (
+    "conversation_id" UUID NOT NULL REFERENCES "conversations"("conversation_id") ON DELETE CASCADE,
+    "user_id" BIGINT NOT NULL,
+    "last_read_message_id" UUID,
+    "last_read_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "unread_count" INT NOT NULL DEFAULT 0,
+    PRIMARY KEY ("conversation_id", "user_id")
+);
+CREATE INDEX IF NOT EXISTS "idx_conversation_reads_user" ON "conversation_reads" ("user_id");
+
+-- Message Deletions for specific users
+CREATE TABLE IF NOT EXISTS "message_deletions_for_user" (
+    "conversation_id" UUID NOT NULL,
+    "message_id" UUID NOT NULL,
+    "user_id" BIGINT NOT NULL,
+    "deleted_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("message_id", "user_id")
+);
+CREATE INDEX IF NOT EXISTS "idx_msg_del_user_conv" ON "message_deletions_for_user" ("conversation_id", "user_id");
+

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,12 +24,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type Broadcaster interface {
+	BroadcastToRoom(room string, event string, data interface{})
+}
+
 type Service struct {
-	cfg        *config.Config
-	pool       *pgxpool.Pool
-	queries    *db.Queries
-	geoService *geo.Service
-	storage    storage.Engine
+	cfg         *config.Config
+	pool        *pgxpool.Pool
+	queries     *db.Queries
+	geoService  *geo.Service
+	storage     storage.Engine
+	broadcaster Broadcaster
+}
+
+func (s *Service) SetBroadcaster(b Broadcaster) {
+	s.broadcaster = b
 }
 
 func NewService(cfg *config.Config, pool *pgxpool.Pool, geoService *geo.Service, storage storage.Engine) *Service {
@@ -1337,4 +1347,126 @@ func (s *Service) AcceptPrivacy(ctx context.Context, userID int64) (*AcceptPriva
 		PrivacyAcceptedAt: acceptedAt,
 		ProfileCompleted:  prof.Profile.ProfileCompleted,
 	}, nil
+}
+
+func (s *Service) BlockUser(ctx context.Context, blockerID, blockedID int64, reason string) error {
+	if blockerID == blockedID {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "You cannot block yourself")
+	}
+	if s.pool == nil {
+		if s.broadcaster != nil {
+			s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockerID), "user.blocked", map[string]interface{}{
+				"userId":    blockedID,
+				"blockedBy": blockerID,
+			})
+			s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockedID), "user.blocked", map[string]interface{}{
+				"userId":    blockedID,
+				"blockedBy": blockerID,
+			})
+		}
+		return nil
+	}
+	if _, err := s.queries.GetUserByID(ctx, int32(blockedID)); err != nil {
+		return common.NewAppError(http.StatusNotFound, common.ErrNotFound, "User not found")
+	}
+
+	var reasonText pgtype.Text
+	if reason != "" {
+		reasonText = pgtype.Text{String: reason, Valid: true}
+	}
+	err := s.queries.BlockUser(ctx, db.BlockUserParams{
+		BlockerID: blockerID,
+		BlockedID: blockedID,
+		Reason:    reasonText,
+	})
+	if err == nil && s.broadcaster != nil {
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockerID), "user.blocked", map[string]interface{}{
+			"userId":    blockedID,
+			"blockedBy": blockerID,
+		})
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockedID), "user.blocked", map[string]interface{}{
+			"userId":    blockedID,
+			"blockedBy": blockerID,
+		})
+	}
+	return err
+}
+
+func (s *Service) UnblockUser(ctx context.Context, blockerID, blockedID int64) error {
+	if blockerID == blockedID {
+		return common.NewAppError(http.StatusBadRequest, common.ErrBadRequest, "Invalid operation")
+	}
+	if s.pool == nil {
+		if s.broadcaster != nil {
+			s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockerID), "user.unblocked", map[string]interface{}{
+				"userId":      blockedID,
+				"unblockedBy": blockerID,
+			})
+			s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockedID), "user.unblocked", map[string]interface{}{
+				"userId":      blockedID,
+				"unblockedBy": blockerID,
+			})
+		}
+		return nil
+	}
+	err := s.queries.UnblockUser(ctx, db.UnblockUserParams{
+		BlockerID: blockerID,
+		BlockedID: blockedID,
+	})
+	if err == nil && s.broadcaster != nil {
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockerID), "user.unblocked", map[string]interface{}{
+			"userId":      blockedID,
+			"unblockedBy": blockerID,
+		})
+		s.broadcaster.BroadcastToRoom(fmt.Sprintf("user:%d", blockedID), "user.unblocked", map[string]interface{}{
+			"userId":      blockedID,
+			"unblockedBy": blockerID,
+		})
+	}
+	return err
+}
+
+func (s *Service) IsBlocked(ctx context.Context, userA, userB int64) (bool, error) {
+	if userA == userB || s.pool == nil {
+		return false, nil
+	}
+	return s.queries.IsBlockedBothWays(ctx, db.IsBlockedBothWaysParams{
+		BlockerID: userA,
+		BlockedID: userB,
+	})
+}
+
+func (s *Service) ListBlockedUsers(ctx context.Context, blockerID int64) ([]BlockedUserDto, error) {
+	if s.pool == nil {
+		return []BlockedUserDto{}, nil
+	}
+	rows, err := s.queries.ListBlockedUsersByBlocker(ctx, blockerID)
+	if err != nil {
+		return nil, err
+	}
+	list := make([]BlockedUserDto, 0, len(rows))
+	for _, r := range rows {
+		un := ""
+		if r.Username.Valid {
+			un = r.Username.String
+		}
+		fn := ""
+		if r.FirstName.Valid {
+			fn = r.FirstName.String
+		}
+		var picUrl *string
+		if r.ProfilePictureUrl.Valid && r.ProfilePictureUrl.String != "" {
+			u := s.resolveAssetURL(r.ProfilePictureUrl.String)
+			picUrl = &u
+		}
+		list = append(list, BlockedUserDto{
+			ID:                int64(r.ID),
+			Username:          un,
+			FirstName:         fn,
+			ProfilePictureUrl: picUrl,
+			AvatarUrl:         picUrl,
+			BlockedAt:         r.BlockedAt.Time,
+		})
+	}
+	return list, nil
 }

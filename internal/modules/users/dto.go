@@ -1,5 +1,7 @@
 package users
 
+import "time"
+
 type CountryResponseDto struct {
 	ID     *int    `json:"id"`
 	Name   *string `json:"name"`
@@ -196,4 +198,17 @@ type UpdateProfilePayload struct {
 	FavoritesCapital       interface{}             `json:"Favorites,omitempty"`
 	Profile                *UpdateProfileNestedDto `json:"Profile,omitempty"`
 	ProfileLower           *UpdateProfileNestedDto `json:"profile,omitempty"`
+}
+
+type BlockedUserDto struct {
+	ID                int64     `json:"id"`
+	Username          string    `json:"username"`
+	FirstName         string    `json:"firstName"`
+	ProfilePictureUrl *string   `json:"profilePictureUrl,omitempty"`
+	AvatarUrl         *string   `json:"avatarUrl,omitempty"`
+	BlockedAt         time.Time `json:"blockedAt"`
+}
+
+type BlockUserPayload struct {
+	Reason *string `json:"reason,omitempty"`
 }

@@ -432,6 +432,81 @@ interface ResponseResult<T> {
 
 ---
 
+### 3.4 Block a User (Card #69)
+- **Method**: `POST`
+- **Path**: `/v1/users/:userId/block`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Request Body** *(Optional)*:
+  ```json
+  {
+    "reason": "Harassment or inappropriate behavior"
+  }
+  ```
+- **Description**: Blocks the target user. Two-way 1:1 chat messages between the users are immediately disallowed (return `403 Forbidden`), and push notifications are suppressed. Real-time `user.blocked` events are broadcast to both users over WebSocket.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "User blocked successfully",
+    "data": { "userId": 202 }
+  }
+  ```
+- **Error Responses**:
+  - `400 Bad Request`: When attempting to block oneself (`"You cannot block yourself"`).
+  - `401 Unauthorized`: Missing or invalid JWT access token.
+  - `404 Not Found`: Target user does not exist.
+
+---
+
+### 3.5 Unblock a User (Card #69)
+- **Method**: `DELETE`
+- **Path**: `/v1/users/:userId/block`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Description**: Removes the block between the authenticated user and the target user. Real-time `user.unblocked` event is broadcast to both users over WebSocket.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "User unblocked successfully",
+    "data": { "userId": 202 }
+  }
+  ```
+- **Error Responses**:
+  - `400 Bad Request`: Invalid user ID.
+  - `401 Unauthorized`: Missing or invalid JWT access token.
+
+---
+
+### 3.6 List Blocked Users (Card #69)
+- **Method**: `GET`
+- **Path**: `/v1/users/blocked`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Description**: Retrieves all users blocked by the authenticated caller.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Blocked users retrieved",
+    "data": [
+      {
+        "id": 202,
+        "username": "alex_smith",
+        "firstName": "Alex",
+        "profilePictureUrl": "https://dev-datemate.testdevvvv.site/assets/images/alex.webp",
+        "avatarUrl": "https://dev-datemate.testdevvvv.site/assets/images/alex.webp",
+        "blockedAt": "2026-11-18T14:30:00Z"
+      }
+    ]
+  }
+  ```
+- **Error Responses**:
+  - `401 Unauthorized`: Missing or invalid JWT access token.
+
+---
+
 ## 4. System Endpoints
 
 ### 4.1 Health Check
@@ -966,28 +1041,132 @@ Requires `Authorization: Bearer <admin_jwt_token>` with role `ADMIN`.
   }
   ```
 
-### 7.7 Reject Selfie Verification (GAP-4)
-- **Method**: `POST`
-- **Path**: `/v1/admin/verifications/:userId/reject`
-- **Request Body**:
-  ```json
-  {
-    "reason": "Blurry face or does not match profile picture"
-  }
-  ```
-- **Action**: Clears selfie, sets `profileValidated = false`, and sends `NotificationType.PROFILE_VERIFIED` rejection notification.
-- **Response**:
+---
+
+## 8. Chat & Conversations Endpoints (`/v1/conversations`)
+
+### 8.1 List Conversations
+- **Method**: `GET`
+- **Path**: `/v1/conversations` *(aliases: `/v1/conversations/direct`, `/v1/conversations/group`)*
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Description**: Returns paginated list of conversations with the authoritative server-side `unreadCount` and `lastMessage` preview.
+- **Success Response (200 OK)**:
   ```json
   {
     "status": "success",
-    "message": "User selfie verification rejected",
+    "message": "Conversations retrieved",
     "data": {
-      "userId": 101,
-      "profileValidated": false,
-      "reason": "Blurry face or does not match profile picture"
+      "items": [
+        {
+          "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+          "type": "direct",
+          "title": "Sarah Jenkins",
+          "unreadCount": 2,
+          "lastMessage": {
+            "messageId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+            "senderId": 202,
+            "content": "Hey, are you free today?",
+            "type": "text",
+            "createdAt": "2026-11-18T16:20:00Z"
+          }
+        }
+      ],
+      "nextCursor": null,
+      "hasMore": false
     }
   }
   ```
+
+---
+
+### 8.2 Mark Conversation as Read (Card #78)
+- **Method**: `POST`
+- **Path**: `/v1/conversations/:conversationId/read`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Request Body** *(Optional)*:
+  ```json
+  {
+    "messageId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+  }
+  ```
+- **Description**: Resets server-side `unreadCount` to 0 for the calling user. Real-time `conversation.read` event is broadcast across the user's active devices (`user:<userId>`) to synchronize unread counts immediately.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Conversation marked as read",
+    "data": {
+      "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+      "unreadCount": 0
+    }
+  }
+  ```
+
+---
+
+### 8.3 Delete Message (Card #68)
+- **Method**: `DELETE`
+- **Path**: `/v1/conversations/:conversationId/messages/:messageId`
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+- **Query Parameter**: `?forEveryone=true` *(or `false`, default: `false`)*
+- **Or Request Body**:
+  ```json
+  {
+    "forEveryone": true
+  }
+  ```
+- **Description**: Deletes a message.
+  - When `forEveryone: false` ("delete for me"): Hides the message exclusively for the calling user.
+  - When `forEveryone: true` ("delete for everyone"): Soft-deletes the message for all participants. Restricted to the message author or group owner/admin. Updates conversation `lastMessagePreview` in real time.
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Message deleted successfully",
+    "data": {
+      "conversationId": "4a71c84f-6f77-4b76-a0bf-9538466b0337",
+      "messageId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "forEveryone": true
+    }
+  }
+  ```
+- **Error Responses**:
+  - `403 Forbidden`: When a non-sender/non-admin attempts `forEveryone: true` (`"Only the message sender or group admin can delete for everyone"`).
+  - `404 Not Found`: Message does not exist.
+
+---
+
+### 8.4 Chat Media & Attachment Upload
+- **Method**: `POST`
+- **Path**: `/v1/chat/upload` *(alias: `/v1/upload`)*
+- **Headers**:
+  - `Authorization: Bearer <JWT_ACCESS_TOKEN>`
+  - `Content-Type: multipart/form-data`
+- **Form-Data**:
+  - `file` (Binary): The media file (image, voice recording, video, or document).
+  - `type` (String, optional): Category hint (`image`, `voice`, `video`, `file`).
+  - `duration` (Number, optional): Duration in seconds for voice notes and video clips.
+  - `conversationId` (UUID, optional): Target conversation UUID.
+- **Success Response (201 Created)**:
+  ```json
+  {
+    "status": "success",
+    "message": "File uploaded successfully",
+    "data": {
+      "url": "https://dev-datemate.testdevvvv.site/uploads/chat_voice_abc.m4a",
+      "type": "voice",
+      "duration": 14.5,
+      "fileName": "recording.m4a",
+      "storedFileName": "chat_voice_abc.m4a",
+      "fileSize": 45120,
+      "mimeType": "audio/mp4"
+    }
+  }
+  ```
+
 
 
 

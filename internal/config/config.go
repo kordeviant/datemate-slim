@@ -21,9 +21,12 @@ type Config struct {
 	TrustProxy string
 
 	// SMTP & Email
-	SMTPHost string
-	SMTPPort int
-	SMTPFrom string
+	SMTPHost   string
+	SMTPPort   int
+	SMTPUser   string
+	SMTPPass   string
+	SMTPSecure bool
+	SMTPFrom   string
 
 	// Rate Limiting
 	ThrottleTTL       int
@@ -153,9 +156,12 @@ func Load() *Config {
 		AssetBaseURL: assetBaseURL,
 		TrustProxy:   getEnv("TRUST_PROXY", "loopback"),
 
-		SMTPHost: getEnv("SMTP_HOST", "localhost"),
-		SMTPPort: getEnvInt("SMTP_PORT", 1025),
-		SMTPFrom: getEnv("SMTP_FROM", "noreply@datemate.app"),
+		SMTPHost:   getEnv("SMTP_HOST", ""),
+		SMTPPort:   getEnvInt("SMTP_PORT", 587),
+		SMTPUser:   getEnv("SMTP_USER", getEnv("SMTP_USERNAME", getEnv("MAIL_USER", ""))),
+		SMTPPass:   getEnv("SMTP_PASS", getEnv("SMTP_PASSWORD", getEnv("MAIL_PASS", ""))),
+		SMTPSecure: getEnvBool("SMTP_SECURE", false),
+		SMTPFrom:   getEnv("SMTP_FROM", "DateMate <noreply@datemate.app>"),
 
 		ThrottleTTL:       getEnvInt("THROTTLE_TTL", 60000),
 		ThrottleLimit:     getEnvInt("THROTTLE_LIMIT", 120),

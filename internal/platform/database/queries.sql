@@ -678,3 +678,72 @@ UPDATE users SET profile_validated = true, updated_at = CURRENT_TIMESTAMP WHERE 
 
 -- name: RejectUserVerificationAdmin :exec
 UPDATE profiles SET selfie_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1;
+
+-- Blocked Users queries
+-- name: BlockUser :exec
+INSERT INTO blocked_users (blocker_id, blocked_id, reason, created_at)
+VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+ON CONFLICT (blocker_id, blocked_id) DO UPDATE SET reason = EXCLUDED.reason, created_at = CURRENT_TIMESTAMP;
+
+-- name: UnblockUser :exec
+DELETE FROM blocked_users
+WHERE blocker_id = $1 AND blocked_id = $2;
+
+-- name: IsBlockedBothWays :one
+SELECT EXISTS(
+    SELECT 1 FROM blocked_users
+    WHERE (blocker_id = $1 AND blocked_id = $2)
+       OR (blocker_id = $2 AND blocked_id = $1)
+);
+
+-- name: ListBlockedUsersByBlocker :many
+SELECT u.id, p.username, p.first_name, p.profile_picture_url, b.created_at AS blocked_at
+FROM blocked_users b
+JOIN users u ON u.id = b.blocked_id
+LEFT JOIN profiles p ON p.user_id = u.id
+WHERE b.blocker_id = $1
+ORDER BY b.created_at DESC;
+
+-- Conversation Reads & Unread Count queries
+-- name: IncrementConversationUnread :exec
+INSERT INTO conversation_reads (conversation_id, user_id, unread_count, last_read_at)
+VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
+ON CONFLICT (conversation_id, user_id)
+DO UPDATE SET unread_count = conversation_reads.unread_count + 1;
+
+-- name: MarkConversationRead :exec
+INSERT INTO conversation_reads (conversation_id, user_id, last_read_message_id, last_read_at, unread_count)
+VALUES ($1, $2, $3, CURRENT_TIMESTAMP, 0)
+ON CONFLICT (conversation_id, user_id)
+DO UPDATE SET
+    last_read_message_id = COALESCE($3, conversation_reads.last_read_message_id),
+    last_read_at = CURRENT_TIMESTAMP,
+    unread_count = 0;
+
+-- name: GetConversationUnreadCount :one
+SELECT COALESCE(unread_count, 0)::int
+FROM conversation_reads
+WHERE conversation_id = $1 AND user_id = $2;
+
+-- Message Deletion queries
+-- name: DeleteMessageForEveryone :exec
+UPDATE messages_by_conversation
+SET deleted_at = CURRENT_TIMESTAMP, deleted_by = $3, content = ''
+WHERE conversation_id = $1 AND message_id = $2;
+
+-- name: DeleteMessageForUser :exec
+INSERT INTO message_deletions_for_user (conversation_id, message_id, user_id, deleted_at)
+VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+ON CONFLICT (message_id, user_id) DO NOTHING;
+
+-- name: ListDeletedMessageIDsForUser :many
+SELECT message_id
+FROM message_deletions_for_user
+WHERE conversation_id = $1 AND user_id = $2;
+
+-- name: GetLatestMessageInConversation :one
+SELECT * FROM messages_by_conversation
+WHERE conversation_id = $1 AND deleted_at IS NULL
+ORDER BY created_at DESC, message_id ASC
+LIMIT 1;
+

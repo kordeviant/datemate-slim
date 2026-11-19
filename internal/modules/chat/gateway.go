@@ -64,7 +64,22 @@ func NewGateway(
 
 	gw.attachNamespaceHandlers(chatNsp)
 	gw.attachNamespaceHandlers(ioServer.Sockets())
+	if svc != nil {
+		svc.SetBroadcaster(gw)
+	}
 	return gw
+}
+
+func (gw *Gateway) BroadcastToRoom(room string, event string, data interface{}) {
+	if gw == nil {
+		return
+	}
+	if gw.chatNsp != nil {
+		gw.chatNsp.To(socket.Room(room)).Emit(event, data)
+	}
+	if gw.ioServer != nil {
+		gw.ioServer.Sockets().To(socket.Room(room)).Emit(event, data)
+	}
 }
 
 func (gw *Gateway) ServeHandler() http.Handler {
@@ -582,5 +597,274 @@ func (gw *Gateway) attachNamespaceHandlers(nsp socket.Namespace) {
 				}}, nil)
 			}
 		})
+
+		// On conversation.read / message.read
+		handleRead := func(eArgs ...any) {
+			var ack socket.Ack
+			var convID string
+			var msgID *string
+
+			for _, a := range eArgs {
+				if fn, ok := a.(socket.Ack); ok {
+					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					if id, ok := m["conversationId"].(string); ok && id != "" {
+						convID = id
+					} else if id, ok := m["id"].(string); ok && id != "" {
+						convID = id
+					} else if id, ok := m["conversation_id"].(string); ok && id != "" {
+						convID = id
+					}
+					if mID, ok := m["messageId"].(string); ok && mID != "" {
+						msgID = &mID
+					} else if mID, ok := m["message_id"].(string); ok && mID != "" {
+						msgID = &mID
+					}
+				}
+			}
+
+			if convID == "" {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": "conversationId is required",
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": "conversationId is required"},
+					}}, nil)
+				}
+				return
+			}
+
+			ctx := context.Background()
+			err := gw.svc.MarkConversationAsRead(ctx, convID, userData.UserID, msgID)
+			if err != nil {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": err.Error(),
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": err.Error()},
+					}}, nil)
+				}
+				return
+			}
+
+			if ack != nil {
+				ack([]any{map[string]interface{}{
+					"success": true,
+					"status":  "success",
+					"message": "Conversation marked as read",
+					"data": map[string]interface{}{
+						"conversationId": convID,
+						"unreadCount":    0,
+					},
+					"error": nil,
+				}}, nil)
+			}
+		}
+		s.On("conversation.read", handleRead)
+		s.On("conversation:read", handleRead)
+		s.On("message.read", handleRead)
+		s.On("message:read", handleRead)
+
+		// On message.delete
+		handleDelete := func(eArgs ...any) {
+			var ack socket.Ack
+			var convID string
+			var msgID string
+			var forEveryone bool
+
+			for _, a := range eArgs {
+				if fn, ok := a.(socket.Ack); ok {
+					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					if id, ok := m["conversationId"].(string); ok && id != "" {
+						convID = id
+					} else if id, ok := m["conversation_id"].(string); ok && id != "" {
+						convID = id
+					}
+					if id, ok := m["messageId"].(string); ok && id != "" {
+						msgID = id
+					} else if id, ok := m["message_id"].(string); ok && id != "" {
+						msgID = id
+					}
+					if fe, ok := m["forEveryone"].(bool); ok {
+						forEveryone = fe
+					} else if fe, ok := m["for_everyone"].(bool); ok {
+						forEveryone = fe
+					}
+				}
+			}
+
+			if convID == "" || msgID == "" {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": "conversationId and messageId are required",
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": "conversationId and messageId are required"},
+					}}, nil)
+				}
+				return
+			}
+
+			ctx := context.Background()
+			err := gw.svc.DeleteMessage(ctx, convID, msgID, userData.UserID, forEveryone)
+			if err != nil {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": err.Error(),
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": err.Error()},
+					}}, nil)
+				}
+				return
+			}
+
+			if ack != nil {
+				ack([]any{map[string]interface{}{
+					"success": true,
+					"status":  "success",
+					"message": "Message deleted successfully",
+					"data": map[string]interface{}{
+						"conversationId": convID,
+						"messageId":      msgID,
+						"forEveryone":    forEveryone,
+					},
+					"error": nil,
+				}}, nil)
+			}
+		}
+		s.On("message.delete", handleDelete)
+		s.On("message:delete", handleDelete)
+
+		// On user.block
+		handleBlock := func(eArgs ...any) {
+			var ack socket.Ack
+			var targetUserID int64
+			var reason string
+
+			for _, a := range eArgs {
+				if fn, ok := a.(socket.Ack); ok {
+					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					if idF, ok := m["userId"].(float64); ok {
+						targetUserID = int64(idF)
+					} else if idF, ok := m["targetUserId"].(float64); ok {
+						targetUserID = int64(idF)
+					}
+					if rStr, ok := m["reason"].(string); ok {
+						reason = rStr
+					}
+				}
+			}
+
+			if targetUserID == 0 {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": "userId is required",
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": "userId is required"},
+					}}, nil)
+				}
+				return
+			}
+
+			ctx := context.Background()
+			err := gw.svc.BlockUser(ctx, userData.UserID, targetUserID, reason)
+			if err != nil {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": err.Error(),
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": err.Error()},
+					}}, nil)
+				}
+				return
+			}
+
+			if ack != nil {
+				ack([]any{map[string]interface{}{
+					"success": true,
+					"status":  "success",
+					"message": "User blocked successfully",
+					"data": map[string]interface{}{
+						"userId": targetUserID,
+					},
+					"error": nil,
+				}}, nil)
+			}
+		}
+		s.On("user.block", handleBlock)
+		s.On("user:block", handleBlock)
+
+		// On user.unblock
+		handleUnblock := func(eArgs ...any) {
+			var ack socket.Ack
+			var targetUserID int64
+
+			for _, a := range eArgs {
+				if fn, ok := a.(socket.Ack); ok {
+					ack = fn
+				} else if fn, ok := a.(func([]any, error)); ok {
+					ack = fn
+				} else if m, ok := a.(map[string]interface{}); ok {
+					if idF, ok := m["userId"].(float64); ok {
+						targetUserID = int64(idF)
+					} else if idF, ok := m["targetUserId"].(float64); ok {
+						targetUserID = int64(idF)
+					}
+				}
+			}
+
+			if targetUserID == 0 {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": "userId is required",
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": "userId is required"},
+					}}, nil)
+				}
+				return
+			}
+
+			ctx := context.Background()
+			err := gw.svc.UnblockUser(ctx, userData.UserID, targetUserID)
+			if err != nil {
+				if ack != nil {
+					ack([]any{map[string]interface{}{
+						"success": false,
+						"status":  "error",
+						"message": err.Error(),
+						"error":   map[string]string{"type": "BAD_REQUEST", "message": err.Error()},
+					}}, nil)
+				}
+				return
+			}
+
+			if ack != nil {
+				ack([]any{map[string]interface{}{
+					"success": true,
+					"status":  "success",
+					"message": "User unblocked successfully",
+					"data": map[string]interface{}{
+						"userId": targetUserID,
+					},
+					"error": nil,
+				}}, nil)
+			}
+		}
+		s.On("user.unblock", handleUnblock)
+		s.On("user:unblock", handleUnblock)
 	})
 }

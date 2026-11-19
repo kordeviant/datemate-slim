@@ -55,6 +55,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 				pr.Get("/profile", h.CheckProfileStatus)
 				pr.Put("/profile", h.UpdateProfile)
 				pr.Post("/profile", h.UpdateProfile)
+				pr.Get("/blocked", h.ListBlockedUsers)
+				pr.Post("/{id}/block", h.BlockUser)
+				pr.Delete("/{id}/block", h.UnblockUser)
 				pr.Get("/avatars/{ids}", h.GetBulkAvatars)
 				pr.Get("/{id}/avatar", h.GetUserAvatar)
 				pr.Get("/{id}", h.GetUserProfile)
@@ -74,6 +77,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 			ur.Put("/profile", h.UpdateProfile)
 			ur.Post("/profile", h.UpdateProfile)
 			ur.Post("/bulk", h.GetBulkUsers)
+			ur.Get("/blocked", h.ListBlockedUsers)
+			ur.Post("/{id}/block", h.BlockUser)
+			ur.Delete("/{id}/block", h.UnblockUser)
 			ur.Get("/avatars/{ids}", h.GetBulkAvatars)
 			ur.Get("/{id}/avatar", h.GetUserAvatar)
 			ur.Get("/{id}", h.GetUserProfile)
@@ -505,4 +511,60 @@ func (h *Handler) GetUserAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.RespondSuccess(w, http.StatusOK, "User avatar retrieved successfully", res)
+}
+
+func (h *Handler) BlockUser(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	idStr := chi.URLParam(r, "id")
+	targetID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || targetID <= 0 {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	var payload BlockUserPayload
+	_ = json.NewDecoder(r.Body).Decode(&payload)
+	reason := ""
+	if payload.Reason != nil {
+		reason = *payload.Reason
+	}
+
+	if err := h.svc.BlockUser(r.Context(), u.ID, targetID, reason); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "User blocked successfully", map[string]interface{}{
+		"blockedId": targetID,
+	})
+}
+
+func (h *Handler) UnblockUser(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	idStr := chi.URLParam(r, "id")
+	targetID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || targetID <= 0 {
+		common.RespondError(w, http.StatusBadRequest, "Invalid user ID", common.ErrBadRequest)
+		return
+	}
+
+	if err := h.svc.UnblockUser(r.Context(), u.ID, targetID); err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "User unblocked successfully", map[string]interface{}{
+		"unblockedId": targetID,
+	})
+}
+
+func (h *Handler) ListBlockedUsers(w http.ResponseWriter, r *http.Request) {
+	u, _ := middleware.GetAuthUser(r.Context())
+	list, err := h.svc.ListBlockedUsers(r.Context(), u.ID)
+	if err != nil {
+		common.RespondAppError(w, err)
+		return
+	}
+
+	common.RespondSuccess(w, http.StatusOK, "Blocked users retrieved successfully", list)
 }

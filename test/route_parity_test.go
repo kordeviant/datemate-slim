@@ -97,6 +97,9 @@ var allRouteEndpoints = []struct {
 	{"GET", "/users/1/device-token"},
 	{"GET", "/users/1/avatar"},
 	{"GET", "/users/avatars/1,2"},
+	{"POST", "/users/1/block"},
+	{"DELETE", "/users/1/block"},
+	{"GET", "/users/blocked"},
 
 	// Admin
 	{"GET", "/admin/dashboard/stats"},
@@ -141,6 +144,8 @@ var allRouteEndpoints = []struct {
 	{"POST", "/conversations/groups"},
 	{"GET", "/conversations/1"},
 	{"GET", "/conversations/1/messages"},
+	{"POST", "/conversations/1/read"},
+	{"DELETE", "/conversations/1/messages/1"},
 	{"GET", "/groups"},
 	{"GET", "/groups/1"},
 	{"POST", "/groups"},
